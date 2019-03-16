@@ -2,7 +2,7 @@
 <img src="https://raw.githubusercontent.com/Harry7557558/Ray-Tracing/master/RT005.png" alt="" />
 
 Ray-tracing, without using any third-party libraries. <br/>
-A image of this large requires about 20 seconds and 20M memories. (4 threads, Intel(R) Core(TM) i7-8550U CPU @ 1.80GHz, Windows 10 home)
+A image of this large (1920x1080) requires about 20 seconds and 20M memories. (4 threads, Intel(R) Core(TM) i7-8550U CPU @ 1.80GHz, Windows 10 home)
 
 Core sources are in "Object.h", other source files are debugging and very messy. <br/>
 Support intersection of vector planes, triangles, parallelograms, spheres, circles, and cylinders. <br/>

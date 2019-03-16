@@ -4,7 +4,7 @@
 Ray-tracing, without using any third-party libraries. <br/>
 A image of this large requires about 20 seconds and 20M memories. (4 threads, Intel(R) Core(TM) i7-8550U CPU @ 1.80GHz, Windows 10 home)
 
-Core sources are in "Object.h", other source files are debugging. <br/>
+Core sources are in "Object.h", other source files are debugging and very messy. <br/>
 Support intersection of vector planes, triangles, parallelograms, spheres, circles, and cylinders. <br/>
 Temporary don't support diffuse reflection and refraction. 
 
@@ -22,8 +22,8 @@ The first and the second consists of over 400,000 triangles. Each needs 16-20s b
 
 The third and fourth image are vector. Each requires less than 2 seconds and less than 2M memories; 
 
-The last one is complex Γ function. Some details were not very well, because my computer don't have that much memories for that much triangles.  :-(
+The last one is complex Γ function. Some details were not very well, because my computer don't have that much memories for that much triangles.   :-(
 
-I had done a lot of optimization in CPU usage. I used to spent more than 20 minutes to render an object consists of 6000 triangles. Now, I can do it in 5 seconds. But it requires 4 times of memory. 
+I had done a lot of optimization in CPU usage. I used to spend more than 20 minutes to render an object consists of 6000 triangles. Now, I can do it in 5 seconds. But it requires 4 times of memories. 
 
 More images are in "Image/comment.zip". 

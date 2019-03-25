@@ -18,15 +18,14 @@ Some result images: <br/>
 <img src="https://raw.githubusercontent.com/Harry7557558/Ray-Tracing/Image/RayTracing_5.c.png" width="420px" height="280px" alt="" />
 <img src="https://raw.githubusercontent.com/Harry7557558/Ray-Tracing/Image/%CE%93.png" width="420px" height="420px" alt="" />
 
-The first and the second consists of over 400,000 triangles. Each needs 16-20s but more than 1.6G memories; (Since mutex lock don't work well in that kind of situation, I have to copy data of all 400,000 objects for 4 threads)
+The rings goes through the most wonderful optimization I have ever made. <br/>
+<pre>CPU:     44min => 5.4s
+Memory:  1.26GB => 56MB</pre>
 
 The third and fourth image are vector. Each requires less than 2 seconds and less than 2M memories; 
 
 The last one is complex Γ function. Some details are not very well, because my computer don't have that much memories for more triangles.   :-(
 
-The ring goes through the most wonderful optimization I have ever made. <br/>
-<pre>CPU:     44min => 5.4s
-Memory:  1.26GB => 56MB</pre>
 
 Theoretically CPU usage is O(log²(n)) (worst: O(n)) and memory is O(n) 
 

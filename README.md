@@ -24,6 +24,10 @@ The third and fourth image are vector. Each requires less than 2 seconds and les
 
 The last one is complex Γ function. Some details are not very well, because my computer don't have that much memories for more triangles.   :-(
 
-I had done a lot of optimization in CPU usage. I used to spend more than 20 minutes to render an object consists of 6000 triangles. Now, I can do it in 5 seconds, but it requires 4 times of memories. (theoretically CPU usage is O(log²(n)) and memory is O(n) )
+The ring goes through the most wonderful optimization I have ever made. <br/>
+<pre>CPU:     44min => 5.4s
+Memory:  1.26GB => 56MB</pre>
+
+Theoretically CPU usage is O(log²(n)) (worst: O(n)) and memory is O(n) 
 
 More images are in "Image/comment.zip". 

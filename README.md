@@ -17,6 +17,7 @@ Some result images: <br/>
 <img src="https://raw.githubusercontent.com/Harry7557558/Ray-Tracing/Image/RayTracing_4.e.png" width="420px" height="280px" alt="" />
 <img src="https://raw.githubusercontent.com/Harry7557558/Ray-Tracing/Image/RayTracing_5.c.png" width="420px" height="280px" alt="" />
 <img src="https://raw.githubusercontent.com/Harry7557558/Ray-Tracing/Image/%CE%93.png" width="420px" height="420px" alt="" />
+<img src="https://raw.githubusercontent.com/Harry7557558/Ray-Tracing/master/%CE%9301.png" width="420px" height="420px" alt="" />
 
 The rings goes through the most wonderful optimization I have ever made. <br/>
 <pre>CPU:     44min => 5.4s
@@ -24,7 +25,7 @@ Memory:  1.26GB => 56MB</pre>
 
 The third and fourth image are vector. Each requires less than 2 seconds and less than 2M memories; 
 
-The last one is complex Γ function. Some details are not very well, because my computer don't have that much memories for more triangles.   :-(
+The last two are complex <a href="https://en.wikipedia.org/wiki/Gamma_function" target="_blank">Γ function</a>. Some details are not very well, because my computer don't have that much memories for more triangles.   :-(
 
 
 Theoretically CPU usage is O(log²(n)) (worst: O(n)) and memory is O(n) 

@@ -48,6 +48,15 @@ Trace refraction with [Fresnel Equations](https://en.wikipedia.org/wiki/Fresnel_
 
 Reference: [https://graphics.stanford.edu/courses/cs148-10-summer/docs/2006--degreve--reflection_refraction.pdf](https://graphics.stanford.edu/courses/cs148-10-summer/docs/2006--degreve--reflection_refraction.pdf)
 
+Initial test: 
+
+![_](crystal_ball.jpg)
+
+Different refractive index (Fresnel equations applied): 
+
+n=1.2 ![_](water1.2.jpg)
+
+n=1.5 ![_](water1.5.jpg)
 
 
 

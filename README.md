@@ -48,17 +48,17 @@ Trace refraction with [Fresnel Equations](https://en.wikipedia.org/wiki/Fresnel_
 
 Reference: [https://graphics.stanford.edu/courses/cs148-10-summer/docs/2006--degreve--reflection_refraction.pdf](https://graphics.stanford.edu/courses/cs148-10-summer/docs/2006--degreve--reflection_refraction.pdf)
 
-Initial test: 
+__Initial test__: 
 
 ![_](crystal_ball.jpg)
 
-Different refractive index (Fresnel equations applied): 
+__Different refractive index__ (Fresnel equations applied): 
 
 ![_](water1.2.jpg) <br/>n=1.2
 
 ![_](water1.5.jpg) <br/>n=1.5
 
-Insert a bitmap to create a scene: 
+__Insert a bitmap to create a scene__: 
 
 ![_](scene_1.jpg) <br/>
 (Image source: capture of 3D animation film Moana, 16:20)

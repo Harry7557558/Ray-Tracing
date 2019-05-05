@@ -2,19 +2,21 @@
 
 ![ ](Cover.jpg)
 
-Ray-tracing, without using any third-party libraries.
+**Ray-tracing, without using any third-party libraries.
 
-An image of this large (1920x1080) requires about 20 seconds and 20M memories. (4 threads, Intel(R) Core(TM) i7-8550U CPU @ 1.80GHz, Windows 10 home)
+An image of this large (1920x1080) requires about 20 seconds and 20M memories. _(4 threads, Intel(R) Core(TM) i7-8550U CPU @ 1.80GHz, Windows 10 home)
 
 All vector objects and intersection algorithms are in [Object.h](Object.h).
 
 Rendering core sources are in [World.h](World.h).
 
-View [Test.cpp](Test.cpp) for sources of given images. 
+View [Test.cpp](Test.cpp) for sources of given images.
 
-Support intersections of vector planes, triangles, parallelograms, spheres, circles, and cylinders; refraction of planes and spheres; 
+Some sources are still debugging. (2019.5.5)
 
-Comparison of non-rendered and rendered images: 
+Support intersections of vector planes, triangles, parallelograms, spheres, circles, and cylinders; refraction of planes and spheres;
+
+Comparison of non-rendered and rendered images:
 
 ![ ](compare.png)
 
@@ -48,11 +50,11 @@ Trace refraction with [Fresnel Equations](https://en.wikipedia.org/wiki/Fresnel_
 
 Reference: [https://graphics.stanford.edu/courses/cs148-10-summer/docs/2006--degreve--reflection_refraction.pdf](https://graphics.stanford.edu/courses/cs148-10-summer/docs/2006--degreve--reflection_refraction.pdf)
 
-__Initial test__: 
+__Applying Fresnel Equations and Beer-Lambert Law__: 
 
 ![_](crystal_ball.jpg)
 
-__Different refractive index__ (Fresnel equations applied): 
+__Different refractive index__: 
 
 ![_](water1.2.jpg) <br/>n=1.2
 
@@ -63,8 +65,8 @@ __Insert a bitmap to create a scene__:
 ![_](scene_1.jpg) <br/>
 (Image source: capture of 3D animation film _Moana_, 16:20)
 
-
-
+In this picture, the bitmap stands on the water, and a specular-reflecting plane is placed beneath the water. Global light source is behind the camera. 
+Fresnel calculation between different medias is still debugging. 
 
 
 

@@ -11,25 +11,30 @@ All vector objects and intersection algorithms are in [Object.h](Object.h).
 Support intersections of vector planes, triangles, parallelograms, spheres, circles, and cylinders; refraction of planes and spheres; 
 
 Comparison of non-rendered and rendered images: 
+
 ![ ](compare.png)
 
-Some result images: <br/>
-<img src="https://raw.githubusercontent.com/Harry7557558/Ray-Tracing/Image/RayTracing_3.f.05%2B.png" width="420px" height="280px" alt="" />
-<img src="https://raw.githubusercontent.com/Harry7557558/Ray-Tracing/Image/RayTracing_3.f.02%2B.png" width="420px" height="280px" alt="" />
-<img src="https://raw.githubusercontent.com/Harry7557558/Ray-Tracing/Image/RayTracing_4.e.png" width="420px" height="280px" alt="" />
-<img src="https://raw.githubusercontent.com/Harry7557558/Ray-Tracing/Image/RayTracing_5.c.png" width="420px" height="280px" alt="" />
-<img src="https://raw.githubusercontent.com/Harry7557558/Ray-Tracing/Image/%CE%93.png" width="420px" height="420px" alt="" />
-<img src="https://raw.githubusercontent.com/Harry7557558/Ray-Tracing/master/%CE%9301.png" width="420px" height="420px" alt="" />
+
+
+# Triangles
+
+Creating shapes with millions of triangles, although it may be low efficiency. 
+
+![_](ring1.jpg)
+![_](ring2.jpg)
 
 The rings goes through the most wonderful optimization I have ever made. <br/>
 <pre>CPU:     44min => 5.4s
 Memory:  1.26GB => 56MB</pre>
 
-The third and fourth image are vector. Each requires less than 2 seconds and less than 2M memories; 
+![_](Γ.jpg)
 
-The last two are complex <a href="https://en.wikipedia.org/wiki/Gamma_function" target="_blank">Γ function</a>. Some details are not very well, because my computer don't have that much memories for more triangles.   :-(
+This picture shows <a href="https://en.wikipedia.org/wiki/Gamma_function" target="_blank">Γ function</a> on complex plane. It consists of 1,600,000 triangles. It requires about 20 seconds and about 200M memories to render. 
+
+![_](beads.jpg)
+![_](pyramid.jpg)
+
+This two pictures are vector spheres and cylindars, each requires less than 1 seconds and less than 1M memories. 
 
 
-Theoretically CPU usage is O(log²(n)) (worst: O(n)) and memory is O(n) 
 
-More images are in "Image/comment.zip". 

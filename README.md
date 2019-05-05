@@ -54,9 +54,15 @@ Initial test:
 
 Different refractive index (Fresnel equations applied): 
 
-n=1.2 ![_](water1.2.jpg)
+![_](water1.2.jpg) <br/>n=1.2
 
-n=1.5 ![_](water1.5.jpg)
+![_](water1.5.jpg) <br/>n=1.5
+
+Insert a bitmap to create a scene: 
+
+![_](scene1.jpg) <br/>
+(Image source: capture of 3D animation film Moana, 16:20)
+
 
 
 

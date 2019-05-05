@@ -61,7 +61,7 @@ __Different refractive index__ (Fresnel equations applied):
 __Insert a bitmap to create a scene__: 
 
 ![_](scene_1.jpg) <br/>
-(Image source: capture of 3D animation film Moana, 16:20)
+(Image source: capture of 3D animation film _Moana_, 16:20)
 
 
 

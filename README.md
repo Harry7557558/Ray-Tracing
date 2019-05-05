@@ -1,10 +1,12 @@
 # Ray-Tracing
-<img src="https://raw.githubusercontent.com/Harry7557558/Ray-Tracing/master/RT005.png" alt="" />
 
-Ray-tracing, without using any third-party libraries. <br/>
+![ ](RT005.png)
+
+Ray-tracing, without using any third-party libraries.
+
 An image of this large (1920x1080) requires about 20 seconds and 20M memories. (4 threads, Intel(R) Core(TM) i7-8550U CPU @ 1.80GHz, Windows 10 home)
 
-Core sources are in "Object.h", other source files are debugging and quite messy. <br/>
+Core sources are in [Object.h](Object.h), other source files are debugging and quite messy. <br/>
 Support intersections of vector planes, triangles, parallelograms, spheres, circles, and cylinders. <br/>
 Temporary don't support diffuse reflection and refraction. 
 

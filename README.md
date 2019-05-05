@@ -60,7 +60,7 @@ Different refractive index (Fresnel equations applied):
 
 Insert a bitmap to create a scene: 
 
-![_](scene1.jpg) <br/>
+![_](scene_1.jpg) <br/>
 (Image source: capture of 3D animation film Moana, 16:20)
 
 

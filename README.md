@@ -6,12 +6,12 @@ Ray-tracing, without using any third-party libraries.
 
 An image of this large (1920x1080) requires about 20 seconds and 20M memories. (4 threads, Intel(R) Core(TM) i7-8550U CPU @ 1.80GHz, Windows 10 home)
 
-Core sources are in [Object.h](Object.h), other source files are debugging and quite messy. <br/>
-Support intersections of vector planes, triangles, parallelograms, spheres, circles, and cylinders. <br/>
-Temporary don't support diffuse reflection and refraction. 
+All vector objects and intersection algorithms are in [Object.h](Object.h).
+
+Support intersections of vector planes, triangles, parallelograms, spheres, circles, and cylinders; refraction of planes and spheres; 
 
 Comparison of non-rendered and rendered images: 
-<img src="https://raw.githubusercontent.com/Harry7557558/Ray-Tracing/master/compare.png" alt="" />
+![ ](compare.png)
 
 Some result images: <br/>
 <img src="https://raw.githubusercontent.com/Harry7557558/Ray-Tracing/Image/RayTracing_3.f.05%2B.png" width="420px" height="280px" alt="" />

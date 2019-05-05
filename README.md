@@ -2,9 +2,9 @@
 
 ![ ](Cover.jpg)
 
-**Ray-tracing, without using any third-party libraries.
+**Ray-tracing, without using any third-party libraries. **
 
-An image of this large (1920x1080) requires about 20 seconds and 20M memories. _(4 threads, Intel(R) Core(TM) i7-8550U CPU @ 1.80GHz, Windows 10 home)
+An image of this large (1920x1080) requires about 20 seconds and 20M memories. _(4 threads, Intel(R) Core(TM) i7-8550U CPU @ 1.80GHz, Windows 10 home)_
 
 All vector objects and intersection algorithms are in [Object.h](Object.h).
 
@@ -12,7 +12,7 @@ Rendering core sources are in [World.h](World.h).
 
 View [Test.cpp](Test.cpp) for sources of given images.
 
-Some sources are still debugging. (2019.5.5)
+**Some sources are still debugging. (2019.5.5)**
 
 Support intersections of vector planes, triangles, parallelograms, spheres, circles, and cylinders; refraction of planes and spheres;
 

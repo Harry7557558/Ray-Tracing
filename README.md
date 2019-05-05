@@ -8,6 +8,10 @@ An image of this large (1920x1080) requires about 20 seconds and 20M memories. (
 
 All vector objects and intersection algorithms are in [Object.h](Object.h).
 
+Rendering core sources are in [World.h](World.h).
+
+View [Test.cpp](Test.cpp) for sources of given images. 
+
 Support intersections of vector planes, triangles, parallelograms, spheres, circles, and cylinders; refraction of planes and spheres; 
 
 Comparison of non-rendered and rendered images: 
@@ -35,6 +39,18 @@ This picture shows <a href="https://en.wikipedia.org/wiki/Gamma_function" target
 ![_](pyramid.jpg)
 
 This two pictures are vector spheres and cylindars, each requires less than 1 seconds and less than 1M memories. 
+
+
+
+# Refraction
+
+Trace refraction with [Fresnel Equations](https://en.wikipedia.org/wiki/Fresnel_equations) and [Beer-Lambert Law](https://en.wikipedia.org/wiki/Beer%E2%80%93Lambert_law). 
+
+Reference: [https://graphics.stanford.edu/courses/cs148-10-summer/docs/2006--degreve--reflection_refraction.pdf](https://graphics.stanford.edu/courses/cs148-10-summer/docs/2006--degreve--reflection_refraction.pdf)
+
+
+
+
 
 
 

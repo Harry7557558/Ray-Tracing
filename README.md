@@ -1,6 +1,6 @@
 # Ray-Tracing
 
-![ ](RT005.png)
+![ ](cover.png)
 
 Ray-tracing, without using any third-party libraries.
 

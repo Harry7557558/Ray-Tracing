@@ -512,6 +512,7 @@ void Render_CTest01() {
 	}
 }
 
+// sphere-water test
 void Render_CTest02() {
 	World W;
 	plane P(-1); P.setcolor(LightSkyBlue); W.add(&P);
@@ -540,32 +541,37 @@ void Render_CTest02() {
 	img.out("IMAGE\\RT.bmp");
 }
 
+// sphere-word test and Moana scene
 void Render_CTest03() {
 	World W1, W2;
 	plane_grid P1(0); W1.add(&P1);
 
-	bitmap_inc WT(bitmap("D:\\Coding\\AboutPhysics\\RayTracing\\RayTracing\\IMAGE\\WT.bmp"), point(0, 0, 1), point(4, 0), point(0, 1), insertType::center | insertType::proportion);
+	bitmap_inc WT(bitmap("D:\\Coding\\AboutPhysics\\RayTracing\\RayTracing\\IMAGE\\WT.bmp"), point(0, 0, ERR_ZETA), point(4, 0), point(0, 1), insertType::center | insertType::proportion);
 	W1.add(&WT);
+	// screenshot: <i style="margin:50px;font-family:impact;font-size:128px;color:black;">Ray-Tracing</i>
 
-	sphere3D S1(point(0, 0, 0), 2); S1.setAttCof(0.5, 0.1, 0.2); S1.setIndex(1.1); //W1.add(&S1);
+	sphere3D S1(point(0, 0, 20), 2); S1.setAttCof(0.5, 0.1, 0.2); S1.setIndex(1.1); W1.add(&S1);
 
 	bitmap img(600, 400);
 	W1.setGlobalLightSource(0, 0, 1);
-	W1.render(img, point(0, 0, 100), point(0, 0, 0), 0, 0.02);
-	img.out("IMAGE\\RT.bmp");
+	for (string i = "00"; i[0] < '3'; i[1]++) {
+		S1.C.z = (i[0] - '0') * 10 + i[1] - '0';
+		W1.render(img, point(0, 0, 100), point(0, 0, 0), 0, 0.01);
+		img.out("IMAGE\\T\\RT" + i + ".bmp");
+		if (i[1] == '9') i[0]++, i[1] = '0' - 1;
+	}
 	return;
 
 	bitmap_inc BM(bitmap("D:\\Coding\\AboutImage\\ColorAnalysisTest\\2DFitting\\Origin\\SK01.bmp"), point(0, 0, 0), point(19.1, 0, 0), point(0, 0, 8)); W2.add(&BM);
 	// capture from 3D animation film Moana, 16:20, a girl standing on the rock and staring at the sea
 
-	S1.setIndex(1.5); W2.add(&S1);
+	S1.C = point(0, 0, 0), S1.r = 2; S1.setIndex(1.5); W2.add(&S1);
 	sphere3D S2(point(8, -5, 4), 2); S2.setAttCof(0.5, 0.1, 0.2); S2.setIndex(1.5); W2.add(&S2);
 	plane_grid P2(-2, 2); W2.add(&P2);
 	WaterSurface PW(0, 1.33); PW.setAttCof(0.54, 0.05, 0.02); W2.add(&PW);
 	img = bitmap(8000, 3500);
 	W2.setGlobalLightSource(0, -1, 1);
-	//W2.render(img, point(0, -100, 40), point(8, 0, 2.4), 0, 0.04);
-	//img.out("IMAGE\\RT.bmp");
+	W2.render(img, point(0, -100, 40), point(8, 0, 2.4), 0, 0.04); img.out("IMAGE\\RT.bmp");	// it would be a very wonderful picture
 
 	return;
 

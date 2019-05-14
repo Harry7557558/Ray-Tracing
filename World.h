@@ -213,7 +213,7 @@ public:
 	double RayTracing(const ray &v, rgblight &c, const double count, const int n) const {
 		if (count < 0.004 || n > 20) { c = rgblight(1, 1, 1); return INFINITY; }
 		if (isnan(count)) { c = rgblight(NAN, NAN, NAN); return NAN; }
-		for (int i = 0; i < n; i++) fout << " ";
+		//for (int i = 0; i < n; i++) fout << " ";
 
 		//for (int i = 0; i < n; i++) fout << "    "; fout << fixed << setprecision(3) << count << "\t" << defaultfloat << v << endl;
 
@@ -225,7 +225,7 @@ public:
 		RayTracing_EnumObjs(v, ni, no, nt);
 
 		if (no == 0) {
-			fout << v << endl;
+			//fout << v << endl;
 			double ang = dot(N, v.dir);
 			if (ang <= 0) {
 				c = background; return INFINITY;
@@ -238,7 +238,7 @@ public:
 			c = rgblight(NAN, NAN, NAN); return NAN;
 		}
 		else {
-			fout << ray(v.orig, ni.intrs - v.orig) << endl;
+			//fout << ray(v.orig, ni.intrs - v.orig) << endl;
 			// Meet
 			switch (no->telltype() >> 16) {
 			case 0: {	// surface
@@ -264,7 +264,7 @@ public:
 
 					const unsigned TMM = 4;
 					point Ni;
-					double tn = count * ((objectSF_dif*)no)->reflect.vsl()/* / TMM*/;
+					double tn = count * ((objectSF_dif*)no)->reflect.vsl();
 					if (n >= 2 && tn > 0.00401) tn = 0.00401;
 					for (int i = 0; i < TMM; i++) {
 						Ni = ni.reflect; ((objectSF_dif*)no)->rotate_vec(Ni);
@@ -354,7 +354,7 @@ public:
 				c = CalcRGB(beg, oi);
 				//*➤*/ t1 = NTime::now(); fs = t1 - t0;
 				if (isnan(c.r) || isnan(c.g) || isnan(c.b)) {
-					// Most NAN occurs due to 0/0 in calculating the reflection of triangle or parallwlogram. 
+					// Most NAN occurs due to 0/0 in calculating the reflection of triangle or parallelogram. 
 					if (j != begh && i != begw && j + 1 != endh) canvas[j][i] = rgb((rgblight(canvas[j - 1][i]) + rgblight(canvas[j][i - 1])) / 3
 						+ (rgblight(canvas[j - 1][i - 1]) + rgblight(canvas[j + 1][i - 1])) / 6);
 					else if (j == begh && j + 1 != endh) canvas[j][i] = rgb(rgblight(canvas[j][i - 1]) * (2.0 / 3) + rgblight(canvas[j + 1][i - 1]) / 3);
@@ -449,7 +449,7 @@ public:
 		ray beg; beg.orig = C;
 		rgblight c;
 		fsec fs;
-#ifdef DEBUG
+#ifndef DEBUG
 		const int STEP = 8;
 		vector<double> attempt; attempt.resize(canvas.width() / STEP);
 		double u, v;
@@ -515,9 +515,9 @@ public:
 
 
 		// Debug single pixel
-		int debugx = 350, debugy = 220, RP = 0;
+		int debugx = 245, debugy = 222, RP = 0;
 		this->MultiThread_CC(canvas, debugx, debugx + 1, debugy, debugy + 1, C, CV, oi, RP);
-		canvas.dot(debugx + 1, debugy, Red); canvas.dot(debugx - 1, debugy, Red); canvas.dot(debugx, debugy + 1, Red); canvas.dot(debugx, debugy - 1, Red);
+		//canvas.dot(debugx + 1, debugy, Red); canvas.dot(debugx - 1, debugy, Red); canvas.dot(debugx, debugy + 1, Red); canvas.dot(debugx, debugy - 1, Red);
 
 	}
 

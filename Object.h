@@ -1000,7 +1000,7 @@ public:
 		if (t < ERR_EPSILON) return;
 		R.meet = 1;
 		R.dist = t * a.dir.mod();
-		R.intrs = (1 - R.ut - R.vt)*O + R.ut * A + R.vt * B;
+		R.intrs = O + R.ut * A + R.vt * B;
 		point ON = O - R.intrs;
 		point OA = ON + A, OB = ON + B;
 		ON = cross(OA, OB);

@@ -6,9 +6,9 @@
 #include <vector>
 #include <initializer_list>
 
-#define ERR_EPSILON 1e-6	// minimum distance of intersection
+#define ERR_EPSILON 1e-8	// minimum distance of intersection
 #define ERR_UPSILON 1e+12
-#define ERR_ZETA 1e-4	// minumum distance of SDF test, may cause threads jointing problems when too large
+#define ERR_ZETA 1e-6	// minumum distance of SDF test, may cause threads jointing problems when too large
 
 
 /* object parent class */
@@ -225,8 +225,7 @@ public:
 		R.meet = 1;
 		R.dist = t * a.dir.mod();
 		R.intrs = (1 - u - v)*A + u * B + v * C;
-		point OB = B - R.intrs, OC = C - R.intrs;
-		point ON = cross(OB, OC);
+		point ON = cross(E1, E2);
 		ON *= dot(a.dir, ON) / dot(ON, ON);
 		R.reflect = a.dir - 2 * ON;
 		return;
@@ -307,8 +306,7 @@ public:
 		R.meet = 1;
 		R.dist = t * a.dir.mod();
 		R.intrs = (1 - u - v)*O + u * A + v * B;
-		point OA = A - R.intrs, OB = B - R.intrs;	// Ps. Sometimes OA∥OB and 0/0=NAN occurs.
-		point ON = cross(OA, OB);
+		point ON = cross(E1, E2);
 		ON *= dot(a.dir, ON) / dot(ON, ON);
 		R.reflect = a.dir - 2 * ON;
 		return;
@@ -766,6 +764,19 @@ inline double randnor0(double variance) {
 	return 1.41421356237309504876 * erfinv0(RAND_LCG_DV - 1) * variance;
 }
 
+void rotate_normal(point &N) {
+	double m = N.mod();
+	double x = acos(N.z / m), z = atan2(N.x, -N.y);
+	RAND_LCG_DV = fmod(RAND_LCG_DV * RAND_LCG_TMS + RAND_LCG_ADD, PI);
+	double rx = RAND_LCG_DV - PI / 2;
+	RAND_LCG_DV = fmod(RAND_LCG_DV * RAND_LCG_TMS + RAND_LCG_ADD, 2 * PI);
+	double rz = RAND_LCG_DV;
+	double nx = m * sin(rx)*sin(rz), ny = -m * sin(rx)*cos(rz), nz = m * cos(rx);
+	N.x = cos(z)*nx - cos(x)*sin(z)*ny + sin(x)*sin(z)*nz;
+	N.y = sin(z)*nx + cos(x)*cos(z)*ny - sin(x)*cos(z)*nz;
+	N.z = sin(x)*ny + cos(x)*nz;
+}
+
 #endif
 
 /* Opacity surface with diffuse reflection */
@@ -780,6 +791,8 @@ public:
 
 	// random rotate a vector, for rendering diffuse reflection
 	inline void rotate_vec(point &a) {
+		return;
+
 		double sx, sy, sz, cx, cy, cz;
 		//sx = randnor(0, difvar); sy = randnor(0, difvar); sz = randnor(0, difvar);
 		sx = randnor_0(difvar); sy = randnor_0(difvar); sz = randnor_0(difvar);
@@ -854,12 +867,135 @@ public:
 		if (t < ERR_EPSILON || t > ERR_UPSILON) return;
 		R.intrs = t * a.dir + a.orig;
 		R.dist = t * a.dir.mod();
-		R.reflect = 2 * (-dot(a.dir, N) / dot(N, N)) * N + a.dir;
+		//R.reflect = 2 * (-dot(a.dir, N) / dot(N, N)) * N + a.dir;
+		R.reflect = (-dot(a.dir, N) / dot(N, N)) * N;
 		R.meet = 1;
 		return;
 	}
 
 	int telltype() const { return Plane_Dif_Sign; }
+};
+
+#define Parallelogram_Dif_Sign 0x00000101
+class parallelogram_dif :public objectSF_dif {
+public:
+	point O, A, B;
+	parallelogram_dif() {}
+	parallelogram_dif(const parallelogram& a) {
+		reflect = a.reflect;
+		A = a.A, B = a.B, O = a.O;
+	}
+	parallelogram_dif(const parallelogram_dif& a) {
+		reflect = a.reflect;
+		A = a.A, B = a.B, O = a.O;
+	}
+	parallelogram_dif(const point &O, const point &A, const point &B) {
+		this->O = O, this->A = O + A, this->B = O + B;
+	}
+	parallelogram_dif(const point &O, const point &A, const point &B, bool absolute) {
+		this->O = O, this->A = A, this->B = B;
+		if (!absolute) this->A += O, this->B += O;
+	}
+	parallelogram_dif(const initializer_list<double> &O, const initializer_list<double> &A, const initializer_list<double> &B) {
+		this->O = O, this->A = A, this->B = B;
+		this->A += O, this->B += O;
+	}
+	~parallelogram_dif() {}
+	void meet(intersect &R, const ray &a) {
+		R.meet = 0;
+		point E1 = A - O, E2 = B - O, T, P = cross(a.dir, E2), Q;
+		double det = dot(E1, P);
+		if (abs(det) < ERR_EPSILON) return;
+		T = a.orig - O;
+		double t, u, v;
+		u = dot(T, P) / det;
+		if (u < 0.0 || u > 1.0) return;
+		Q = cross(T, E1);
+		v = dot(a.dir, Q) / det;
+		if (v < 0.0 || v > 1.0) return;
+		t = dot(E2, Q) / det;
+		if (t < ERR_EPSILON) return;
+		R.meet = 1;
+		R.dist = t * a.dir.mod();
+		R.intrs = (1 - u - v)*O + u * A + v * B;
+		point ON = cross(E1, E2);
+		ON *= -dot(a.dir, ON) / dot(ON, ON);
+		//R.reflect = a.dir + 2 * ON;
+		R.reflect = ON;
+		return;
+	}
+	inline point Max() {
+		return point(max({ O.x, A.x, B.x, A.x + B.x - O.x }),
+			max({ O.y, A.y, B.y, A.y + B.y - O.y }), max({ O.y, A.y, B.y,A.y + B.y - O.y }));
+	}
+	inline point Min() {
+		return point(min({ O.x, A.x, B.x, A.x + B.x - O.x }),
+			min({ O.y, A.y, B.y, A.y + B.y - O.y }), min({ O.y, A.y, B.y,A.y + B.y - O.y }));
+	}
+
+	friend ostream& operator << (ostream& os, const parallelogram_dif &a) {
+		os << "Surface(" << noshowpos << a.O.x << "*(1-u-v)" << showpos << a.A.x << "*u" << showpos << a.B.x << "*v" << ", "
+			<< noshowpos << a.O.y << "*(1-u-v)" << showpos << a.A.y << "*u" << showpos << a.B.y << "*v" << ", "
+			<< noshowpos << a.O.z << "*(1-u-v)" << showpos << a.A.z << "*u" << showpos << a.B.z << "*v" << ", "
+			<< "u, 0, 1, v, 0, 1)" << noshowpos;
+		return os;
+	}
+	int telltype() const { return Parallelogram_Dif_Sign; }
+};
+
+#define Triangle_Dif_Sign 0x00000102
+class triangle_dif :public objectSF_dif {
+public:
+	point A, B, C;
+	triangle_dif() {}
+	triangle_dif(const triangle& a) {
+		reflect = a.reflect;
+		A = a.A, B = a.B, C = a.C;
+	}
+	triangle_dif(const triangle_dif& a) {
+		reflect = a.reflect;
+		A = a.A, B = a.B, C = a.C;
+	}
+	triangle_dif(const point &A, const point &B, const point &C) {
+		this->A = A, this->B = B, this->C = C;
+	}
+	triangle_dif(const initializer_list<double> &A, const initializer_list<double> &B, const initializer_list<double> &C) {
+		this->A = A, this->B = B, this->C = C;
+	}
+	~triangle_dif() {}
+	void meet(intersect &R, const ray &a) {
+		// Algorithm: http://www.graphics.cornell.edu/pubs/1997/MT97.pdf
+		R.meet = 0;
+		point E1 = B - A, E2 = C - A, T, P = cross(a.dir, E2), Q;
+		double det = dot(E1, P);
+		if (abs(det) < ERR_EPSILON) return;
+		T = a.orig - A;
+		double t, u, v;
+		u = dot(T, P) / det;
+		if (u < 0.0 || u > 1.0) return;
+		Q = cross(T, E1);
+		v = dot(a.dir, Q) / det;
+		if (v < 0.0 || u + v > 1.0) return;
+		t = dot(E2, Q) / det;
+		if (t < ERR_EPSILON) return;
+		R.meet = 1;
+		R.dist = t * a.dir.mod();
+		R.intrs = (1 - u - v)*A + u * B + v * C;
+		point ON = cross(E1, E2);
+		ON *= -dot(a.dir, ON) / dot(ON, ON);
+		R.reflect = ON;
+		return;
+	}
+	inline point Max() { return point(max({ A.x, B.x, C.x }), max({ A.y, B.y, C.y }), max({ A.z, B.z, C.z })); }
+	inline point Min() { return point(min({ A.x, B.x, C.x }), min({ A.y, B.y, C.y }), min({ A.z, B.z, C.z })); }
+	inline void operator += (const point &a) {
+		A += a, B += a, C += a;
+	}
+	friend ostream& operator << (ostream& os, const triangle_dif &a) {
+		os << "Polyline(" << a.A << "," << a.B << "," << a.C << "," << a.A << ")";
+		return os;
+	}
+	int telltype() const { return Triangle_Dif_Sign; }
 };
 
 #endif

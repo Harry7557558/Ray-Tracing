@@ -123,8 +123,9 @@ void Render_GTest01() {
 
 
 	WaterSurface water(20); water.setAttCof(0.54, 0.05, 0.02); water.setIndex(1.2); G6.add(&water);
+	G6.Render_Sampling = 3;
 
-	bitmap canvas(600, 400);
+	bitmap canvas(1200, 800);
 	G6.render(canvas, point(500, 200, 300), point(0, 0, 0), 0, 0.01);
 	canvas.out("IMAGE\\RT.bmp");
 }
@@ -586,6 +587,7 @@ void Render_CTest03() {
 	}
 }
 
+
 void Render_LTest01() {
 	World W;
 	spherebulb L(point(0, 0, 3), 0.8, rgblight(1, 1, 2)); W.add(&L);
@@ -595,6 +597,7 @@ void Render_LTest01() {
 	plane_dif P(-1); P.setcolor(LightBlue); P.setvar(0.1); W.add(&P);
 	rectbulb Pr0(point(-4, -4, 0), point(1, 0, 0), point(0, 1, 0)); Pr0.setcolor(LightBlue); //W.add(&Pr0);
 	vector<rectbulb> Pr;
+	W.Render_Sampling = 8;
 	for (int i = 0; i < 8; i++) {
 		for (int j = 0; j < 8; j++) {
 			Pr0.setcolor((i + j) & 1 ? LightBlue : Gray);
@@ -603,8 +606,8 @@ void Render_LTest01() {
 		}
 		Pr0 += point(1, -8, 0);
 	}
-	//for (int i = 0; i < Pr.size(); i++) W.add(&Pr.at(i));
-	for (int i = 0; i < 2; i++) W.add(&Pr.at(i));
+	for (int i = 0; i < Pr.size(); i++) W.add(&Pr.at(i));
+	//for (int i = 0; i < 2; i++) W.add(&Pr.at(i));
 	//W.setGlobalLightSource(PI / 2, 0);
 
 	bitmap canvas(600, 400);
@@ -622,13 +625,50 @@ void Render_LTest02() {
 	plane_dif Bk(point(-6, 0, 0), point(1, 0, 0)); Bk.setcolor(LightGray); Bk.setvar(0.1);
 	sphere S1(point(0, 2, 1), 1); S1.setcolor(Gray);
 	sphere S2(point(4, -1, 0.6), 0.6); S2.setcolor(Gray);
-	spherebulb Lb(point(0, 0, 4.2), 1); Lb.setcolor(White);
+	spherebulb Lb(point(0, 0, 4.2), 1); Lb.setcolor(White); Lb.setcolor(rgblight(2, 2, 2));
 	W.add({ &B, &T, &L, &R, &Bk, &S1, &S2, &Lb });
 	//W.setGlobalLightSource(PI / 2, 0);
 
 	bitmap canvas(600, 400);
+	W.Render_Sampling = 8;
 	W.render(canvas, point(12, 0, 1), point(0, 0, 1), 0, 0.6);
 	canvas.out("IMAGE\\RT.bmp");
 }
 
+void Render_LTest03() {
+	World W;
 
+	point P1[7] = { point(0,0), point(0,4), point(1.2,4), point(2,3.2), point(2,0), point(0,0), point(0,4) };
+	parallelogram_dif P[5], B[5];
+	for (int i = 0; i < 5; i++) {
+		P[i] = parallelogram(P1[i], P1[i + 1] - P1[i], point(0, 0, -1));
+		B[i] = parallelogram(P1[i + 1], ERR_UPSILON*(P1[i + 2] - P1[i + 1]), ERR_UPSILON*(P1[i + 1] - P1[i]));
+		P[i].setcolor(SeaShell), B[i].setcolor(SeaGreen);
+		W.add(&P[i]); W.add(&B[i]);
+	}
+
+	point KP[5] = { point(2.8,1), point(2.8,2.8), point(3.2,2.8), point(3.2,1), point(2.8,1) };
+	parallelogram_dif K[4], K1, K2;
+	for (int i = 0; i < 4; i++) {
+		K[i] = parallelogram(KP[i], KP[i + 1] - KP[i], point(0, 0, 0.24));
+		K[i].setcolor(Brown);
+		W.add(&K[i]);
+	}
+	K1 = parallelogram(KP[0], KP[1], 0.5*(KP[0] + KP[3]) + point(0, 0, 0.08), 1) + point(0, 0, 0.24); K1.setcolor(Brown); W.add(&K1);
+	K2 = parallelogram(KP[3], KP[2], 0.5*(KP[0] + KP[3]) + point(0, 0, 0.08), 1) + point(0, 0, 0.24); K2.setcolor(Brown); W.add(&K2);
+	triangle_dif T1(0.5*(KP[0] + KP[3]) + point(0, 0, 0.08), KP[0], KP[3]); T1 += point(0, 0, 0.24); T1.setcolor(Brown); W.add(&T1);
+	triangle_dif T2(0.5*(KP[1] + KP[2]) + point(0, 0, 0.08), KP[1], KP[2]); T2 += point(0, 0, 0.24); T2.setcolor(Brown); W.add(&T2);
+
+	plane_dif F(-1); F.setcolor(LightGray); W.add(&F);
+	WaterSurface WF(-0.1); WF.setAttCof(0.54, 0.05, 0.02); WF.setIndex(1.33); W.add(&WF);
+
+	//sphere S1(0.5*(P1[2] + P1[3]) + point(0, 0, -1), 0.08); S1.setcolor(Red); W.add(&S1);
+
+	W.setGlobalLightSource(0.2, 0.2, 1);
+	W.Render_Sampling = 8;
+
+
+	bitmap canvas(600, 400);
+	W.render(canvas, point(-1, -3, 4), point(1.8, 1.8, 0), 0, 0.6);
+	canvas.out("IMAGE\\RT.bmp");
+}

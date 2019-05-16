@@ -211,7 +211,7 @@ public:
 
 	// Calculate the result rgb color with a giving ray
 	double RayTracing(const ray &v, rgblight &c, const double count, const int n) const {
-		if (count < 0.004 || n > 20) { c = rgblight(1, 1, 1); return INFINITY; }
+		if (count < 0.001 || n > 30) { c = rgblight(1, 1, 1); return INFINITY; }
 		if (isnan(count)) { c = rgblight(NAN, NAN, NAN); return NAN; }
 		//for (int i = 0; i < n; i++) fout << " ";
 
@@ -260,17 +260,11 @@ public:
 					break;*/
 				}
 				case 1: {	// diffuse reflection, opacity
-					cout << "Note that diffuse reflection is stale. \a\n"; system("pause"); exit(0);
-
-					const unsigned TMM = 4;
-					point Ni;
-					double tn = count * ((objectSF_dif*)no)->reflect.vsl();
-					if (n >= 2 && tn > 0.00401) tn = 0.00401;
-					for (int i = 0; i < TMM; i++) {
-						Ni = ni.reflect; ((objectSF_dif*)no)->rotate_vec(Ni);
-						//c += RayTracing(ray(ni.intrs, Ni), tn, n + 1) / TMM;
-					}
-					c.r *= ((objectSF*)no)->reflect.r, c.g *= ((objectSF*)no)->reflect.g, c.b *= ((objectSF*)no)->reflect.b;
+					point Ni = ni.reflect;
+					//((objectSF_dif*)no)->rotate_vec(Ni);
+					rotate_normal(Ni);
+					RayTracing(ray(ni.intrs, Ni), c, count * ((objectSF_dif*)no)->reflect.vsl(), n + 1);
+					c.r *= ((objectSF_dif*)no)->reflect.r, c.g *= ((objectSF_dif*)no)->reflect.g, c.b *= ((objectSF_dif*)no)->reflect.b;
 					break;
 				}
 				case 2: {	// surface with color
@@ -343,34 +337,45 @@ public:
 		ray beg;
 		beg.orig = W;
 		double u, v;
-		rgblight c;
+		rgblight c, s;
 		//*➤*/ auto t0 = NTime::now(); auto t1 = NTime::now(); fsec fs = t1 - t0; pixel* p; double a;
-		for (int i = begw; i < endw; i++) {
-			for (int j = begh; j < endh; j++) {
-				u = double(i) / canvas.width(), v = double(j) / canvas.height();
-				beg.orig = W;	// necessary
-				beg.dir = (1 - u - v)*sc.O + u * sc.A + v * sc.B - beg.orig;
-				//*➤*/ t0 = NTime::now();
-				c = CalcRGB(beg, oi);
-				//*➤*/ t1 = NTime::now(); fs = t1 - t0;
-				if (isnan(c.r) || isnan(c.g) || isnan(c.b)) {
-					// Most NAN occurs due to 0/0 in calculating the reflection of triangle or parallelogram. 
+
+		unsigned NP;
+		for (unsigned i = begw; i < endw; i++) {
+			for (unsigned j = begh; j < endh; j++) {
+				NP = 0;
+				s.r = s.g = s.b = 0;
+				for (unsigned m = 0; m < Render_Sampling; m++) {
+					for (unsigned n = 0; n < Render_Sampling; n++) {
+						u = (i + double(m) / Render_Sampling) / canvas.width(), v = (j + double(n) / Render_Sampling) / canvas.height();
+						beg.orig = W;	// necessary
+						beg.dir = (1 - u - v)*sc.O + u * sc.A + v * sc.B - beg.orig;
+						//*➤*/ t0 = NTime::now();
+						c = CalcRGB(beg, oi);
+						//*➤*/ t1 = NTime::now(); fs = t1 - t0;
+						if (!(isnan(c.r) || isnan(c.g) || isnan(c.b))) {
+							s += c;
+							NP++;
+						}
+					}
+				}
+				if (NP != 0) c = s / NP;
+				else {
 					if (j != begh && i != begw && j + 1 != endh) canvas[j][i] = rgb((rgblight(canvas[j - 1][i]) + rgblight(canvas[j][i - 1])) / 3
 						+ (rgblight(canvas[j - 1][i - 1]) + rgblight(canvas[j + 1][i - 1])) / 6);
-					else if (j == begh && j + 1 != endh) canvas[j][i] = rgb(rgblight(canvas[j][i - 1]) * (2.0 / 3) + rgblight(canvas[j + 1][i - 1]) / 3);
+					else if (j == begh && j + 1 != endh) canvas[j][i] = rgb(rgblight(canvas[j][i - 1])*0.666667 + rgblight(canvas[j + 1][i - 1]) / 3);
 					else if (i == begw && j != begh) canvas[j][i] = canvas[j - 1][i];
 					else;
 				}
-				else {
-					if (c.r >= 1) c.r = 0.9999; if (c.g >= 1) c.g = 0.9999; if (c.b >= 1) c.b = 0.9999;
-					//c.r = sqrt(1 - (c.r - 1)*(c.r - 1)), c.g = sqrt(1 - (c.g - 1)*(c.g - 1)), c.b = sqrt(1 - (c.b - 1)*(c.b - 1));	// Make it lighter
-					canvas.dot(i, j, drgb(c.r, c.g, c.b));
-					//c *= 2; canvas.dot(i, j, drgb(1 - exp(-c.r), 1 - exp(-c.g), 1 - exp(-c.b)));
-					//canvas.dot(i, j, drgb(tanh(c.r), tanh(c.g), tanh(c.b)));
 
-					//*➤*/ p = canvas[j] + i; p->r = p->b = 0, p->g /= 2; a = (tanh(log2(fs.count() * 10000)) + 1) / 2; canvas.dot(i, j, drgb(a, 0, 0), 1 - a);
-					//*➤*/ if (i == begw || i == endw - 1 || j == begh || j == begh - 1) canvas.dot(i, j, color(Yellow));
-				}
+				if (c.r >= 1) c.r = 0.9999; if (c.g >= 1) c.g = 0.9999; if (c.b >= 1) c.b = 0.9999;
+				//c.r = sqrt(1 - (c.r - 1)*(c.r - 1)), c.g = sqrt(1 - (c.g - 1)*(c.g - 1)), c.b = sqrt(1 - (c.b - 1)*(c.b - 1));	// Make it lighter
+				canvas.dot(i, j, drgb(c.r, c.g, c.b));
+				//c *= 2; canvas.dot(i, j, drgb(1 - exp(-c.r), 1 - exp(-c.g), 1 - exp(-c.b)));
+				//canvas.dot(i, j, drgb(tanh(c.r), tanh(c.g), tanh(c.b)));
+
+				//*➤*/ p = canvas[j] + i; p->r = p->b = 0, p->g /= 2; a = (tanh(log2(fs.count() * 10000)) + 1) / 2; canvas.dot(i, j, drgb(a, 0, 0), 1 - a);
+				//*➤*/ if (i == begw || i == endw - 1 || j == begh || j == begh - 1) canvas.dot(i, j, color(Yellow));
 				RenderingProcess++;
 			}
 		}
@@ -386,6 +391,7 @@ public:
 		rt          rotation of screen of camera
 		sr          solid angle which the camera watches the canvas
 	*/
+	static unsigned Render_Sampling;
 	inline double rf_SR(double w, double r, double t) const {
 		// calculate solid angle with given parameters, for somehow use
 		double h = t * w;
@@ -441,13 +447,13 @@ public:
 
 		this->resize();
 		object3D* oi = Render_CheckContaining(C);
-		
+
 
 		cout << "\nAttempting...";
 
 		// calculate pixels allocates to each thread
 		ray beg; beg.orig = C;
-		rgblight c;
+		rgblight c, s;
 		fsec fs;
 #ifndef DEBUG
 		const int STEP = 8;
@@ -459,9 +465,19 @@ public:
 		for (int i = 0; i < canvas.width(); i += STEP) {
 			t0 = NTime::now();
 			for (int j = 0; j < canvas.height(); j += STEP) {
-				u = double(i) / canvas.width(), v = double(j) / canvas.height();
-				beg.dir = (1 - u - v) * CV.O + u * CV.A + v * CV.B - beg.orig;
-				c = CalcRGB(beg, oi);
+				unsigned NP = 0; s.r = s.g = s.b = 0;
+				for (unsigned m = 0; m < Render_Sampling; m++) {
+					for (unsigned n = 0; n < Render_Sampling; n++) {
+						u = (i + double(m) / Render_Sampling) / canvas.width(), v = (j + double(n) / Render_Sampling) / canvas.height();
+						beg.orig = C;
+						beg.dir = (1 - u - v) * CV.O + u * CV.A + v * CV.B - beg.orig;
+						c = CalcRGB(beg, oi);
+						if (!(isnan(c.r) || isnan(c.g) || isnan(c.b))) {
+							s += c;
+							NP++;
+						}
+					}
+				}
 				canvas.dot(i, j, rgb(c));
 				//cout << "* ";
 			}
@@ -527,5 +543,7 @@ public:
 		return os;
 	}
 };
+
+unsigned World::Render_Sampling = 1;
 
 // https://zhuanlan.zhihu.com/p/41269520

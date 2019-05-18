@@ -44,6 +44,7 @@ public:
 	/* return the type of an object, undefined is -1 */
 	virtual int telltype() const { cout << "\aobject::telltype is called. This function should never be called. \n"; return Object_Sign; }
 	friend ostream& operator << (ostream& os, const object &a);
+	virtual void print(ostream& os) const { os << "Object Parent Class"; }
 };
 
 
@@ -65,6 +66,7 @@ public:
 	void setcolor(const rgblight &c) { reflect = c; }
 	void setcolor(const unsigned &hex) { reflect = pixel(hex); }
 
+	void print(ostream& os) const { os << "objectSF parent class"; }
 };
 
 /* infinite large plain */
@@ -172,12 +174,11 @@ public:
 		return;
 	}
 
-	friend ostream& operator << (ostream& os, const plane &a) {
-		if (abs(a.N.x) > ERR_EPSILON) os << a.N.x << "*x";
-		if (abs(a.N.y) > ERR_EPSILON) os << showpos << a.N.y << "*y";
-		if (abs(a.N.z) > ERR_EPSILON) os << showpos << a.N.z << "*z";
-		os << "=" << noshowpos << a.D;
-		return os;
+	void print(ostream& os) const {
+		if (abs(N.x) > ERR_EPSILON) os << N.x << "*x";
+		if (abs(N.y) > ERR_EPSILON) os << showpos << N.y << "*y";
+		if (abs(N.z) > ERR_EPSILON) os << showpos << N.z << "*z";
+		os << "=" << noshowpos << D;
 	}
 	int telltype() const { return Plane_Sign; }
 };
@@ -255,11 +256,11 @@ public:
 	inline void operator += (const point &a) {
 		A += a, B += a, C += a;
 	}
-	friend ostream& operator << (ostream& os, const triangle &a) {
-		/*os << "(" << a.A.x << "," << a.A.y << "," << a.A.z << "), ("
-			<< a.B.x << "," << a.B.y << "," << a.B.z << "), (" << a.C.x << "," << a.C.y << "," << a.C.z << ")";*/
-		os << "Polyline(" << a.A << "," << a.B << "," << a.C << "," << a.A << ")";
-		return os;
+	void print(ostream& os) const {
+		os << "Surface(if(u+v<1," << noshowpos << A.x << "*(1-u-v)" << showpos << B.x << "*u" << showpos << C.x << "*v" << "), "
+			<< noshowpos << A.y << "*(1-u-v)" << showpos << B.y << "*u" << showpos << C.y << "*v" << ", "
+			<< noshowpos << A.z << "*(1-u-v)" << showpos << B.z << "*u" << showpos << C.z << "*v" << ", "
+			<< "u, 0, 1, v, 0, 1)" << noshowpos;
 	}
 	int telltype() const { return Triangle_Sign; }
 };
@@ -342,16 +343,11 @@ public:
 	inline void operator += (const point &a) {
 		A += a, B += a, O += a;
 	}
-	friend ostream& operator << (ostream& os, const parallelogram &a) {
-		/*os << "(" << a.O.x << "," << a.O.y << "," << a.O.z << ") -> ("
-			<< a.A.x << "," << a.A.y << "," << a.A.z << "), (" << a.B.x << "," << a.B.y << "," << a.B.z << "), end = ("
-			<< (a.A.x + a.B.x - a.O.x) << "," << (a.A.y + a.B.y - a.O.y) << "," << (a.A.z + a.B.z - a.O.z) << ")";*/
-			//os << "Polyline(" << a.O << "," << a.A << "," << (a.A + a.B - a.O) << "," << a.B << "," << a.O << ")";
-		os << "Surface(" << noshowpos << a.O.x << "*(1-u-v)" << showpos << a.A.x << "*u" << showpos << a.B.x << "*v" << ", "
-			<< noshowpos << a.O.y << "*(1-u-v)" << showpos << a.A.y << "*u" << showpos << a.B.y << "*v" << ", "
-			<< noshowpos << a.O.z << "*(1-u-v)" << showpos << a.A.z << "*u" << showpos << a.B.z << "*v" << ", "
+	void print(ostream& os) const {
+		os << "Surface(" << noshowpos << O.x << "*(1-u-v)" << showpos << A.x << "*u" << showpos << B.x << "*v" << ", "
+			<< noshowpos << O.y << "*(1-u-v)" << showpos << A.y << "*u" << showpos << B.y << "*v" << ", "
+			<< noshowpos << O.z << "*(1-u-v)" << showpos << A.z << "*u" << showpos << B.z << "*v" << ", "
 			<< "u, 0, 1, v, 0, 1)" << noshowpos;
-		return os;
 	}
 	int telltype() const { return Parallelogram_Sign; }
 };
@@ -486,16 +482,15 @@ public:
 		R.meet = 1;
 		return;
 	}
-	friend ostream& operator << (ostream& os, const circle &a) {
+	void print(ostream& os) const {
 		os << "Rotate(Rotate(Rotate(Surface(";
-		os << "v*cos(u)" << showpos << a.C.x << ", ";
-		os << "v*sin(u)" << showpos << a.C.y << ", ";
-		os << noshowpos << a.C.z << ", ";
-		os << "u, 0, 2*pi, v, 0, " << noshowpos << a.r << "), ";
-		os << noshowpos << a.rx << ", " << point(a.C) << ", xAxis), "
-			<< noshowpos << a.ry << ", " << point(a.C) << ", yAxis), "
-			<< noshowpos << a.rz << ", " << point(a.C) << ", zAxis)";
-		return os;
+		os << "v*cos(u)" << showpos << C.x << ", ";
+		os << "v*sin(u)" << showpos << C.y << ", ";
+		os << noshowpos << C.z << ", ";
+		os << "u, 0, 2*pi, v, 0, " << noshowpos << r << "), ";
+		os << noshowpos << rx << ", " << point(C) << ", xAxis), "
+			<< noshowpos << ry << ", " << point(C) << ", yAxis), "
+			<< noshowpos << rz << ", " << point(C) << ", zAxis)";
 	}
 	int telltype() const { return Circle_Sign; }
 };
@@ -638,16 +633,15 @@ public:
 		R.meet = 1;
 		return;
 	}
-	friend ostream& operator << (ostream& os, const cylinder &a) {
+	void print(ostream& os) const {
 		os << "Rotate(Rotate(Rotate(Surface(";
-		os << noshowpos << a.r << "*cos(u)" << showpos << a.C.x << ", ";
-		os << noshowpos << a.r << "*sin(u)" << showpos << a.C.y << ", ";
-		os << "v" << showpos << a.C.z << ", ";
-		os << "u, 0, 2*pi, v, 0, " << noshowpos << a.h << "), ";
-		os << noshowpos << a.rx << ", " << point(a.C) << ", xAxis), "
-			<< noshowpos << a.ry << ", " << point(a.C) << ", yAxis), "
-			<< noshowpos << a.rz << ", " << point(a.C) << ", zAxis)";
-		return os;
+		os << noshowpos << r << "*cos(u)" << showpos << C.x << ", ";
+		os << noshowpos << r << "*sin(u)" << showpos << C.y << ", ";
+		os << "v" << showpos << C.z << ", ";
+		os << "u, 0, 2*pi, v, 0, " << noshowpos << h << "), ";
+		os << noshowpos <<  rx << ", " << point(C) << ", xAxis), "
+			<< noshowpos << ry << ", " << point(C) << ", yAxis), "
+			<< noshowpos << rz << ", " << point(C) << ", zAxis)";
 	}
 	int telltype() const { return Cylinder_Sign; }
 };
@@ -716,9 +710,8 @@ public:
 		B.C *= a, B.r *= a; return B;
 	}
 
-	friend ostream& operator << (ostream& os, const sphere &a) {
-		os << "Sphere(" << a.C << "," << a.r << ")";
-		return os;
+	void print(ostream& os) const {
+		os << "Sphere(" << C << "," << r << ")";
 	}
 	int telltype() const { return Sphere_Sign; }
 };
@@ -764,7 +757,7 @@ inline double randnor0(double variance) {
 	return 1.41421356237309504876 * erfinv0(RAND_LCG_DV - 1) * variance;
 }
 
-void rotate_normal(point &N) {
+double rotate_normal(point &N) {
 	double m = N.mod();
 	double x = acos(N.z / m), z = atan2(N.x, -N.y);
 	RAND_LCG_DV = fmod(RAND_LCG_DV * RAND_LCG_TMS + RAND_LCG_ADD, PI);
@@ -775,6 +768,7 @@ void rotate_normal(point &N) {
 	N.x = cos(z)*nx - cos(x)*sin(z)*ny + sin(x)*sin(z)*nz;
 	N.y = sin(z)*nx + cos(x)*cos(z)*ny - sin(x)*cos(z)*nz;
 	N.z = sin(x)*ny + cos(x)*nz;
+	return cos(rx);
 }
 
 #endif
@@ -804,6 +798,7 @@ public:
 		a.z = -sy * x + sx * cy*y + cx * cy*z;
 	}
 
+	void print(ostream& os) const { os << "objectSF_dif parent class"; }
 };
 
 #define Plane_Dif_Sign 0x00000100
@@ -933,12 +928,11 @@ public:
 			min({ O.y, A.y, B.y, A.y + B.y - O.y }), min({ O.y, A.y, B.y,A.y + B.y - O.y }));
 	}
 
-	friend ostream& operator << (ostream& os, const parallelogram_dif &a) {
-		os << "Surface(" << noshowpos << a.O.x << "*(1-u-v)" << showpos << a.A.x << "*u" << showpos << a.B.x << "*v" << ", "
-			<< noshowpos << a.O.y << "*(1-u-v)" << showpos << a.A.y << "*u" << showpos << a.B.y << "*v" << ", "
-			<< noshowpos << a.O.z << "*(1-u-v)" << showpos << a.A.z << "*u" << showpos << a.B.z << "*v" << ", "
+	void print(ostream& os) const {
+		os << "Surface(" << noshowpos << O.x << "*(1-u-v)" << showpos << A.x << "*u" << showpos << B.x << "*v" << ", "
+			<< noshowpos << O.y << "*(1-u-v)" << showpos << A.y << "*u" << showpos << B.y << "*v" << ", "
+			<< noshowpos << O.z << "*(1-u-v)" << showpos << A.z << "*u" << showpos << B.z << "*v" << ", "
 			<< "u, 0, 1, v, 0, 1)" << noshowpos;
-		return os;
 	}
 	int telltype() const { return Parallelogram_Dif_Sign; }
 };
@@ -991,9 +985,8 @@ public:
 	inline void operator += (const point &a) {
 		A += a, B += a, C += a;
 	}
-	friend ostream& operator << (ostream& os, const triangle_dif &a) {
-		os << "Polyline(" << a.A << "," << a.B << "," << a.C << "," << a.A << ")";
-		return os;
+	void print(ostream& os) const {
+		os << "Polyline(" << A << "," << B << "," << C << "," << A << ")";
 	}
 	int telltype() const { return Triangle_Dif_Sign; }
 };
@@ -1011,6 +1004,8 @@ public:
 
 	// get color with calculated intersection data
 	virtual void getcol(const intersect &R, rgblight &c) { cout << "objectSF_col::getcol is called. This function should never be called. \a\n"; }
+
+	void print(ostream& os) const { os << "objectSF_col class"; }
 };
 
 
@@ -1188,11 +1183,12 @@ public:
 	// inside => negative, outside => positive
 	virtual double SDF(const point &A) { cout << "\aobject3D::SDF is called. This function should never be called. \n"; return NAN; }
 	virtual bool contain(const point &A) { cout << "\aobject3D::inside is called. This function should never be called. \n"; return false; }
+
+	void print(ostream& os) const { os << "object3D parent class"; }
 };
 
 
 /* infinite large horizontal plane, with volumn beneath it */
-/* DEBUG */
 #define WaterSurface_Sign 0x00010000
 class WaterSurface : public object3D {
 public:
@@ -1273,14 +1269,12 @@ public:
 	int telltype() const {
 		return WaterSurface_Sign;
 	}
-	friend ostream& operator << (ostream& os, const WaterSurface &a) {
-		os << "z=" << a.z_int << endl;
-		return os;
+	void print(ostream& os) const {
+		os << "z=" << z_int << endl;
 	}
 };
 
 /* 3D sphere, "crystal ball" */
-/* DEBUG */
 #define Sphere3D_Sign 0x00010001
 class sphere3D :public object3D {
 public:
@@ -1383,11 +1377,164 @@ public:
 		return (C - A).mod() - r;
 	}
 
-	friend ostream& operator << (ostream& os, const sphere3D &a) {
-		os << "Sphere(" << a.C << "," << a.r << ")";
-		return os;
+	void print(ostream& os) const {
+		os << "Sphere(" << C << "," << r << ")";
 	}
 	int telltype() const { return Sphere3D_Sign; }
+};
+
+/* use to construct polyhedrons */
+#define Triangle_Ref_Sign 0x00010002
+class triangle_ref : public object3D {
+public:
+	point A, B, C, N;	// N is the normal towards air, unit vector
+	triangle_ref() {}
+	triangle_ref(const triangle_ref& a) {
+		A = a.A, B = a.B, C = a.C, N = a.N;
+	}
+	triangle_ref(const point &A, const point &B, const point &C) {
+		this->A = A, this->B = B, this->C = C;
+		N = cross(B - A, C - A); double m = N.mod();
+		if (abs(m) < ERR_EPSILON) N = cross(B - A, B + C - 2 * A), m = N.mod();
+		N /= N.mod();
+	}
+	~triangle_ref() {}
+	inline point Max() { return point(max({ A.x, B.x, C.x }), max({ A.y, B.y, C.y }), max({ A.z, B.z, C.z })); }
+	inline point Min() { return point(min({ A.x, B.x, C.x }), min({ A.y, B.y, C.y }), min({ A.z, B.z, C.z })); }
+
+	void meet(intersect &R, const ray &a) {
+		R.meet = 0;
+		point E1 = B - A, E2 = C - A, T, P = cross(a.dir, E2), Q;
+		double det = dot(E1, P);
+		if (abs(det) < ERR_EPSILON) return;
+		T = a.orig - A;
+		double t, u, v;
+		u = dot(T, P) / det;
+		if (u < 0.0 || u > 1.0) return;
+		Q = cross(T, E1);
+		v = dot(a.dir, Q) / det;
+		if (v < 0.0 || u + v > 1.0) return;
+		t = dot(E2, Q) / det;
+		if (t < ERR_EPSILON) return;
+		R.meet = 1;
+		R.dist = t * a.dir.mod();
+		R.intrs = (1 - u - v)*A + u * B + v * C;
+		double ct = 2 * dot(a.dir, N);
+		R.ut = ct < 0 ? 1 : 0;
+		R.reflect = a.dir - ct * N;
+		return;
+	}
+	void refractData(const intersect &R, const ray &a, const double &mi, point &refract, double &rlr) {
+		double ms = a.dir.mod(), c1 = -dot(N, a.dir) / ms;
+		double n1 = mi, n2 = ri;
+		if (R.ut == 0) n1 = ri, n2 = mi, c1 = -c1;
+		double c = n1 / n2, c2 = sqrt(1 - c * c * (1 - c1 * c1));
+		if (isnan(c2)) {
+			refract.x = refract.y = refract.z = NAN; rlr = 1;
+			return;
+		}
+		refract = c * a.dir - ((c*c1 - c2)*(R.ut == 0 ? ms : -ms))*N;
+		double Rs = (n2*c1 - n1 * c2) / (n2*c1 + n1 * c2); Rs *= Rs;
+		double Rp = (n2*c2 - n1 * c1) / (n2*c2 + n1 * c1); Rp *= Rp;
+		rlr = 0.5*(Rs + Rp);
+	}
+
+	double SDF(const point &P) {
+		return dot(P - A, N);
+	}
+	bool contain(const point &P) {
+		return dot(P - A, N) < 0;
+	}
+
+	void print(ostream& os) const {
+		os << "Surface(if(u+v<1," << noshowpos << A.x << "*(1-u-v)" << showpos << B.x << "*u" << showpos << C.x << "*v" << "), "
+			<< noshowpos << A.y << "*(1-u-v)" << showpos << B.y << "*u" << showpos << C.y << "*v" << ", "
+			<< noshowpos << A.z << "*(1-u-v)" << showpos << B.z << "*u" << showpos << C.z << "*v" << ", "
+			<< "u, 0, 1, v, 0, 1)" << noshowpos;
+	}
+	int telltype() const { return Triangle_Ref_Sign; }
+};
+
+#define Parallelogram_Ref_Sign 0x00010003
+class parallelogram_ref : public object3D {
+public:
+	point O, A, B, N;	// N is the normal towards air, unit vector
+	parallelogram_ref() {}
+	parallelogram_ref(parallelogram_ref& a) {
+		A = a.A, B = a.B, O = a.O, N = a.N;
+	}
+	parallelogram_ref(const point &O, const point &A, const point &B) {
+		this->O = O, this->A = O + A, this->B = O + B;
+		N = cross(A, B); double m = N.mod();
+		if (abs(m) < ERR_EPSILON) N = cross(A, A + B), m = N.mod();
+		N /= N.mod();
+	}
+	parallelogram_ref(const point &O, const point &A, const point &B, bool absolute) {
+		this->O = O, this->A = A, this->B = B;
+		if (!absolute) this->A += O, this->B += O;
+		N = cross(this->A - O, this->B - O); double m = N.mod();
+		if (abs(m) < ERR_EPSILON) N = cross(this->A - O, this->A + this->B - O), m = N.mod();
+		N /= N.mod();
+	}
+	~parallelogram_ref() {}
+	inline point Max() {
+		return point(max({ O.x, A.x, B.x, A.x + B.x - O.x }),
+			max({ O.y, A.y, B.y, A.y + B.y - O.y }), max({ O.y, A.y, B.y,A.y + B.y - O.y }));
+	}
+	inline point Min() {
+		return point(min({ O.x, A.x, B.x, A.x + B.x - O.x }),
+			min({ O.y, A.y, B.y, A.y + B.y - O.y }), min({ O.y, A.y, B.y,A.y + B.y - O.y }));
+	}
+
+	void meet(intersect &R, const ray &a) {
+		R.meet = 0;
+		point E1 = A - O, E2 = B - O, T, P = cross(a.dir, E2), Q;
+		double det = dot(E1, P);
+		if (abs(det) < ERR_EPSILON) return;
+		T = a.orig - O;
+		double t, u, v;
+		u = dot(T, P) / det;
+		if (u < 0.0 || u > 1.0) return;
+		Q = cross(T, E1);
+		v = dot(a.dir, Q) / det;
+		if (v < 0.0 || v > 1.0) return;
+		t = dot(E2, Q) / det;
+		if (t < ERR_EPSILON) return;
+		R.meet = 1;
+		R.dist = t * a.dir.mod();
+		R.intrs = (1 - u - v)*O + u * A + v * B;
+		double ct = 2 * dot(a.dir, N);
+		R.ut = ct < 0 ? 1 : 0;
+		R.reflect = a.dir - ct * N;
+		return;
+	}
+	void refractData(const intersect &R, const ray &a, const double &mi, point &refract, double &rlr) {
+		double ms = a.dir.mod(), c1 = -dot(N, a.dir) / ms;
+		double n1 = mi, n2 = ri;
+		if (R.ut == 0) n1 = ri, n2 = mi, c1 = -c1; // ut=1: air->obj; ut=0: obj->air
+		double c = n1 / n2, c2 = sqrt(1 - c * c * (1 - c1 * c1));
+		if (isnan(c2)) {
+			refract.x = refract.y = refract.z = NAN; rlr = 1;
+			return;
+		}
+		refract = c * a.dir - ((c*c1 - c2)*(R.ut == 0 ? ms : -ms))*N;
+		double Rs = (n2*c1 - n1 * c2) / (n2*c1 + n1 * c2); Rs *= Rs;
+		double Rp = (n2*c2 - n1 * c1) / (n2*c2 + n1 * c1); Rp *= Rp;
+		rlr = 0.5*(Rs + Rp);
+	}
+	double SDF(const point &P) {
+		return dot(P - A, N);
+	}
+	bool contain(const point &P) {
+		return dot(P - A, N) < 0;
+	}
+	void print(ostream& os) const {
+		os << "Surface(" << noshowpos << O.x << "*(1-u-v)" << showpos << A.x << "*u" << showpos << B.x << "*v" << ", "
+			<< noshowpos << O.y << "*(1-u-v)" << showpos << A.y << "*u" << showpos << B.y << "*v" << ", "
+			<< noshowpos << O.z << "*(1-u-v)" << showpos << A.z << "*u" << showpos << B.z << "*v" << ", "
+			<< "u, 0, 1, v, 0, 1)" << noshowpos;
+	}
+	int telltype() const { return Parallelogram_Ref_Sign; }
 };
 
 #endif
@@ -1412,6 +1559,7 @@ public:
 
 	// Note that in all derivative classes of lightsource, the meet function set "ut" as the cosine of angle of incidence
 
+	void print(ostream& os) const { os << "lightsource"; }
 };
 
 #define SphereBulb_Sign 0x01000000
@@ -1536,6 +1684,9 @@ public:
 
 
 ostream& operator << (ostream& os, const object &a) {
+	a.print(os);
+	return os;
+
 	switch (a.telltype()) {
 	case Plane_Sign: {
 		cout << *((plane*)(&a));

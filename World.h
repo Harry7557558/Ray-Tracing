@@ -211,9 +211,9 @@ public:
 
 	// Calculate the result rgb color with a giving ray
 	double RayTracing(const ray &v, rgblight &c, const double count, const int n) const {
-		if (count < 0.001 || n > 30) { c = rgblight(1, 1, 1); return INFINITY; }
+		if (count < 0.004 || n > 20) { c = rgblight(1, 1, 1); return INFINITY; }
 		if (isnan(count)) { c = rgblight(NAN, NAN, NAN); return NAN; }
-		for (int i = 0; i < n; i++) fout << " ";
+		//for (int i = 0; i < n; i++) fout << " ";
 
 		//for (int i = 0; i < n; i++) fout << "    "; fout << fixed << setprecision(3) << count << "\t" << defaultfloat << v << endl;
 
@@ -225,7 +225,7 @@ public:
 		RayTracing_EnumObjs(v, ni, no, nt);
 
 		if (no == 0) {
-			fout << v << endl;
+			//fout << v << endl;
 			double ang = dot(N, v.dir);
 			if (ang <= 0) {
 				c = background; return INFINITY;
@@ -238,7 +238,7 @@ public:
 			c = rgblight(NAN, NAN, NAN); return NAN;
 		}
 		else {
-			fout << ray(v.orig, ni.intrs - v.orig) << endl; fout.flush();
+			//fout << ray(v.orig, ni.intrs - v.orig) << endl; fout.flush();
 			// Meet
 			switch (no->telltype() >> 16) {
 			case 0: {	// surface
@@ -246,31 +246,29 @@ public:
 				case 0: {	// smooth opacity surface
 					RayTracing(ray(ni.intrs, ni.reflect), c, count * ((objectSF*)no)->reflect.vsl(), n + 1);
 					c.r *= ((objectSF*)no)->reflect.r, c.g *= ((objectSF*)no)->reflect.g, c.b *= ((objectSF*)no)->reflect.b;	// should use Fresnel's formula
+					if (isnan(c.r) || isnan(c.b) || isnan(c.g)) {
+						return ni.dist;
+					}
 					break;
-
-					/*// brightness of refraction: proper to exp(1-sec(θ))
-					// (1-r)*L*exp(1-1/cos(t))+r*L, which L is the brightness of the light source, t is the angle of incidence, and r is the ratio of reflection calculated with Fresnel equations
-					// when 0<2x<π, cos(x)=sqrt((cos(2x)+1)/2), and cos(2x) can be calculated with the angle between two vectors
-					const double n1 = 1.0, n2 = 1.5;
-					double ct = dot(v.dir, ni.reflect) / (v.dir.mod()*ni.reflect.mod()); ct = sqrt(0.5*(ct + 1));	// cosine of angle of incidence
-					double ct2 = sqrt(1 - (n1*n1) / (n2*n2)*(1 - ct * ct));		// cosine of angle of refraction
-					double refl = 0.5 * (pow((n1*ct - n2 * ct2) / (n1*ct + n2 * ct2), 2) + pow((n1*ct2 - n2 * ct) / (n1*ct2 + n2 * ct), 2));	// ratio of reflection
-					c = ((1 - refl)*exp(1 - 1 / ct)*((objectSF*)no)->reflect) * c + refl * c;	// probably bug
-
-					break;*/
 				}
 				case 1: {	// diffuse reflection, opacity
 					point Ni = ni.reflect;
-					//((objectSF_dif*)no)->rotate_vec(Ni);
 					double fr = rotate_normal(Ni);
 					RayTracing(ray(ni.intrs, Ni), c, count * ((objectSF_dif*)no)->reflect.vsl() * fr, n + 1);
 					c.r *= ((objectSF_dif*)no)->reflect.r * fr, c.g *= ((objectSF_dif*)no)->reflect.g * fr, c.b *= ((objectSF_dif*)no)->reflect.b * fr;
+					if (isnan(c.r) || isnan(c.b) || isnan(c.g)) {
+						return ni.dist;
+					}
 					break;
+					// I probably found a hidden bug: as the modulus of reflect ray getting larger, the OA effect gets weaker. 
 				}
 				case 2: {	// surface with color
 					rgblight d; ((objectSF_col*)no)->getcol(ni, d);
 					RayTracing(ray(ni.intrs, ni.reflect), c, count * d.vsl(), n + 1);
 					c.r *= d.r, c.g *= d.g, c.b *= d.b;
+					if (isnan(c.r) || isnan(c.b) || isnan(c.g)) {
+						return ni.dist;
+					}
 					break;
 				}
 				}
@@ -283,7 +281,9 @@ public:
 
 				double d = RayTracing(ray(ni.intrs, ni.reflect), c, count * rlr, n + 1);
 				if (ni.ut == 0) { // obj -> air
-					c.r *= exp(-((object3D*)no)->attcoe.r * d), c.g *= exp(-((object3D*)no)->attcoe.g * d), c.b *= exp(-((object3D*)no)->attcoe.b * d);
+					if (((object3D*)no)->attcoe.r != 0) c.r *= exp(-((object3D*)no)->attcoe.r * d);
+					if (((object3D*)no)->attcoe.g != 0) c.g *= exp(-((object3D*)no)->attcoe.g * d);
+					if (((object3D*)no)->attcoe.b != 0) c.b *= exp(-((object3D*)no)->attcoe.b * d);
 				}
 				if (!isnan(refract.z)) {
 					rgblight c1; double d1 = RayTracing(ray(ni.intrs, refract), c1, count * (1 - rlr), n + 1);
@@ -292,7 +292,9 @@ public:
 					}
 					if (!isnan(c1.b)) c = c * rlr + c1 * (1 - rlr);
 				}
-				//else fout << "nan" << endl;
+				if (isnan(c.r) || isnan(c.b) || isnan(c.g)) {
+					return ni.dist;
+				}
 				break;
 			}
 			case 0x100: {	// light source
@@ -301,6 +303,9 @@ public:
 				RayTracing(ray(ni.intrs, ni.reflect), c, count * (1 - ni.ut), n + 1);
 				c *= ni.ut; c += ((lightsource*)no)->col * ni.ut;
 				//c = ((lightsource*)no)->col * ni.ut;
+				if (isnan(c.r) || isnan(c.b) || isnan(c.g)) {
+					return ni.dist;
+				}
 				break;
 			}
 			}
@@ -349,7 +354,7 @@ public:
 					for (unsigned n = 0; n < Render_Sampling; n++) {
 						u = (i + double(m) / Render_Sampling) / canvas.width(), v = (j + double(n) / Render_Sampling) / canvas.height();
 						beg.orig = W;	// necessary
-						beg.dir = (1 - u - v)*sc.O + u * sc.A + v * sc.B - beg.orig;
+						beg.dir = sc.O + u * sc.A + v * sc.B - beg.orig;
 						//*➤*/ t0 = NTime::now();
 						c = CalcRGB(beg, oi);
 						//*➤*/ t1 = NTime::now(); fs = t1 - t0;
@@ -440,7 +445,7 @@ public:
 		Matrix R = Matrix({ {cos(rz),-sin(rz),0}, {sin(rz),cos(rz),0}, {0,0,1} }) *
 			Matrix({ { cos(ry),0,sin(ry) }, {0,1,0}, {-sin(ry),0,cos(ry)} }) *
 			Matrix({ {1,0,0}, {0,cos(rx),-sin(rx)}, {0,sin(rx),cos(rx)} });
-		parallelogram CV(point(w / 2, -h / 2, rs), point(-w / 2, -h / 2, rs), point(w / 2, h / 2, rs), true);
+		parallelogram CV(point(w / 2, -h / 2, rs), point(-w, 0), point(0, h));
 		CV *= R;
 		CV += C;
 
@@ -455,7 +460,7 @@ public:
 		ray beg; beg.orig = C;
 		rgblight c, s;
 		fsec fs;
-#ifdef DEBUG
+#ifndef DEBUG
 		const int STEP = 8;
 		vector<double> attempt; attempt.resize(canvas.width() / STEP);
 		double u, v;
@@ -470,7 +475,7 @@ public:
 					for (unsigned n = 0; n < Render_Sampling; n++) {
 						u = (i + double(m) / Render_Sampling) / canvas.width(), v = (j + double(n) / Render_Sampling) / canvas.height();
 						beg.orig = C;
-						beg.dir = (1 - u - v) * CV.O + u * CV.A + v * CV.B - beg.orig;
+						beg.dir = CV.O + u * CV.A + v * CV.B - beg.orig;
 						c = CalcRGB(beg, oi);
 						if (!(isnan(c.r) || isnan(c.g) || isnan(c.b))) {
 							s += c;
@@ -533,7 +538,7 @@ public:
 		// Debug single pixel
 		int debugx = 380, debugy = 340, RP = 0;
 		this->MultiThread_CC(canvas, debugx, debugx + 1, debugy, debugy + 1, C, CV, oi, RP);
-		canvas.dot(debugx + 1, debugy, Red); canvas.dot(debugx - 1, debugy, Red); canvas.dot(debugx, debugy + 1, Red); canvas.dot(debugx, debugy - 1, Red);
+		//canvas.dot(debugx + 1, debugy, Red); canvas.dot(debugx - 1, debugy, Red); canvas.dot(debugx, debugy + 1, Red); canvas.dot(debugx, debugy - 1, Red);
 
 	}
 

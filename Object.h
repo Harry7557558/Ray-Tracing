@@ -276,49 +276,45 @@ public:
 		A = a->A, B = a->B, O = a->O;
 	}
 	parallelogram(const point &O, const point &A, const point &B) {
-		this->O = O, this->A = O + A, this->B = O + B;
+		this->O = O, this->A = A, this->B = B;
 	}
 	parallelogram(const point &O, const point &A, const point &B, bool absolute) {
 		this->O = O, this->A = A, this->B = B;
-		if (!absolute) this->A += O, this->B += O;
+		if (absolute) this->A -= O, this->B -= O;
 	}
 	parallelogram(const initializer_list<double> &O, const initializer_list<double> &A, const initializer_list<double> &B) {
 		this->O = O, this->A = A, this->B = B;
-		this->A += O, this->B += O;
-	}
-	void operator = (const initializer_list<initializer_list<double>> &V) {
-		O = *V.begin(), A = *(V.begin() + 1), B = *(V.begin() + 2);
 	}
 	~parallelogram() {}
 	void meet(intersect &R, const ray &a) {
 		R.meet = 0;
-		point E1 = A - O, E2 = B - O, T, P = cross(a.dir, E2), Q;
-		double det = dot(E1, P);
+		point T, P = cross(a.dir, B), Q;
+		double det = dot(A, P);
 		if (abs(det) < ERR_EPSILON) return;
 		T = a.orig - O;
 		double t, u, v;
 		u = dot(T, P) / det;
 		if (u < 0.0 || u > 1.0) return;
-		Q = cross(T, E1);
+		Q = cross(T, A);
 		v = dot(a.dir, Q) / det;
 		if (v < 0.0 || v > 1.0) return;	// For triangles: v < 0.0 || u + v > 1.0
-		t = dot(E2, Q) / det;
+		t = dot(B, Q) / det;
 		if (t < ERR_EPSILON) return;
 		R.meet = 1;
 		R.dist = t * a.dir.mod();
-		R.intrs = (1 - u - v)*O + u * A + v * B;
-		point ON = cross(E1, E2);
+		R.intrs = O + u * A + v * B;
+		point ON = cross(A, B);
 		ON *= dot(a.dir, ON) / dot(ON, ON);
 		R.reflect = a.dir - 2 * ON;
 		return;
 	}
 	inline point Max() {
-		return point(max({ O.x, A.x, B.x, A.x + B.x - O.x }),
-			max({ O.y, A.y, B.y, A.y + B.y - O.y }), max({ O.y, A.y, B.y,A.y + B.y - O.y }));
+		return point(max({ O.x, O.x + A.x, O.x + B.x, O.x + A.x + B.x }),
+			max({ O.y, O.y + A.y, O.y + B.y, O.y + A.y + B.y }), max({ O.z, O.z + A.z, O.z + B.z, O.z + A.z + B.z }));
 	}
 	inline point Min() {
-		return point(min({ O.x, A.x, B.x, A.x + B.x - O.x }),
-			min({ O.y, A.y, B.y, A.y + B.y - O.y }), min({ O.y, A.y, B.y,A.y + B.y - O.y }));
+		return point(min({ O.x, O.x + A.x, O.x + B.x, O.x + A.x + B.x }),
+			min({ O.y, O.y + A.y, O.y + B.y, O.y + A.y + B.y }), min({ O.z, O.z + A.z, O.z + B.z, O.z + A.z + B.z }));
 	}
 	inline friend parallelogram operator * (matrix<double> M, parallelogram a) {
 		a.O = M * a.O, a.A = M * a.A, a.B = M * a.B;
@@ -337,16 +333,15 @@ public:
 		A *= t, B *= t, O *= t;
 	}
 	inline friend parallelogram operator + (parallelogram t, const point &a) {
-		t.A += a, t.B += a, t.O += a;
-		return t;
+		t.O += a; return t;
 	}
 	inline void operator += (const point &a) {
-		A += a, B += a, O += a;
+		O += a;
 	}
 	void print(ostream& os) const {
-		os << "Surface(" << noshowpos << O.x << "*(1-u-v)" << showpos << A.x << "*u" << showpos << B.x << "*v" << ", "
-			<< noshowpos << O.y << "*(1-u-v)" << showpos << A.y << "*u" << showpos << B.y << "*v" << ", "
-			<< noshowpos << O.z << "*(1-u-v)" << showpos << A.z << "*u" << showpos << B.z << "*v" << ", "
+		os << "Surface(" << noshowpos << O.x << showpos << A.x << "*u" << showpos << B.x << "*v" << ", "
+			<< noshowpos << O.y << showpos << A.y << "*u" << showpos << B.y << "*v" << ", "
+			<< noshowpos << O.z << showpos << A.z << "*u" << showpos << B.z << "*v" << ", "
 			<< "u, 0, 1, v, 0, 1)" << noshowpos;
 	}
 	int telltype() const { return Parallelogram_Sign; }
@@ -639,7 +634,7 @@ public:
 		os << noshowpos << r << "*sin(u)" << showpos << C.y << ", ";
 		os << "v" << showpos << C.z << ", ";
 		os << "u, 0, 2*pi, v, 0, " << noshowpos << h << "), ";
-		os << noshowpos <<  rx << ", " << point(C) << ", xAxis), "
+		os << noshowpos << rx << ", " << point(C) << ", xAxis), "
 			<< noshowpos << ry << ", " << point(C) << ", yAxis), "
 			<< noshowpos << rz << ", " << point(C) << ", zAxis)";
 	}
@@ -729,13 +724,12 @@ public:
 
 // calculate inverse error function
 inline double erfinv(double x) {
-	//return atanh(x);	// quality gets much worse
 	double n = log(1 - x * x);
 	double t = 0.5 * n + 2 / (PI*0.147);
 	if (signbit(x)) return -sqrt(-t + sqrt(t*t - n / 0.147));
 	return sqrt(-t + sqrt(t*t - n / 0.147));
 }
-// produce a random number with given median and variance
+// produce random normal-distributed number with given median and variance
 inline double randnor(double median, double variance) {
 	return erfinv(2.0 * double(rand()) / double(RAND_MAX + 1) - 1)*sqrt(2)*variance + median;
 }
@@ -743,6 +737,7 @@ inline double randnor_0(double variance) {
 	return erfinv(2.0 * double(rand()) / double(RAND_MAX + 1) - 1) * 1.41421356237309504876 * variance;
 }
 
+// linear congruence method producing random float value
 extern double RAND_LCG_DV = 0.36787944117;
 #define RAND_LCG_TMS 13.35717028437795
 #define RAND_LCG_ADD 0.841470984807897
@@ -776,68 +771,46 @@ double rotate_normal(point &N) {
 /* Opacity surface with diffuse reflection */
 class objectSF_dif : public objectSF {
 public:
-	double difvar;	// variance of random rays
-	objectSF_dif() :difvar(0) {}
-	objectSF_dif(const objectSF_dif &a) :difvar(a.difvar) { this->reflect = a.reflect; }
+	objectSF_dif() {}
+	objectSF_dif(const objectSF_dif &a) { this->reflect = a.reflect; }
 	~objectSF_dif() {}
 
-	void setvar(double d) { difvar = d; }
-
-	// random rotate a vector, for rendering diffuse reflection
-	inline void rotate_vec(point &a) {
-		return;
-
-		double sx, sy, sz, cx, cy, cz;
-		//sx = randnor(0, difvar); sy = randnor(0, difvar); sz = randnor(0, difvar);
-		sx = randnor_0(difvar); sy = randnor_0(difvar); sz = randnor_0(difvar);
-		//sx = randnor0(difvar); sy = randnor0(difvar); sz = randnor0(difvar);
-		cx = cos(sx), cy = cos(sy), cz = cos(sz); sx = sin(sx), sy = sin(sy), sz = sin(sz);
-		double x = a.x, y = a.y, z = a.z;
-		a.x = cy * cz*x + (sx*sy*cz - cx * sz)*y + (sx*sz + cx * sy*cz)*z;
-		a.y = cy * sz*x + (cx*cz + sx * sy*sz)*y + (cx*sy*sz - sx * cz)*z;
-		a.z = -sy * x + sx * cy*y + cx * cy*z;
-	}
+	void setvar(double d) { }
 
 	void print(ostream& os) const { os << "objectSF_dif parent class"; }
+
 };
 
 #define Plane_Dif_Sign 0x00000100
 class plane_dif : public objectSF_dif/*, public plane*/ {
 public:
 	point N; double D;	// Ax+By+Cz=D
-	plane_dif() { difvar = 0; D = 0, N.z = 1; }
+	plane_dif() { D = 0, N.z = 1; }
 	// normal N, through origin
 	plane_dif(const point &N) {
 		this->N = N, D = 0;
-		difvar = 0;
 	}
 	// horizontal plain, z=D
 	plane_dif(const double &D) {
 		N.z = 1, this->D = D;
-		difvar = 0;
 	}
 	// point P and normal N
 	plane_dif(const point &P, const point &N) {
 		this->N = N; D = dot(P, N);
-		difvar = 0;
 	}
 	// through three points
 	plane_dif(const point &A, const point &B, const point &C) {
 		N = cross(B - A, C - A); D = dot(A, N);
-		difvar = 0;
 	}
 	plane_dif(const double &x_int, const double &y_int, const double &z_int) {
 		N.x = y_int * z_int, N.y = x_int * z_int, N.z = x_int * y_int;
 		D = x_int * y_int * z_int;
-		difvar = 0;
 	}
 	plane_dif(const plane_dif &p) :N(p.N), D(p.D) {
 		reflect = p.reflect;
-		difvar = 0;
 	}
 	plane_dif(const plane_dif *p) :N(p->N), D(p->D) {
 		reflect = p->reflect;
-		difvar = 0;
 	}
 	~plane_dif() {}
 
@@ -862,8 +835,8 @@ public:
 		if (t < ERR_EPSILON || t > ERR_UPSILON) return;
 		R.intrs = t * a.dir + a.orig;
 		R.dist = t * a.dir.mod();
-		//R.reflect = 2 * (-dot(a.dir, N) / dot(N, N)) * N + a.dir;
-		R.reflect = (-dot(a.dir, N) / dot(N, N)) * N;
+		R.reflect = N / N.mod();
+		if (dot(a.dir, N) > 0) R.reflect = -R.reflect;
 		R.meet = 1;
 		return;
 	}
@@ -885,53 +858,48 @@ public:
 		A = a.A, B = a.B, O = a.O;
 	}
 	parallelogram_dif(const point &O, const point &A, const point &B) {
-		this->O = O, this->A = O + A, this->B = O + B;
+		this->O = O, this->A = A, this->B = B;
 	}
 	parallelogram_dif(const point &O, const point &A, const point &B, bool absolute) {
 		this->O = O, this->A = A, this->B = B;
-		if (!absolute) this->A += O, this->B += O;
-	}
-	parallelogram_dif(const initializer_list<double> &O, const initializer_list<double> &A, const initializer_list<double> &B) {
-		this->O = O, this->A = A, this->B = B;
-		this->A += O, this->B += O;
+		if (absolute) this->A -= O, this->B -= O;
 	}
 	~parallelogram_dif() {}
 	void meet(intersect &R, const ray &a) {
 		R.meet = 0;
-		point E1 = A - O, E2 = B - O, T, P = cross(a.dir, E2), Q;
-		double det = dot(E1, P);
+		point T, P = cross(a.dir, B), Q;
+		double det = dot(A, P);
 		if (abs(det) < ERR_EPSILON) return;
 		T = a.orig - O;
 		double t, u, v;
 		u = dot(T, P) / det;
 		if (u < 0.0 || u > 1.0) return;
-		Q = cross(T, E1);
+		Q = cross(T, A);
 		v = dot(a.dir, Q) / det;
 		if (v < 0.0 || v > 1.0) return;
-		t = dot(E2, Q) / det;
+		t = dot(B, Q) / det;
 		if (t < ERR_EPSILON) return;
 		R.meet = 1;
 		R.dist = t * a.dir.mod();
-		R.intrs = (1 - u - v)*O + u * A + v * B;
-		point ON = cross(E1, E2);
-		ON *= -dot(a.dir, ON) / dot(ON, ON);
-		//R.reflect = a.dir + 2 * ON;
-		R.reflect = ON;
+		R.intrs = O + u * A + v * B;
+		R.reflect = cross(A, B);
+		if (dot(a.dir, R.reflect) > 0) R.reflect = -R.reflect;
+		R.reflect /= R.reflect.mod();
 		return;
 	}
 	inline point Max() {
-		return point(max({ O.x, A.x, B.x, A.x + B.x - O.x }),
-			max({ O.y, A.y, B.y, A.y + B.y - O.y }), max({ O.y, A.y, B.y,A.y + B.y - O.y }));
+		return point(max({ O.x, O.x + A.x, O.x + B.x, O.x + A.x + B.x }),
+			max({ O.y, O.y + A.y, O.y + B.y, O.y + A.y + B.y }), max({ O.z, O.z + A.z, O.z + B.z, O.z + A.z + B.z }));
 	}
 	inline point Min() {
-		return point(min({ O.x, A.x, B.x, A.x + B.x - O.x }),
-			min({ O.y, A.y, B.y, A.y + B.y - O.y }), min({ O.y, A.y, B.y,A.y + B.y - O.y }));
+		return point(min({ O.x, O.x + A.x, O.x + B.x, O.x + A.x + B.x }),
+			min({ O.y, O.y + A.y, O.y + B.y, O.y + A.y + B.y }), min({ O.z, O.z + A.z, O.z + B.z, O.z + A.z + B.z }));
 	}
 
 	void print(ostream& os) const {
-		os << "Surface(" << noshowpos << O.x << "*(1-u-v)" << showpos << A.x << "*u" << showpos << B.x << "*v" << ", "
-			<< noshowpos << O.y << "*(1-u-v)" << showpos << A.y << "*u" << showpos << B.y << "*v" << ", "
-			<< noshowpos << O.z << "*(1-u-v)" << showpos << A.z << "*u" << showpos << B.z << "*v" << ", "
+		os << "Surface(" << noshowpos << O.x << showpos << A.x << "*u" << showpos << B.x << "*v" << ", "
+			<< noshowpos << O.y << showpos << A.y << "*u" << showpos << B.y << "*v" << ", "
+			<< noshowpos << O.z << showpos << A.z << "*u" << showpos << B.z << "*v" << ", "
 			<< "u, 0, 1, v, 0, 1)" << noshowpos;
 	}
 	int telltype() const { return Parallelogram_Dif_Sign; }
@@ -975,9 +943,9 @@ public:
 		R.meet = 1;
 		R.dist = t * a.dir.mod();
 		R.intrs = (1 - u - v)*A + u * B + v * C;
-		point ON = cross(E1, E2);
-		ON *= -dot(a.dir, ON) / dot(ON, ON);
-		R.reflect = ON;
+		R.reflect = cross(E1, E2);
+		if (dot(a.dir, R.reflect) > 0) R.reflect = -R.reflect;
+		R.reflect /= R.reflect.mod();
 		return;
 	}
 	inline point Max() { return point(max({ A.x, B.x, C.x }), max({ A.y, B.y, C.y }), max({ A.z, B.z, C.z })); }
@@ -1337,7 +1305,6 @@ public:
 			R.reflect = s - (2 * dot(s, n) / dot(n, n)) * n;
 			R.meet = 1;
 			R.ut = 1;
-			//R.intrs += ERR_ZETA * R.reflect;
 			return;
 		}
 		else {
@@ -1350,7 +1317,6 @@ public:
 			R.reflect = s - (2 * dot(s, n) / dot(n, n)) * n;
 			R.meet = 1;
 			R.ut = 0;
-			//R.intrs += ERR_ZETA * R.reflect;
 		}
 	}
 	void refractData(const intersect &R, const ray &a, const double &mi, point &refract, double &rlr) {
@@ -1401,6 +1367,10 @@ public:
 	~triangle_ref() {}
 	inline point Max() { return point(max({ A.x, B.x, C.x }), max({ A.y, B.y, C.y }), max({ A.z, B.z, C.z })); }
 	inline point Min() { return point(min({ A.x, B.x, C.x }), min({ A.y, B.y, C.y }), min({ A.z, B.z, C.z })); }
+
+	void operator += (const point &P) {
+		A += P, B += P, C += P;
+	}
 
 	void meet(intersect &R, const ray &a) {
 		R.meet = 0;
@@ -1484,6 +1454,10 @@ public:
 	inline point Min() {
 		return point(min({ O.x, A.x, B.x, A.x + B.x - O.x }),
 			min({ O.y, A.y, B.y, A.y + B.y - O.y }), min({ O.y, A.y, B.y,A.y + B.y - O.y }));
+	}
+
+	void operator += (const point &P) {
+		A += P, B += P, O += P;
 	}
 
 	void meet(intersect &R, const ray &a) {

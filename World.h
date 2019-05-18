@@ -213,7 +213,7 @@ public:
 	double RayTracing(const ray &v, rgblight &c, const double count, const int n) const {
 		if (count < 0.001 || n > 30) { c = rgblight(1, 1, 1); return INFINITY; }
 		if (isnan(count)) { c = rgblight(NAN, NAN, NAN); return NAN; }
-		//for (int i = 0; i < n; i++) fout << " ";
+		for (int i = 0; i < n; i++) fout << " ";
 
 		//for (int i = 0; i < n; i++) fout << "    "; fout << fixed << setprecision(3) << count << "\t" << defaultfloat << v << endl;
 
@@ -225,7 +225,7 @@ public:
 		RayTracing_EnumObjs(v, ni, no, nt);
 
 		if (no == 0) {
-			//fout << v << endl;
+			fout << v << endl;
 			double ang = dot(N, v.dir);
 			if (ang <= 0) {
 				c = background; return INFINITY;
@@ -238,7 +238,7 @@ public:
 			c = rgblight(NAN, NAN, NAN); return NAN;
 		}
 		else {
-			//fout << ray(v.orig, ni.intrs - v.orig) << endl;
+			fout << ray(v.orig, ni.intrs - v.orig) << endl; fout.flush();
 			// Meet
 			switch (no->telltype() >> 16) {
 			case 0: {	// surface
@@ -262,9 +262,9 @@ public:
 				case 1: {	// diffuse reflection, opacity
 					point Ni = ni.reflect;
 					//((objectSF_dif*)no)->rotate_vec(Ni);
-					rotate_normal(Ni);
-					RayTracing(ray(ni.intrs, Ni), c, count * ((objectSF_dif*)no)->reflect.vsl(), n + 1);
-					c.r *= ((objectSF_dif*)no)->reflect.r, c.g *= ((objectSF_dif*)no)->reflect.g, c.b *= ((objectSF_dif*)no)->reflect.b;
+					double fr = rotate_normal(Ni);
+					RayTracing(ray(ni.intrs, Ni), c, count * ((objectSF_dif*)no)->reflect.vsl() * fr, n + 1);
+					c.r *= ((objectSF_dif*)no)->reflect.r * fr, c.g *= ((objectSF_dif*)no)->reflect.g * fr, c.b *= ((objectSF_dif*)no)->reflect.b * fr;
 					break;
 				}
 				case 2: {	// surface with color
@@ -455,7 +455,7 @@ public:
 		ray beg; beg.orig = C;
 		rgblight c, s;
 		fsec fs;
-#ifndef DEBUG
+#ifdef DEBUG
 		const int STEP = 8;
 		vector<double> attempt; attempt.resize(canvas.width() / STEP);
 		double u, v;
@@ -531,9 +531,9 @@ public:
 
 
 		// Debug single pixel
-		int debugx = 245, debugy = 222, RP = 0;
+		int debugx = 380, debugy = 340, RP = 0;
 		this->MultiThread_CC(canvas, debugx, debugx + 1, debugy, debugy + 1, C, CV, oi, RP);
-		//canvas.dot(debugx + 1, debugy, Red); canvas.dot(debugx - 1, debugy, Red); canvas.dot(debugx, debugy + 1, Red); canvas.dot(debugx, debugy - 1, Red);
+		canvas.dot(debugx + 1, debugy, Red); canvas.dot(debugx - 1, debugy, Red); canvas.dot(debugx, debugy + 1, Red); canvas.dot(debugx, debugy - 1, Red);
 
 	}
 

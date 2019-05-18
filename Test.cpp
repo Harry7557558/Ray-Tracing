@@ -596,12 +596,14 @@ void Render_CTest04() {
 	parallelogram_ref T4(point(1, 0, 0), point(0, 1, 0), point(1, 0, 1), 1);
 	triangle_ref T5(point(0, 0, 1), point(1, 0, 1), point(0, 1, 1));
 	double cn = 1.3; T1.setIndex(cn), T2.setIndex(cn), T3.setIndex(cn), T4.setIndex(cn), T5.setIndex(cn);
+	point P(0, 0, ERR_ZETA); T1 += P, T2 += P, T3 += P, T4 += P, T5 += P;
 	W.add({ &T1, &T2, &T3, &T4, &T5 });
 	plane_grid G(0.0); W.add(&G);
 	//plane_dif G(0.0); G.setcolor(DarkSeaGreen); W.add(&G);
 	parallelogram G1(point(-1, 0, ERR_ZETA), point(cos(2.8), sin(2.8)), 2 * point(cos(2.8 - PI / 2), sin(2.8 - PI / 2))); G1.setcolor(Brown); W.add(&G1);
 	fout << W << endl;
 
+	W.Render_Sampling = 2;
 	W.setGlobalLightSource(0, 0, 1);
 	bitmap img(600, 400);
 	W.render(img, point(10, -6, 5), point(0, 0, 0), 0, 0.06);

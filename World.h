@@ -6,54 +6,13 @@
 #include <mutex>
 #include <Windows.h>
 
-extern ofstream fout("D:\\Coding\\AboutPhysics\\RayTracing\\RayTracing\\IMAGE\\Log.txt");
 
 class World {
 public:
-	vector<object*> Objs;	// series of objects
+	vector<const object*> Objs;	// series of objects
 	vector<World*> GObjs;	// series of sub-worlds
 	point N;	// direction of global light source (ideal sky, suppose it's fine, white and cloudness)
 	rgblight background;
-	class borderbox {
-		// Use for border of subgroups of objects
-	public:
-		point B1, B2;
-		borderbox() {}
-		inline point Max() {
-			return B2;
-		}
-		inline point Min() {
-			return B1;
-		}
-		bool meet(const ray &a) const {
-			// http://www.cs.utah.edu/~awilliam/box/box.pdf
-			double tmin, tmax, tymin, tymax, tzmin, tzmax;
-			tmin = ((a.dir.x < 0 ? B2 : B1).x - a.orig.x) / a.dir.x;
-			tmax = ((a.dir.x < 0 ? B1 : B2).x - a.orig.x) / a.dir.x;
-			tymin = ((a.dir.y < 0 ? B2 : B1).y - a.orig.y) / a.dir.y;
-			tymax = ((a.dir.y < 0 ? B1 : B2).y - a.orig.y) / a.dir.y;
-			if ((tmin > tymax) || (tymin > tmax)) return 0;
-			if (tymin > tmin) tmin = tymin;
-			if (tymax < tmax) tmax = tymax;
-			tzmin = ((a.dir.z < 0 ? B2 : B1).z - a.orig.z) / a.dir.z;
-			tzmax = ((a.dir.z < 0 ? B1 : B2).z - a.orig.z) / a.dir.z;
-			if ((tmin > tzmax) || (tzmin > tmax)) return 0;
-			if (tzmin > tmin) tmin = tzmin;
-			if (tzmax < tmax) tmax = tzmax;
-			return tmax > 0;
-		}
-		inline bool contain(const point &a) const {
-			return (a.x > B1.x && a.x<B2.x && a.y>B1.y && a.y<B2.y && a.z>B1.z && a.z < B2.z);
-		}
-		~borderbox() {}
-		friend ostream& operator << (ostream& os, const borderbox &a) {
-			point A = a.B1, B = point(a.B2.x, a.B1.y, a.B1.z), C = point(a.B2.x, a.B2.y, a.B1.z), D = point(a.B1.x, a.B2.y, a.B1.z),
-				E = point(a.B1.x, a.B1.y, a.B2.z), F = point(a.B2.x, a.B1.y, a.B2.z), G = a.B2, H = point(a.B1.x, a.B2.y, a.B2.z);
-			os << "Polyline(" << A << "," << B << "," << F << "," << G << "," << C << "," << D << "," << H << "," << E << "," <<
-				A << "," << E << "," << F << "," << B << "," << C << "," << G << "," << H << "," << D << "," << A << ")";
-			return os;
-		}
-	};
 	borderbox border;
 	void resize() {
 		point maxc, minc;
@@ -78,48 +37,6 @@ public:
 	friend void Render_GTest03();
 public:
 	World() {}
-	World(const World &W) {
-		Objs.resize(W.Objs.size());
-		for (int i = 0; i < Objs.size(); i++) {
-			switch (W.Objs.at(i)->telltype()) {
-			case Plane_Sign: {
-				Objs.at(i) = new plane((plane*)(W.Objs.at(i)));
-				break;
-			}
-			case Triangle_Sign: {
-				Objs.at(i) = new triangle((triangle*)(W.Objs.at(i)));
-				break;
-			}
-			case Parallelogram_Sign: {
-				Objs.at(i) = new parallelogram((parallelogram*)(W.Objs.at(i)));
-				break;
-			}
-			case Circle_Sign: {
-				Objs.at(i) = new circle((circle*)(W.Objs.at(i)));
-				break;
-			}
-			case Sphere_Sign: {
-				Objs.at(i) = new sphere((sphere*)(W.Objs.at(i)));
-				break;
-			}
-			case Cylinder_Sign: {
-				Objs.at(i) = new cylinder((cylinder*)(W.Objs.at(i)));
-				break;
-			}
-			default: {
-				Objs.at(i) = new object(W.Objs.at(i));
-			}
-			}
-		}
-		GObjs.resize(W.GObjs.size());
-		for (int i = 0; i < GObjs.size(); i++) {
-			GObjs.at(i) = new World(*W.GObjs.at(i));
-		}
-		this->resize();
-		background = W.background;
-		N = W.N;
-		return;
-	}
 	~World() {
 		Objs.clear(); 	// DO NOT delete ANY elements there !!!
 		GObjs.clear();
@@ -128,17 +45,8 @@ public:
 		GObjs.push_back(a);
 		this->resize();
 	}
-	inline void insert(World *a, double x, double y, double z) {
-		*a += point(x, y, z);
-		GObjs.push_back(a);
-		this->resize();
-	}
 	inline void add(object* a) {
 		Objs.push_back(a);
-	}
-	inline void add(object* a, point insert) {
-		Objs.push_back(a);
-		*Objs.back() += insert;
 	}
 	inline void add(initializer_list<object*> a) {
 		for (int i = 0; i < a.size(); i++) Objs.push_back(a.begin()[i]);
@@ -149,27 +57,9 @@ public:
 	void setGlobalLightSource(double x, double y, double z) {
 		N = point(x, y, z);
 	}
-	void operator += (point V) {
-		for (int i = 0; i < Objs.size(); i++) {
-			*Objs.at(i) += V;
-		}
-		for (int i = 0; i < GObjs.size(); i++) {
-			*GObjs.at(i) += V;
-		}
-		border.B1 += V, border.B2 += V;
-	}
-	void rotate_mult(const double &rx, const double &ry, const double &rz, const double &tms) {
-		for (int i = 0; i < Objs.size(); i++) {
-			Objs.at(i)->rotate(rx, ry, rz); *Objs.at(i) *= tms;
-		}
-		for (int i = 0; i < GObjs.size(); i++) {
-			GObjs.at(i)->rotate_mult(rx, ry, rz, tms);
-		}
-		this->resize();
-	}
 
 	// Find the nearest object
-	void RayTracing_EnumObjs(const ray &v, intersect &ni, object* &no, intersect& nt) const {
+	void RayTracing_EnumObjs(const ray &v, intersect &ni, const object* &no, intersect& nt) const {
 		int NB = Objs.size();
 		for (int k = 0; k < NB; k++) {
 			Objs.at(k)->meet(nt, v);
@@ -218,7 +108,7 @@ public:
 		//for (int i = 0; i < n; i++) fout << "    "; fout << fixed << setprecision(3) << count << "\t" << defaultfloat << v << endl;
 
 		int NB = Objs.size();
-		intersect ni; object* no = 0;	// keeps the nearest object and its intersect data
+		intersect ni; const object* no = 0;	// keeps the nearest object and its intersect data
 		const World* Wp = this;	// World of the nearest object
 		intersect nt;
 
@@ -350,20 +240,20 @@ public:
 			for (unsigned j = begh; j < endh; j++) {
 				NP = 0;
 				s.r = s.g = s.b = 0;
+				//*➤*/ t0 = NTime::now();
 				for (unsigned m = 0; m < Render_Sampling; m++) {
 					for (unsigned n = 0; n < Render_Sampling; n++) {
 						u = (i + double(m) / Render_Sampling) / canvas.width(), v = (j + double(n) / Render_Sampling) / canvas.height();
 						beg.orig = W;	// necessary
 						beg.dir = sc.O + u * sc.A + v * sc.B - beg.orig;
-						//*➤*/ t0 = NTime::now();
 						c = CalcRGB(beg, oi);
-						//*➤*/ t1 = NTime::now(); fs = t1 - t0;
 						if (!(isnan(c.r) || isnan(c.g) || isnan(c.b))) {
 							s += c;
 							NP++;
 						}
 					}
 				}
+				//*➤*/ t1 = NTime::now(); fs = t1 - t0;
 				if (NP != 0) c = s / NP;
 				else {
 					if (j != begh && i != begw && j + 1 != endh) canvas[j][i] = rgb((rgblight(canvas[j - 1][i]) + rgblight(canvas[j][i - 1])) / 3

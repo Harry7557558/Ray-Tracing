@@ -46,7 +46,7 @@ This two pictures are vector spheres and cylindars, each requires less than 1 se
 
 # Refraction
 
-Trace refraction with [Fresnel Equations](https://en.wikipedia.org/wiki/Fresnel_equations) and [Beer-Lambert Law](https://en.wikipedia.org/wiki/Beer%E2%80%93Lambert_law). <sup>[【Reference】](https://graphics.stanford.edu/courses/cs148-10-summer/docs/2006--degreve--reflection_refraction.pdf)</sup>
+Tracing refraction with [Fresnel Equations](https://en.wikipedia.org/wiki/Fresnel_equations) and [Beer-Lambert Law](https://en.wikipedia.org/wiki/Beer%E2%80%93Lambert_law). <sup>[【Reference】](https://graphics.stanford.edu/courses/cs148-10-summer/docs/2006--degreve--reflection_refraction.pdf)</sup>
 
 __Applying Fresnel Equations and Beer-Lambert Law__: 
 
@@ -64,7 +64,7 @@ __Insert a bitmap to create a scene__:
 bitmap source: still of 3D animation film _Moana_, [16:20](Moana_16_20.png)
 
 In this picture, the bitmap stands on the water, and a specular-reflecting plane is placed beneath the water. Global light source is behind the camera. 
-Fresnel calculation between different medias is still debugging. 
+Fresnel calculation between different medias and damping of light is still debugging. **(2019.5.19)**
 
 
 

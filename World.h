@@ -6,6 +6,8 @@
 #include <mutex>
 #include <Windows.h>
 
+using namespace std;
+
 
 class World {
 public:

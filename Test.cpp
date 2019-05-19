@@ -1,5 +1,7 @@
 #include "World.h"
 
+using namespace std;
+
 
 void sizetest() {
 	cout << "point          " << sizeof(point) << endl;
@@ -21,6 +23,30 @@ void sizetest() {
 
 	cout << "World          " << sizeof(World) << endl;
 	cout << endl;
+}
+
+void MonteCarlo_Test() {
+	const unsigned MaxSamp = 1024;
+	bitmap res(MaxSamp, 100);
+	double sum = 0;
+	for (int j = 0; j < 100; j++) {
+		sum = 0;
+		for (int i = 0; i < MaxSamp; i++) {
+			sum += pick_random(1);
+			res[j][i] = rgb(rgblight(sum / (i + 1)));
+		}
+	}
+	for (int i = 0; i < MaxSamp; i++) {
+		for (int j = 0; j < 100; j++) {
+			swap(res[rand() % 100][i], res[rand() % 100][i]);
+		}
+		int s = sqrt(i + 1);
+		if (s * s == i + 1) {
+			res[0][i] = res[99][i] = rgb(255, 0, 0);
+			if (s % 4 == 0) res[1][i] = res[98][i] = rgb(255, 255, 0);
+		}
+	}
+	res.out("IMAGE\\MonteCarlo_Test.bmp");
 }
 
 
@@ -169,7 +195,7 @@ void Render_GTest02() {
 		for (int j = 0; j < DIF2; j++) {
 			G4_RS.at(i).at(j) = new World;
 		}
-	}
+}
 #elif DPS==1
 	vector<World*> G4_RS; G4_RS.resize(DIF1);
 	for (int i = 0; i < DIF1; i++) {
@@ -294,6 +320,8 @@ void Render_GTest02() {
 }
 
 // complex Γ function
+#ifdef MY_COMPLEX_INC
+
 #pragma warning(push, 0)
 #include "D:\Coding\AboutMath\SuperCalculator\SuperCalculator\Matrix.h"
 inline bool baddouble(double a) {
@@ -471,6 +499,8 @@ void Render_GTest03() {
 }
 #pragma warning(pop)
 
+#endif
+
 // water and two "pillars"
 void Render_CTest01() {
 	World W;
@@ -598,16 +628,15 @@ void Render_CTest04() {
 	triangle_ref T5(point(0, 0, 1), point(1, 0, 1), point(0, 1, 1));
 	double cn = 1.3; T1.setIndex(cn), T2.setIndex(cn), T3.setIndex(cn), T4.setIndex(cn), T5.setIndex(cn);
 	point P(0, 0, ERR_ZETA); T1 += P, T2 += P, T3 += P, T4 += P, T5 += P;
-	polyhedron T({ &T1, &T2, &T3, &T4, &T5 });
-	rgblight cf(1.08, 0.10, 0.04); T.attcoe = cf;
-	//W.add({ &T1, &T2, &T3, &T4, &T5 });
-	W.add(&T);
+	polyhedron T({ &T1, &T2, &T3, &T4, &T5 }); sphere3D S(point(0.5, 0.2, 0.5), 0.3);
+	rgblight cf(1.08, 0.10, 0.04); T.attcoe = S.attcoe = cf;
+	W.add(&T); W.add(&S);
 	plane_grid G(0.0); W.add(&G);
 	//plane_dif G(0.0); G.setcolor(DarkSeaGreen); W.add(&G);
 	parallelogram G1(point(-1, 0, ERR_ZETA), point(cos(2.8), sin(2.8)), 2 * point(cos(2.8 - PI / 2), sin(2.8 - PI / 2))); G1.setcolor(Brown); W.add(&G1);
 	fout << W << endl;
 
-	W.Render_Sampling = 8;
+	W.Render_Sampling = 1;
 	W.setGlobalLightSource(0, 0, 1);
 	bitmap img(600, 400);
 	W.render(img, point(10, -6, 5), point(0, 0, 0), 0, 0.06);

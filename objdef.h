@@ -9,8 +9,10 @@
 #include "Matrix.h"
 #include "D:\Explore\Math\Graph\GraphFun\GraphFun\BitMap.h"
 
+using namespace std;
+
 #ifndef PI
-#define PI 3.1415926535897932384626
+#define PI 3.1415926535897932384626433832795029L
 #endif
 
 /* Time Recorder */
@@ -18,6 +20,7 @@
 typedef chrono::high_resolution_clock NTime;
 typedef chrono::duration<double> fsec;
 
+#include <cstdlib>
 
 #define ERR_EPSILON 1e-8	// minimum distance of intersection
 #define ERR_UPSILON 1e+12
@@ -317,7 +320,9 @@ class borderbox {
 	// Use for border of subgroups of objects
 public:
 	point B1, B2;
-	borderbox() {}
+	inline point& Max() { return B2; }
+	inline point& Min() { return B1; }
+	borderbox() { B1 = point(INFINITY, INFINITY, INFINITY), B2 = point(-INFINITY, -INFINITY, -INFINITY); }
 	bool meet(const ray &a) const {
 		// http://www.cs.utah.edu/~awilliam/box/box.pdf
 		double tmin, tmax, tymin, tymax, tzmin, tzmax;
@@ -347,3 +352,92 @@ public:
 		return os;
 	}
 };
+
+inline point PMax(point A, point B) {
+	return point(max(A.x, B.x), max(A.y, B.y), max(A.z, B.z));
+}
+inline point PMin(point A, point B) {
+	return point(min(A.x, B.x), min(A.y, B.y), min(A.z, B.z));
+}
+
+// Solve equation ax^3+bx^2+cx+d=0 with Cardano formula, for intersection tests of spline surfaces
+// return 1: two or three real roots, r, u, v;
+// return 0: one real root r and two complex roots u+vi, u-vi;
+bool solveCubic(double a, double b, double c, double d, double &r, double &u, double &v) {
+	b /= a, c /= a, d /= a;		// now a=1
+	double p = c - b * b / 3, q = (b*b / 13.5 - c / 3) * b + d;		// => t^3+pt+q=0, x=t-b/3
+	b /= 3, p /= 3, q /= -2; a = q * q + p * p * p;
+	if (a >= 0) {
+		a = sqrt(a); u = cbrt(q + a), v = cbrt(q - a);
+		r = u + v;
+		v = sqrt(0.75)*(u - v);
+		u = -0.5 * r - b, r -= b;
+		return 0;
+	}
+	else {
+		a = -a; c = pow(q*q + a, 1.0 / 6);
+		a = sqrt(a); u = atan2(a, q) / 3;
+		d = c * sin(u), c *= cos(u);
+		r = 2 * c - b;
+		c = -c, d *= sqrt(3);
+		u = c - d - b, v = u + 2 * d;
+		return 1;
+	}
+}
+
+
+
+/* About random, for solving render equations */
+
+// linear congruence method producing random float value
+extern double RAND_LCG_DV = 0.36787944117;	// random number seed
+#define RAND_LCG_TMS 13.35717028437795
+#define RAND_LCG_ADD 0.841470984807897
+inline double pick_random(double max) {
+	RAND_LCG_DV = fmod(RAND_LCG_DV * RAND_LCG_TMS + RAND_LCG_ADD, max);
+	return RAND_LCG_DV;
+}
+inline double pick_random(double min, double max) {
+	RAND_LCG_DV = fmod(RAND_LCG_DV * RAND_LCG_TMS + RAND_LCG_ADD, max - min);
+	return RAND_LCG_DV + min;
+}
+
+// calculate inverse error function
+inline double erfinv(double x) {
+	double n = log(1 - x * x);
+	double t = 0.5 * n + 2 / (PI*0.147);
+	if (signbit(x)) return -sqrt(-t + sqrt(t*t - n / 0.147));
+	return sqrt(-t + sqrt(t*t - n / 0.147));
+}
+// produce random normal-distributed number with given median and variance
+inline double randnor(double median, double variance) {
+	return erfinv(2.0 * double(rand()) / double(RAND_MAX + 1) - 1)*sqrt(2)*variance + median;
+}
+inline double randnor_0(double variance) {
+	return erfinv(2.0 * double(rand()) / double(RAND_MAX + 1) - 1) * 1.41421356237309504876 * variance;
+}
+inline double erfinv0(const double &x) {
+	double n = log(1.0 - x * x);
+	double t = 0.5 * n + 4.33074675079987308221;
+	if (signbit(x)) return -sqrt(-t + sqrt(t*t - n / 0.147));
+	return sqrt(-t + sqrt(t*t - n / 0.147));
+}
+inline double randnor0(double variance) {
+	RAND_LCG_DV = fmod(RAND_LCG_DV * RAND_LCG_TMS + RAND_LCG_ADD, 2.0);
+	return 1.41421356237309504876 * erfinv0(RAND_LCG_DV - 1) * variance;
+}
+
+// Randomly rotate a vector, for solving render equations, return the cosine of rotate angle
+double rotate_normal(point &N) {
+	double m = N.mod();
+	double x = acos(N.z / m), z = atan2(N.x, -N.y);
+	RAND_LCG_DV = fmod(RAND_LCG_DV * RAND_LCG_TMS + RAND_LCG_ADD, PI);
+	double rx = RAND_LCG_DV - PI / 2;
+	RAND_LCG_DV = fmod(RAND_LCG_DV * RAND_LCG_TMS + RAND_LCG_ADD, 2 * PI);
+	double rz = RAND_LCG_DV;
+	double nx = m * sin(rx)*sin(rz), ny = -m * sin(rx)*cos(rz), nz = m * cos(rx);
+	N.x = cos(z)*nx - cos(x)*sin(z)*ny + sin(x)*sin(z)*nz;
+	N.y = sin(z)*nx + cos(x)*cos(z)*ny - sin(x)*cos(z)*nz;
+	N.z = sin(x)*ny + cos(x)*nz;
+	return cos(rx);
+}

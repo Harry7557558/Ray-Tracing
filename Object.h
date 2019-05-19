@@ -1,14 +1,8 @@
 #pragma once
 
-#include "Matrix.h"
 #include "objdef.h"
-#include "D:\Explore\Math\Graph\GraphFun\GraphFun\BitMap.h"
 #include <vector>
 #include <initializer_list>
-
-#define ERR_EPSILON 1e-8	// minimum distance of intersection
-#define ERR_UPSILON 1e+12
-#define ERR_ZETA 1e-6	// minumum distance of SDF test, may cause threads jointing problems when too large
 
 
 /* object parent class */
@@ -28,22 +22,17 @@ public:
 	virtual void setcolor(const unsigned &c) {}
 
 	/* Intersection Test */
-	virtual void meet(intersect &R, const ray &a) { cout << "\aobject::meet is called. This function should never be called. \n"; return; }
+	virtual void meet(intersect &R, const ray &a) const { WARN("object::meet is called. This function should never be called."); return; }
 
-	/* Transformations, no longer useful */
-	virtual inline void operator *= (matrix<double> M) { cout << "\aobject::operator*=(Matrix) is called. This function should never be called. \n"; }
-	virtual inline void operator *= (const double &t) { cout << "\aobject::operator*=(double) is called. This function should never be called. \n"; }
-	virtual inline void operator += (const point &a) { cout << "\aobject::operator+= is called. This function should never be called. \n"; }
 
-	/* Rotation, first x, then origin y, then origin z */
-	virtual inline void rotate(const double &rx, const double &ry, const double &rz) { cout << "\aobject::rotate is called. This function should never be called. \n"; }
-
-	virtual inline point Max() { cout << "\aobject::Max is called. This function should never be called. \n"; return point(); }
-	virtual inline point Min() { cout << "\aobject::Min is called. This function should never be called. \n"; return point(); }
+	virtual point Max() const { WARN("object::Max is called. This function should never be called."); return point(); }
+	virtual point Min() const { WARN("object::Min is called. This function should never be called."); return point(); }
 
 	/* return the type of an object, undefined is -1 */
-	virtual int telltype() const { cout << "\aobject::telltype is called. This function should never be called. \n"; return Object_Sign; }
-	friend ostream& operator << (ostream& os, const object &a);
+	virtual int telltype() const { WARN("object::telltype is called. This function should never be called."); return Object_Sign; }
+	friend ostream& operator << (ostream& os, const object &a) {
+		a.print(os); return os;
+	}
 	virtual void print(ostream& os) const { os << "Object Parent Class"; }
 };
 
@@ -110,34 +99,21 @@ public:
 	}
 	~plane() {}
 
-	inline point Max() {
+	point Max() const {
 		if (N.x == 0 && N.y == 0 && N.z == 0) return point(0, 0, 0);
 		if (N.x == 0 && N.y == 0) return point(INFINITY, INFINITY, D / N.z + 0.01);
 		if (N.x == 0 && N.z == 0) return point(INFINITY, D / N.y + 0.01, INFINITY);
 		if (N.y == 0 && N.z == 0) return point(D / N.x + 0.01, INFINITY, INFINITY);
 		return point(INFINITY, INFINITY, INFINITY);
 	}
-	inline point Min() {
+	point Min() const {
 		if (N.x == 0 && N.y == 0 && N.z == 0) return point(0, 0, 0);
 		if (N.x == 0 && N.y == 0) return point(-INFINITY, -INFINITY, D / N.z - 0.01);
 		if (N.x == 0 && N.z == 0) return point(-INFINITY, D / N.y - 0.01, -INFINITY);
 		if (N.y == 0 && N.z == 0) return point(D / N.x - 0.01, -INFINITY, -INFINITY);
 		return point(-INFINITY, -INFINITY, -INFINITY);
 	}
-	/*inline void operator *= (matrix<double> M) {
-		point A, B, C;
-		if (N.z != 0) {
-			A = point(0, 0, D / N.z); B = point(1, 0, (D - N.x) / N.z); C = point(0, 1, (D - N.y) / N.z);
-		}
-		else if (N.y != 0) {
-			A = point(0, D / N.y, 0); B = point(1, (D - N.x) / N.y, 0); C = point(0, (D - N.z) / N.y, 1);
-		}
-		else {
-			A = point(D / N.x, 0, 0); B = point((D - N.y) / N.x, 1, 0); C = point((D - N.z) / N.x, 0, 1);
-		}
-		A *= M, B *= M, C *= M;
-		N = cross(B - A, C - A); D = dot(N, A);
-	}*/
+
 	inline void operator *= (const double &t) {
 		D *= t;
 	}
@@ -163,7 +139,7 @@ public:
 		N = cross(B - A, C - A); D = dot(N, A);
 	}
 
-	void meet(intersect &R, const ray &a) {
+	void meet(intersect &R, const ray &a) const {
 		R.meet = 0;
 		double t = (D - dot(N, a.orig)) / dot(N, a.dir);
 		if (t < ERR_EPSILON || t > ERR_UPSILON) return;
@@ -204,7 +180,7 @@ public:
 		A = *V.begin(), B = *(V.begin() + 1), C = *(V.begin() + 2);
 	}
 	~triangle() {}
-	void meet(intersect &R, const ray &a) {
+	void meet(intersect &R, const ray &a) const {
 		// Algorithm: http://www.graphics.cornell.edu/pubs/1997/MT97.pdf
 		R.meet = 0;
 		point E1 = B - A, E2 = C - A, T, P = cross(a.dir, E2), Q;
@@ -231,8 +207,8 @@ public:
 		R.reflect = a.dir - 2 * ON;
 		return;
 	}
-	inline point Max() { return point(max({ A.x, B.x, C.x }), max({ A.y, B.y, C.y }), max({ A.z, B.z, C.z })); }
-	inline point Min() { return point(min({ A.x, B.x, C.x }), min({ A.y, B.y, C.y }), min({ A.z, B.z, C.z })); }
+	point Max() const { return point(max({ A.x, B.x, C.x }), max({ A.y, B.y, C.y }), max({ A.z, B.z, C.z })); }
+	point Min() const { return point(min({ A.x, B.x, C.x }), min({ A.y, B.y, C.y }), min({ A.z, B.z, C.z })); }
 	inline friend triangle operator * (matrix<double> M, triangle a) {
 		a.A = M * a.A, a.B = M * a.B, a.C = M * a.C;
 		return a;
@@ -286,7 +262,7 @@ public:
 		this->O = O, this->A = A, this->B = B;
 	}
 	~parallelogram() {}
-	void meet(intersect &R, const ray &a) {
+	void meet(intersect &R, const ray &a) const {
 		R.meet = 0;
 		point T, P = cross(a.dir, B), Q;
 		double det = dot(A, P);
@@ -308,11 +284,11 @@ public:
 		R.reflect = a.dir - 2 * ON;
 		return;
 	}
-	inline point Max() {
+	point Max() const {
 		return point(max({ O.x, O.x + A.x, O.x + B.x, O.x + A.x + B.x }),
 			max({ O.y, O.y + A.y, O.y + B.y, O.y + A.y + B.y }), max({ O.z, O.z + A.z, O.z + B.z, O.z + A.z + B.z }));
 	}
-	inline point Min() {
+	point Min() const {
 		return point(min({ O.x, O.x + A.x, O.x + B.x, O.x + A.x + B.x }),
 			min({ O.y, O.y + A.y, O.y + B.y, O.y + A.y + B.y }), min({ O.z, O.z + A.z, O.z + B.z, O.z + A.z + B.z }));
 	}
@@ -373,19 +349,6 @@ public:
 	inline void operator += (const point &a) {
 		C += a;
 	}
-	/*inline friend circle operator * (const matrix<double> &Orthogonal, circle a) {
-		a *= Orthogonal; return a;
-	}*/
-	/*inline void operator *= (matrix<double> Orthogonal) {
-		// Matrix must be the product of a rotation matrix with determinant 1 and a positive constant
-		C *= Orthogonal;
-		double d = cbrt(det(Orthogonal)); r *= d;
-		//cout << (Orthogonal / d) << endl << ((Orthogonal / d) * Vector<double>(1, 1, 1)) << endl << endl;
-		//rx += atan2(Orthogonal[2][1], Orthogonal[2][2]); rz += atan2(Orthogonal[1][0], Orthogonal[0][0]);
-		rx += acos(Orthogonal[2][2] / d); //rz += acos(Orthogonal[0][0] / d);
-		//cout << rx << " " << rz << endl << endl;
-		// For Euler's angle: https://stackoverflow.com/questions/15022630/how-to-calculate-the-angle-from-rotation-matrix
-	}*/
 	inline void rotate(const double &rx, const double &ry, const double &rz) {
 		matrix<double> M = matrix<double>({ {cos(rz),-sin(rz),0}, {sin(rz),cos(rz),0}, {0,0,1} })
 			* matrix<double>({ {cos(ry),0,sin(ry)}, {0,1,0}, {-sin(ry),0,cos(ry)} })
@@ -402,7 +365,7 @@ public:
 	inline friend circle operator * (circle B, const double &a) {
 		B.C *= a, B.r *= a; return B;
 	}
-	inline point Max() {
+	point Max() const {
 		point R;
 		/*R.z = -atan(cos(rx) * tan(rz));
 		R.x = r * abs(cos(rz)*cos(R.z) - sin(rz)*cos(rx)*sin(R.z));
@@ -421,7 +384,7 @@ public:
 		R.z = r * abs(M1*cos(Ma) + M2 * sin(Ma));
 		R += C; return R;
 	}
-	inline point Min() {
+	point Min() const {
 		point R;
 		/*R.z = -atan(cos(rx) * tan(rz));
 		R.x = r * abs(cos(rz)*cos(R.z) - sin(rz)*cos(rx)*sin(R.z));
@@ -440,7 +403,7 @@ public:
 		R.z = r * abs(M1*cos(Ma) + M2 * sin(Ma));
 		return C - R;
 	}
-	void meet(intersect &R, const ray &a) {
+	void meet(intersect &R, const ray &a) const {
 		ray s(a.orig - C, a.dir);
 		double sx, cy;
 		sx = -sin(rz), cy = cos(rz);
@@ -528,12 +491,6 @@ public:
 	inline void operator += (const point &a) {
 		C += a;
 	}
-	/*inline void operator *= (matrix<double> Orthogonal) {
-		C *= Orthogonal;
-		double d = cbrt(det(Orthogonal)); r *= d, h *= d;
-		cout << (Orthogonal / d) << endl;
-		rx += acos(Orthogonal[2][2] / d); //rz += acos(Orthogonal[0][0] / d);
-	}*/
 	inline void rotate(const double &rx, const double &ry, const double &rz) {
 		matrix<double> M = matrix<double>({ {cos(rz),-sin(rz),0}, {sin(rz),cos(rz),0}, {0,0,1} })
 			* matrix<double>({ {cos(ry),0,sin(ry)}, {0,1,0}, {-sin(ry),0,cos(ry)} })
@@ -547,7 +504,7 @@ public:
 	inline void operator *= (const double &t) {
 		C *= t, r *= t, h *= t;
 	}
-	inline point Max() {
+	point Max() const {
 		// https://www.geogebra.org/m/d6fybucd
 		point R;
 		double M1, M2, M3, Ma;
@@ -565,7 +522,7 @@ public:
 		if (M3 > 0) R.z += M3 * h;
 		return C + R;
 	}
-	inline point Min() {
+	point Min() const {
 		point R;
 		double M1, M2, M3, Ma;
 		M1 = cos(ry)*cos(rz), M2 = -cos(rx)*sin(rz) + sin(rx)*sin(ry)*cos(rz), M3 = sin(rx)*sin(rz) + cos(rx)*sin(ry)*cos(rz);
@@ -582,7 +539,7 @@ public:
 		if (M3 < 0) R.z += M3 * h;
 		return C + R;
 	}
-	void meet(intersect &R, const ray &a) {
+	void meet(intersect &R, const ray &a) const {
 		ray s(a.orig - C, a.dir);
 		double sx, cy;
 		sx = -sin(rz), cy = cos(rz);
@@ -658,7 +615,7 @@ public:
 	sphere(const initializer_list<double> &C, const double &r) {
 		this->C = point(C), this->r = r;
 	}
-	void meet(intersect &R, const ray &a) {
+	void meet(intersect &R, const ray &a) const {
 		R.meet = 0;
 		point p = C - a.orig;
 		if (dot(p, a.dir) < 0) return;
@@ -673,13 +630,6 @@ public:
 		R.meet = 1;
 		return;
 	}
-	/*inline friend sphere operator * (matrix<double> Orthogonal, sphere a) {
-		a *= Orthogonal; return a;
-	}
-	inline void operator *= (matrix<double> Orthogonal) {
-		// Matrix must be the product of an orthogonal matrix and a constant
-		C *= Orthogonal; r *= cbrt(det(Orthogonal));
-	}*/
 	inline void rotate(const double &rx, const double &ry, const double &rz) {
 		matrix<double> M = matrix<double>({ {cos(rz),-sin(rz),0}, {sin(rz),cos(rz),0}, {0,0,1} })
 			* matrix<double>({ {cos(ry),0,sin(ry)}, {0,1,0}, {-sin(ry),0,cos(ry)} })
@@ -695,10 +645,10 @@ public:
 	inline void operator += (const point &a) {
 		C += a;
 	}
-	inline point Max() {
+	point Max() const {
 		return point(C.x + r, C.y + r, C.z + r);
 	}
-	inline point Min() {
+	point Min() const {
 		return point(C.x - r, C.y - r, C.z - r);
 	}
 	inline friend sphere operator * (sphere B, const double &a) {
@@ -814,14 +764,14 @@ public:
 	}
 	~plane_dif() {}
 
-	inline point Max() {
+	point Max() const {
 		if (N.x == 0 && N.y == 0 && N.z == 0) return point(0, 0, 0);
 		if (N.x == 0 && N.y == 0) return point(INFINITY, INFINITY, D / N.z + 0.01);
 		if (N.x == 0 && N.z == 0) return point(INFINITY, D / N.y + 0.01, INFINITY);
 		if (N.y == 0 && N.z == 0) return point(D / N.x + 0.01, INFINITY, INFINITY);
 		return point(INFINITY, INFINITY, INFINITY);
 	}
-	inline point Min() {
+	point Min() const {
 		if (N.x == 0 && N.y == 0 && N.z == 0) return point(0, 0, 0);
 		if (N.x == 0 && N.y == 0) return point(-INFINITY, -INFINITY, D / N.z - 0.01);
 		if (N.x == 0 && N.z == 0) return point(-INFINITY, D / N.y - 0.01, -INFINITY);
@@ -829,7 +779,7 @@ public:
 		return point(-INFINITY, -INFINITY, -INFINITY);
 	}
 
-	void meet(intersect &R, const ray &a) {
+	void meet(intersect &R, const ray &a) const {
 		R.meet = 0;
 		double t = (D - dot(N, a.orig)) / dot(N, a.dir);
 		if (t < ERR_EPSILON || t > ERR_UPSILON) return;
@@ -865,7 +815,7 @@ public:
 		if (absolute) this->A -= O, this->B -= O;
 	}
 	~parallelogram_dif() {}
-	void meet(intersect &R, const ray &a) {
+	void meet(intersect &R, const ray &a) const {
 		R.meet = 0;
 		point T, P = cross(a.dir, B), Q;
 		double det = dot(A, P);
@@ -887,11 +837,11 @@ public:
 		R.reflect /= R.reflect.mod();
 		return;
 	}
-	inline point Max() {
+	point Max() const {
 		return point(max({ O.x, O.x + A.x, O.x + B.x, O.x + A.x + B.x }),
 			max({ O.y, O.y + A.y, O.y + B.y, O.y + A.y + B.y }), max({ O.z, O.z + A.z, O.z + B.z, O.z + A.z + B.z }));
 	}
-	inline point Min() {
+	point Min() const {
 		return point(min({ O.x, O.x + A.x, O.x + B.x, O.x + A.x + B.x }),
 			min({ O.y, O.y + A.y, O.y + B.y, O.y + A.y + B.y }), min({ O.z, O.z + A.z, O.z + B.z, O.z + A.z + B.z }));
 	}
@@ -925,7 +875,7 @@ public:
 		this->A = A, this->B = B, this->C = C;
 	}
 	~triangle_dif() {}
-	void meet(intersect &R, const ray &a) {
+	void meet(intersect &R, const ray &a) const {
 		// Algorithm: http://www.graphics.cornell.edu/pubs/1997/MT97.pdf
 		R.meet = 0;
 		point E1 = B - A, E2 = C - A, T, P = cross(a.dir, E2), Q;
@@ -948,8 +898,8 @@ public:
 		R.reflect /= R.reflect.mod();
 		return;
 	}
-	inline point Max() { return point(max({ A.x, B.x, C.x }), max({ A.y, B.y, C.y }), max({ A.z, B.z, C.z })); }
-	inline point Min() { return point(min({ A.x, B.x, C.x }), min({ A.y, B.y, C.y }), min({ A.z, B.z, C.z })); }
+	point Max() const { return point(max({ A.x, B.x, C.x }), max({ A.y, B.y, C.y }), max({ A.z, B.z, C.z })); }
+	point Min() const { return point(min({ A.x, B.x, C.x }), min({ A.y, B.y, C.y }), min({ A.z, B.z, C.z })); }
 	inline void operator += (const point &a) {
 		A += a, B += a, C += a;
 	}
@@ -971,7 +921,7 @@ public:
 	~objectSF_col() {}
 
 	// get color with calculated intersection data
-	virtual void getcol(const intersect &R, rgblight &c) { cout << "objectSF_col::getcol is called. This function should never be called. \a\n"; }
+	virtual void getcol(const intersect &R, rgblight &c) { WARN("objectSF_col::getcol is called. This function should never be called."); }
 
 	void print(ostream& os) const { os << "objectSF_col class"; }
 };
@@ -999,14 +949,14 @@ public:
 	plane_grid(const double &z_int, const double &side_length, const rgblight &c1, const rgblight &c2) { this->z_int = z_int, wx = hy = side_length, this->c1 = c1, this->c2 = c2; }
 	plane_grid(const double &z_int, const double &side_length_x, const double &side_length_y, const rgblight &c1, const rgblight &c2) { this->z_int = z_int, wx = side_length_x, hy = side_length_y, this->c1 = c1, this->c2 = c2; }
 
-	inline point Max() {
+	point Max() const {
 		return point(INFINITY, INFINITY, z_int);
 	}
-	inline point Min() {
+	point Min() const {
 		return point(-INFINITY, -INFINITY, z_int);
 	}
 
-	void meet(intersect &R, const ray &a) {
+	void meet(intersect &R, const ray &a) const {
 		R.meet = 0;
 		if (abs(a.orig.z - z_int) < ERR_EPSILON) return;
 		if ((a.orig.z > z_int) ^ (a.dir.z < 0)) return;
@@ -1074,17 +1024,17 @@ public:
 		bitmap_inc(M, O, X, Y, t);
 	}
 
-	inline point Max() {
+	point Max() const {
 		return point(max({ O.x, O.x + A.x, O.x + B.x, O.x + A.x + B.x }),
 			max({ O.y, O.y + A.y, O.y + B.y, O.y + A.y + B.y }), max({ O.z, O.z + A.z, O.z + B.z, O.z + A.z + B.z }));
 	}
-	inline point Min() {
+	point Min() const {
 		return point(min({ O.x, O.x + A.x, O.x + B.x, O.x + A.x + B.x }),
 			min({ O.y, O.y + A.y, O.y + B.y, O.y + A.y + B.y }), min({ O.z, O.z + A.z, O.z + B.z, O.z + A.z + B.z }));
 	}
 
 
-	void meet(intersect &R, const ray &a) {
+	void meet(intersect &R, const ray &a) const {
 		R.meet = 0;
 		point T, P = cross(a.dir, B), Q;
 		double det = dot(A, P);
@@ -1143,14 +1093,14 @@ public:
 	// Given calculated intersection data and calculate refraction (since this always cost a lot of time)
 	// R: calculated intersection data;  a: ray (must match intersection);  mi: refractive index of the other media;
 	// rlr: reflect ratio calculated with Fresnel equations; NAN occurs in "refract" means total reflection (also rlr=1)
-	virtual void refractData(const intersect &R, const ray &a, const double &mi, point &refract, double &rlr) {
-		cout << "\aobject3D::refractData is called. This function should never be called. \n";
+	virtual void refractData(const intersect &R, const ray &a, const double &mi, point &refract, double &rlr) const {
+		WARN("\aobject3D::refractData is called. This function should never be called.");
 	}
 	// R.ut=1: refract in (air->obj);  R.ut=0: refract out (obj->air);
 
 	// inside => negative, outside => positive
-	virtual double SDF(const point &A) { cout << "\aobject3D::SDF is called. This function should never be called. \n"; return NAN; }
-	virtual bool contain(const point &A) { cout << "\aobject3D::inside is called. This function should never be called. \n"; return false; }
+	virtual double SDF(const point &A) const { WARN("\aobject3D::SDF is called. This function should never be called."); return NAN; }
+	virtual bool contain(const point &A) const { WARN("\aobject3D::inside is called. This function should never be called."); return false; }
 
 	void print(ostream& os) const { os << "object3D parent class"; }
 };
@@ -1174,14 +1124,14 @@ public:
 		this->z_int = z_int, this->ri = c > 1 ? c : 1 / c;
 		this->attcoe = rgblight(ac_r, ac_g, ac_b);
 	}
-	inline point Max() {
+	point Max() const {
 		return point(INFINITY, INFINITY, z_int);
 	}
-	inline point Min() {
+	point Min() const {
 		return point(-INFINITY, -INFINITY, z_int);
 	}
 
-	void meet(intersect &R, const ray &a) {
+	void meet(intersect &R, const ray &a) const {
 		R.meet = 0;
 		if (abs(a.orig.z - z_int) < ERR_EPSILON) return;
 		if ((a.orig.z > z_int) ^ (a.dir.z < 0)) return;
@@ -1194,7 +1144,7 @@ public:
 		R.meet = 1;
 		return;
 	}
-	void refractData(const intersect &R, const ray &a, const double &mi, point &refract, double &rlr) {
+	void refractData(const intersect &R, const ray &a, const double &mi, point &refract, double &rlr) const {
 		refract.x = a.dir.x, refract.y = a.dir.y;
 		if (a.dir.z < 0) {
 			refract.z = -sqrt((ri * ri - 1)*(a.dir.x*a.dir.x + a.dir.y*a.dir.y) + ri * ri * a.dir.z*a.dir.z);
@@ -1227,10 +1177,10 @@ public:
 		return;
 	}
 
-	double SDF(const point &A) {
+	double SDF(const point &A) const {
 		return A.z - z_int;
 	}
-	bool contain(const point &A) {
+	bool contain(const point &A) const {
 		return A.z < z_int;
 	}
 
@@ -1278,16 +1228,18 @@ public:
 		B.C *= a, B.r *= a; return B;
 	}
 
-	inline point Max() {
+	point Max() const {
 		return point(C.x + r, C.y + r, C.z + r);
 	}
-	inline point Min() {
+	point Min() const {
 		return point(C.x - r, C.y - r, C.z - r);
 	}
-	void meet(intersect &R, const ray &a) {
+	void meet(intersect &R, const ray &a) const {
 		point p = C - a.orig;
 		double pm = p.mod();
 		if (abs(pm - r) < ERR_EPSILON) {
+			// This problem mainly occurs on hook surfaces, less common on linear planes
+			// about 70% occurs when pm > r
 			(const_cast<ray&>(a)).orig += ERR_ZETA * a.dir;
 			p = C - a.orig;
 			pm = p.mod();
@@ -1305,7 +1257,6 @@ public:
 			R.reflect = s - (2 * dot(s, n) / dot(n, n)) * n;
 			R.meet = 1;
 			R.ut = 1;
-			return;
 		}
 		else {
 			double sm = a.dir.mod();
@@ -1319,7 +1270,7 @@ public:
 			R.ut = 0;
 		}
 	}
-	void refractData(const intersect &R, const ray &a, const double &mi, point &refract, double &rlr) {
+	void refractData(const intersect &R, const ray &a, const double &mi, point &refract, double &rlr) const {
 		// https://graphics.stanford.edu/courses/cs148-10-summer/docs/2006--degreve--reflection_refraction.pdf
 		point n = C - R.intrs;
 		double mn = n.mod(), ms = a.dir.mod(), c1 = dot(n, a.dir) / (mn*ms);
@@ -1336,10 +1287,10 @@ public:
 		rlr = 0.5*(Rs + Rp);
 	}
 
-	bool contain(const point &A) {
+	bool contain(const point &A) const {
 		return (C - A).mod() < r;
 	}
-	double SDF(const point &A) {
+	double SDF(const point &A) const {
 		return (C - A).mod() - r;
 	}
 
@@ -1349,7 +1300,7 @@ public:
 	int telltype() const { return Sphere3D_Sign; }
 };
 
-/* use to construct polyhedrons */
+/* use to construct polyhedrons, shouldn't be directly added to World class */
 #define Triangle_Ref_Sign 0x00010002
 class triangle_ref : public object3D {
 public:
@@ -1365,14 +1316,14 @@ public:
 		N /= N.mod();
 	}
 	~triangle_ref() {}
-	inline point Max() { return point(max({ A.x, B.x, C.x }), max({ A.y, B.y, C.y }), max({ A.z, B.z, C.z })); }
-	inline point Min() { return point(min({ A.x, B.x, C.x }), min({ A.y, B.y, C.y }), min({ A.z, B.z, C.z })); }
+	point Max() const { return point(max({ A.x, B.x, C.x }), max({ A.y, B.y, C.y }), max({ A.z, B.z, C.z })); }
+	point Min() const { return point(min({ A.x, B.x, C.x }), min({ A.y, B.y, C.y }), min({ A.z, B.z, C.z })); }
 
 	void operator += (const point &P) {
 		A += P, B += P, C += P;
 	}
 
-	void meet(intersect &R, const ray &a) {
+	void meet(intersect &R, const ray &a) const {
 		R.meet = 0;
 		point E1 = B - A, E2 = C - A, T, P = cross(a.dir, E2), Q;
 		double det = dot(E1, P);
@@ -1394,7 +1345,7 @@ public:
 		R.reflect = a.dir - ct * N;
 		return;
 	}
-	void refractData(const intersect &R, const ray &a, const double &mi, point &refract, double &rlr) {
+	void refractData(const intersect &R, const ray &a, const double &mi, point &refract, double &rlr) const {
 		double ms = a.dir.mod(), c1 = -dot(N, a.dir) / ms;
 		double n1 = mi, n2 = ri;
 		if (R.ut == 0) n1 = ri, n2 = mi, c1 = -c1;
@@ -1409,10 +1360,10 @@ public:
 		rlr = 0.5*(Rs + Rp);
 	}
 
-	double SDF(const point &P) {
+	double SDF(const point &P) const {
 		return dot(P - A, N);
 	}
-	bool contain(const point &P) {
+	bool contain(const point &P) const {
 		return dot(P - A, N) < 0;
 	}
 
@@ -1447,11 +1398,11 @@ public:
 		N /= N.mod();
 	}
 	~parallelogram_ref() {}
-	inline point Max() {
+	point Max() const {
 		return point(max({ O.x, A.x, B.x, A.x + B.x - O.x }),
 			max({ O.y, A.y, B.y, A.y + B.y - O.y }), max({ O.y, A.y, B.y,A.y + B.y - O.y }));
 	}
-	inline point Min() {
+	point Min() const {
 		return point(min({ O.x, A.x, B.x, A.x + B.x - O.x }),
 			min({ O.y, A.y, B.y, A.y + B.y - O.y }), min({ O.y, A.y, B.y,A.y + B.y - O.y }));
 	}
@@ -1460,7 +1411,7 @@ public:
 		A += P, B += P, O += P;
 	}
 
-	void meet(intersect &R, const ray &a) {
+	void meet(intersect &R, const ray &a) const {
 		R.meet = 0;
 		point E1 = A - O, E2 = B - O, T, P = cross(a.dir, E2), Q;
 		double det = dot(E1, P);
@@ -1482,7 +1433,7 @@ public:
 		R.reflect = a.dir - ct * N;
 		return;
 	}
-	void refractData(const intersect &R, const ray &a, const double &mi, point &refract, double &rlr) {
+	void refractData(const intersect &R, const ray &a, const double &mi, point &refract, double &rlr) const {
 		double ms = a.dir.mod(), c1 = -dot(N, a.dir) / ms;
 		double n1 = mi, n2 = ri;
 		if (R.ut == 0) n1 = ri, n2 = mi, c1 = -c1; // ut=1: air->obj; ut=0: obj->air
@@ -1496,10 +1447,10 @@ public:
 		double Rp = (n2*c2 - n1 * c1) / (n2*c2 + n1 * c1); Rp *= Rp;
 		rlr = 0.5*(Rs + Rp);
 	}
-	double SDF(const point &P) {
+	double SDF(const point &P) const {
 		return dot(P - A, N);
 	}
-	bool contain(const point &P) {
+	bool contain(const point &P) const {
 		return dot(P - A, N) < 0;
 	}
 	void print(ostream& os) const {
@@ -1509,6 +1460,85 @@ public:
 			<< "u, 0, 1, v, 0, 1)" << noshowpos;
 	}
 	int telltype() const { return Parallelogram_Ref_Sign; }
+};
+
+#define Polyhedron_Sign 0x00010004
+class polyhedron : public object3D {
+public:
+	vector<const object3D*> tp; // triangles or parallelograms
+	polyhedron() {}
+	polyhedron(const initializer_list<object3D*> objs) {
+		for (unsigned i = 0, n = objs.size(); i < n; i++) {
+			tp.push_back(objs.begin()[i]);
+		}
+	}
+	void add(const object3D* obj) {
+		tp.push_back(obj);
+	}
+	~polyhedron() { tp.clear(); }
+
+	point Max() const {
+		point C(-INFINITY, -INFINITY, -INFINITY);
+		point P;
+		for (unsigned i = 0, n = tp.size(); i < n; i++) {
+			P = tp[i]->Max();
+			C.x = max(C.x, P.x), C.y = max(C.y, P.y), C.z = max(C.z, P.z);
+		}
+		return C;
+	}
+	point Min() const {
+		point C(INFINITY, INFINITY, INFINITY);
+		point P;
+		for (unsigned i = 0, n = tp.size(); i < n; i++) {
+			P = tp[i]->Min();
+			C.x = min(C.x, P.x), C.y = min(C.y, P.y), C.z = min(C.z, P.z);
+		}
+		return C;
+	}
+
+	void meet(intersect &R, const ray &a) const {
+		unsigned i = 0, n = tp.size();
+		for (i = 0; i < n; i++) {
+			tp[i]->meet(R, a);
+			if (R.meet) {
+				R.vt = i; break;
+			}
+		}
+		if (!R.meet) return;
+		intersect S;
+		for (; i < n; i++) {
+			tp[i]->meet(S, a);
+			if (S.meet && S.dist < R.dist) R = S, R.vt = i;
+		}
+		return;
+	}
+	bool contain(const point &A) const {
+		/*for (unsigned i = 0, n = tp.size(); i < n; i++) {
+			if (tp[i]->contain(A)) return true;
+		}
+		return false;*/
+		// This only work for convex polyhedrons
+
+		unsigned N = 0;
+		intersect R;
+		for (unsigned i = 0, n = tp.size(); i < n; i++) {
+			tp[i]->meet(R, ray(A, point(0.324837423289, 0.239844723344, 0.523423543445)));  // using irregular values to prevent special cases
+			if (R.meet) N++;
+		}
+		return N & 1;
+		// Work for all legal polyhedrons, but requires a lot of calculating
+	}
+	/*double SDF(const point &A) const {
+		return NAN;
+	}*/
+	void refractData(const intersect &R, const ray &a, const double &mi, point &refract, double &rlr) const {
+		tp[R.vt]->refractData(R, a, mi, refract, rlr);
+	}
+
+	int telltype() const {
+		return Polyhedron_Sign;
+	}
+
 };
 
 #endif
@@ -1550,7 +1580,7 @@ public:
 	spherebulb(const spherebulb &a) { C = a.C, r = a.r, col = a.col; }
 	spherebulb() :r(0) { col.r = col.g = col.b = 1; }
 
-	void meet(intersect &R, const ray &a) {
+	void meet(intersect &R, const ray &a) const {
 		R.meet = 0;
 		point p = C - a.orig;
 		if (dot(p, a.dir) < 0) return;
@@ -1567,10 +1597,10 @@ public:
 		R.meet = 1;
 		return;
 	}
-	inline point Max() {
+	point Max() const {
 		return point(C.x + r, C.y + r, C.z + r);
 	}
-	inline point Min() {
+	point Min() const {
 		return point(C.x - r, C.y - r, C.z - r);
 	}
 	friend ostream& operator << (ostream& os, const spherebulb &a) {
@@ -1606,7 +1636,7 @@ public:
 		O = *V.begin(), A = *(V.begin() + 1), B = *(V.begin() + 2);
 	}
 	~rectbulb() {}
-	void meet(intersect &R, const ray &a) {
+	void meet(intersect &R, const ray &a) const {
 		R.meet = 0;
 		point E1 = A - O, E2 = B - O, T, P = cross(a.dir, E2), Q;
 		double det = dot(E1, P);
@@ -1630,11 +1660,11 @@ public:
 		R.ut = dot(a.dir, ON) / (a.dir.mod()*ON.mod());
 		return;
 	}
-	inline point Max() {
+	point Max() const {
 		return point(max({ O.x, A.x, B.x, A.x + B.x - O.x }),
 			max({ O.y, A.y, B.y, A.y + B.y - O.y }), max({ O.y, A.y, B.y,A.y + B.y - O.y }));
 	}
-	inline point Min() {
+	point Min() const {
 		return point(min({ O.x, A.x, B.x, A.x + B.x - O.x }),
 			min({ O.y, A.y, B.y, A.y + B.y - O.y }), min({ O.y, A.y, B.y,A.y + B.y - O.y }));
 	}
@@ -1655,49 +1685,4 @@ public:
 #endif
 
 
-
-
-ostream& operator << (ostream& os, const object &a) {
-	a.print(os);
-	return os;
-
-	switch (a.telltype()) {
-	case Plane_Sign: {
-		cout << *((plane*)(&a));
-		break;
-	}
-	case Triangle_Sign: {
-		cout << *((triangle*)(&a));
-		break;
-	}
-	case Parallelogram_Sign: {
-		cout << *((parallelogram*)(&a));
-		break;
-	}
-	case Circle_Sign: {
-		cout << *((circle*)(&a));
-		break;
-	}
-	case Sphere_Sign: {
-		cout << *((sphere*)(&a));
-		break;
-	}
-	case Cylinder_Sign: {
-		cout << *((cylinder*)(&a));
-		break;
-	}
-	case WaterSurface_Sign: {
-		cout << *((WaterSurface*)(&a));
-		break;
-	}
-	case Sphere3D_Sign: {
-		cout << *((sphere3D*)(&a));
-		break;
-	}
-	default: {
-		cout << "\aError! a.telltype() return 0x" << hex << a.telltype() << ". ";
-	}
-	}
-	return os;
-}
 

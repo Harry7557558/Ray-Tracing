@@ -4,6 +4,8 @@
 #include <vector>
 #include <initializer_list>
 
+using namespace std;
+
 
 /* object parent class */
 #define Object_Sign 0xFFFFFFFF
@@ -666,57 +668,6 @@ public:
 #ifndef _INC_object2D_dif
 #define _INC_object2D_dif
 
-#include <cstdlib>
-
-#ifndef RANDOM_NORMALDISTRIBUTION
-#define RANDOM_NORMALDISTRIBUTION
-// not necessary to set random number seeds
-
-// calculate inverse error function
-inline double erfinv(double x) {
-	double n = log(1 - x * x);
-	double t = 0.5 * n + 2 / (PI*0.147);
-	if (signbit(x)) return -sqrt(-t + sqrt(t*t - n / 0.147));
-	return sqrt(-t + sqrt(t*t - n / 0.147));
-}
-// produce random normal-distributed number with given median and variance
-inline double randnor(double median, double variance) {
-	return erfinv(2.0 * double(rand()) / double(RAND_MAX + 1) - 1)*sqrt(2)*variance + median;
-}
-inline double randnor_0(double variance) {
-	return erfinv(2.0 * double(rand()) / double(RAND_MAX + 1) - 1) * 1.41421356237309504876 * variance;
-}
-
-// linear congruence method producing random float value
-extern double RAND_LCG_DV = 0.36787944117;
-#define RAND_LCG_TMS 13.35717028437795
-#define RAND_LCG_ADD 0.841470984807897
-inline double erfinv0(const double &x) {
-	double n = log(1.0 - x * x);
-	double t = 0.5 * n + 4.33074675079987308221;
-	if (signbit(x)) return -sqrt(-t + sqrt(t*t - n / 0.147));
-	return sqrt(-t + sqrt(t*t - n / 0.147));
-}
-inline double randnor0(double variance) {
-	RAND_LCG_DV = fmod(RAND_LCG_DV * RAND_LCG_TMS + RAND_LCG_ADD, 2.0);
-	return 1.41421356237309504876 * erfinv0(RAND_LCG_DV - 1) * variance;
-}
-
-double rotate_normal(point &N) {
-	double m = N.mod();
-	double x = acos(N.z / m), z = atan2(N.x, -N.y);
-	RAND_LCG_DV = fmod(RAND_LCG_DV * RAND_LCG_TMS + RAND_LCG_ADD, PI);
-	double rx = RAND_LCG_DV - PI / 2;
-	RAND_LCG_DV = fmod(RAND_LCG_DV * RAND_LCG_TMS + RAND_LCG_ADD, 2 * PI);
-	double rz = RAND_LCG_DV;
-	double nx = m * sin(rx)*sin(rz), ny = -m * sin(rx)*cos(rz), nz = m * cos(rx);
-	N.x = cos(z)*nx - cos(x)*sin(z)*ny + sin(x)*sin(z)*nz;
-	N.y = sin(z)*nx + cos(x)*cos(z)*ny - sin(x)*cos(z)*nz;
-	N.z = sin(x)*ny + cos(x)*nz;
-	return cos(rx);
-}
-
-#endif
 
 /* Opacity surface with diffuse reflection */
 class objectSF_dif : public objectSF {
@@ -1300,7 +1251,7 @@ public:
 	int telltype() const { return Sphere3D_Sign; }
 };
 
-/* use to construct polyhedrons, shouldn't be directly added to World class */
+/* Use to construct polyhedrons, shouldn't be directly added to World class */
 #define Triangle_Ref_Sign 0x00010002
 class triangle_ref : public object3D {
 public:
@@ -1466,18 +1417,27 @@ public:
 class polyhedron : public object3D {
 public:
 	vector<const object3D*> tp; // triangles or parallelograms
+	borderbox S;
 	polyhedron() {}
 	polyhedron(const initializer_list<object3D*> objs) {
 		for (unsigned i = 0, n = objs.size(); i < n; i++) {
 			tp.push_back(objs.begin()[i]);
+			S.Max() = PMax(S.Max(), tp.back()->Max());
+			S.Min() = PMin(S.Min(), tp.back()->Min());
 		}
 	}
 	void add(const object3D* obj) {
 		tp.push_back(obj);
+		S.Max() = PMax(S.Max(), tp.back()->Max());
+		S.Min() = PMin(S.Min(), tp.back()->Min());
 	}
 	~polyhedron() { tp.clear(); }
 
+	// Before rendering, make sure all added triangles and parallelograms form a legal polyhedron, and the directions of normals are all correct
+
 	point Max() const {
+		return S.B2;
+
 		point C(-INFINITY, -INFINITY, -INFINITY);
 		point P;
 		for (unsigned i = 0, n = tp.size(); i < n; i++) {
@@ -1487,6 +1447,8 @@ public:
 		return C;
 	}
 	point Min() const {
+		return S.B1;
+
 		point C(INFINITY, INFINITY, INFINITY);
 		point P;
 		for (unsigned i = 0, n = tp.size(); i < n; i++) {
@@ -1497,6 +1459,7 @@ public:
 	}
 
 	void meet(intersect &R, const ray &a) const {
+		R.meet = 0; if (!S.meet(a)) return;
 		unsigned i = 0, n = tp.size();
 		for (i = 0; i < n; i++) {
 			tp[i]->meet(R, a);
@@ -1513,6 +1476,7 @@ public:
 		return;
 	}
 	bool contain(const point &A) const {
+		if (!S.contain(A)) return false;
 		/*for (unsigned i = 0, n = tp.size(); i < n; i++) {
 			if (tp[i]->contain(A)) return true;
 		}

@@ -18,6 +18,19 @@
 typedef chrono::high_resolution_clock NTime;
 typedef chrono::duration<double> fsec;
 
+
+#define ERR_EPSILON 1e-8	// minimum distance of intersection
+#define ERR_UPSILON 1e+12
+#define ERR_ZETA 1e-6	// minumum distance of SDF test, may cause threads jointing problems when too large
+
+// For Debugging
+extern ofstream fout("IMAGE\\Log.txt");
+void WARN(string s) {
+	cout << s << "\a\n"; fout << s << endl;
+}
+
+
+
 /*
 	Spacial point class.
 	Defined addition, substraction, dot and cross product, etc. Can be used as a spacial vector.
@@ -298,3 +311,39 @@ inline void operator *= (rgblight &a, const double &b) {
 inline void operator /= (rgblight &a, const double &b) {
 	a.r /= b, a.g /= b, a.b /= b;
 }
+
+
+class borderbox {
+	// Use for border of subgroups of objects
+public:
+	point B1, B2;
+	borderbox() {}
+	bool meet(const ray &a) const {
+		// http://www.cs.utah.edu/~awilliam/box/box.pdf
+		double tmin, tmax, tymin, tymax, tzmin, tzmax;
+		tmin = ((a.dir.x < 0 ? B2 : B1).x - a.orig.x) / a.dir.x;
+		tmax = ((a.dir.x < 0 ? B1 : B2).x - a.orig.x) / a.dir.x;
+		tymin = ((a.dir.y < 0 ? B2 : B1).y - a.orig.y) / a.dir.y;
+		tymax = ((a.dir.y < 0 ? B1 : B2).y - a.orig.y) / a.dir.y;
+		if ((tmin > tymax) || (tymin > tmax)) return 0;
+		if (tymin > tmin) tmin = tymin;
+		if (tymax < tmax) tmax = tymax;
+		tzmin = ((a.dir.z < 0 ? B2 : B1).z - a.orig.z) / a.dir.z;
+		tzmax = ((a.dir.z < 0 ? B1 : B2).z - a.orig.z) / a.dir.z;
+		if ((tmin > tzmax) || (tzmin > tmax)) return 0;
+		if (tzmin > tmin) tmin = tzmin;
+		if (tzmax < tmax) tmax = tzmax;
+		return tmax > 0;
+	}
+	inline bool contain(const point &a) const {
+		return (a.x > B1.x && a.x<B2.x && a.y>B1.y && a.y<B2.y && a.z>B1.z && a.z < B2.z);
+	}
+	~borderbox() {}
+	friend ostream& operator << (ostream& os, const borderbox &a) {
+		point A = a.B1, B = point(a.B2.x, a.B1.y, a.B1.z), C = point(a.B2.x, a.B2.y, a.B1.z), D = point(a.B1.x, a.B2.y, a.B1.z),
+			E = point(a.B1.x, a.B1.y, a.B2.z), F = point(a.B2.x, a.B1.y, a.B2.z), G = a.B2, H = point(a.B1.x, a.B2.y, a.B2.z);
+		os << "Polyline(" << A << "," << B << "," << F << "," << G << "," << C << "," << D << "," << H << "," << E << "," <<
+			A << "," << E << "," << F << "," << B << "," << C << "," << G << "," << H << "," << D << "," << A << ")";
+		return os;
+	}
+};

@@ -81,30 +81,30 @@ void Render_GTest01() {
 					for (int js = j * substair; (js < (j + 1)*substair && is + js < allstair) || (i + j + 1 == stair && is + js == allstair); js++) {
 						for (int ks = k * substair; (ks < (k + 1)*substair && is + js + ks < allstair) || (i + j + k + 1 == stair && is + js + ks == allstair); ks++) {
 							G6_IST.add(new sphere(point(Ch*is + Cho2 * js + Cho2 * ks, rt3o2*Ch*js + rt3o6 * Ch*ks, rt6o3*Ch*ks + r), r));
-							G6_IST.Objs.back()->setcolor(Silver);
+							const_cast<object*>(G6_IST.Objs.back())->setcolor(Silver);
 							if (is + js + ks < allstair) {
 								G6_IST.add(new cylinder(point(Ch*is + Cho2 * js + Cho2 * ks, rt3o2*Ch*js + rt3o6 * Ch*ks, rt6o3*Ch*ks + r),
 									point(Ch*(is + 1) + Cho2 * js + Cho2 * ks, rt3o2*Ch*js + rt3o6 * Ch*ks, rt6o3*Ch*ks + r), Cr));
-								G6_IST.Objs.back()->setcolor(LightSkyBlue);
+								const_cast<object*>(G6_IST.Objs.back())->setcolor(LightSkyBlue);
 								G6_IST.add(new cylinder(point(Ch*is + Cho2 * js + Cho2 * ks, rt3o2*Ch*js + rt3o6 * Ch*ks, rt6o3*Ch*ks + r),
 									point(Ch*is + Cho2 * (js + 1) + Cho2 * ks, rt3o2*Ch*(js + 1) + rt3o6 * Ch*ks, rt6o3*Ch*ks + r), Cr));
-								G6_IST.Objs.back()->setcolor(LightSkyBlue);
+								const_cast<object*>(G6_IST.Objs.back())->setcolor(LightSkyBlue);
 								G6_IST.add(new cylinder(point(Ch*is + Cho2 * js + Cho2 * ks, rt3o2*Ch*js + rt3o6 * Ch*ks, rt6o3*Ch*ks + r),
 									point(Ch*is + Cho2 * js + Cho2 * (ks + 1), rt3o2*Ch*js + rt3o6 * Ch*(ks + 1), rt6o3*Ch*(ks + 1) + r), Cr));
-								G6_IST.Objs.back()->setcolor(LightSkyBlue);
+								const_cast<object*>(G6_IST.Objs.back())->setcolor(LightSkyBlue);
 							}
 							if (js != 0) {
 								G6_IST.add(new cylinder(point(Ch*is + Cho2 * js + Cho2 * ks, rt3o2*Ch*js + rt3o6 * Ch*ks, rt6o3*Ch*ks + r),
 									point(Ch*is + Cho2 * (js - 1) + Cho2 * (ks + 1), rt3o2*Ch*(js - 1) + rt3o6 * Ch*(ks + 1), rt6o3*Ch*(ks + 1) + r), Cr));
-								G6_IST.Objs.back()->setcolor(LightGreen);
+								const_cast<object*>(G6_IST.Objs.back())->setcolor(LightGreen);
 								G6_IST.add(new cylinder(point(Ch*is + Cho2 * js + Cho2 * ks, rt3o2*Ch*js + rt3o6 * Ch*ks, rt6o3*Ch*ks + r),
 									point(Ch*(is + 1) + Cho2 * (js - 1) + Cho2 * ks, rt3o2*Ch*(js - 1) + rt3o6 * Ch*ks, rt6o3*Ch*ks + r), Cr));
-								G6_IST.Objs.back()->setcolor(LightGreen);
+								const_cast<object*>(G6_IST.Objs.back())->setcolor(LightGreen);
 							}
 							if (is != 0) {
 								G6_IST.add(new cylinder(point(Ch*is + Cho2 * js + Cho2 * ks, rt3o2*Ch*js + rt3o6 * Ch*ks, rt6o3*Ch*ks + r),
 									point(Ch*(is - 1) + Cho2 * js + Cho2 * (ks + 1), rt3o2*Ch*js + rt3o6 * Ch*(ks + 1), rt6o3*Ch*(ks + 1) + r), Cr));
-								G6_IST.Objs.back()->setcolor(Pink);
+								const_cast<object*>(G6_IST.Objs.back())->setcolor(Pink);
 							}
 							G6_IS.insert(new World(G6_IST));
 							while (!G6_IST.Objs.empty()) delete G6_IST.Objs.back(), G6_IST.Objs.pop_back();
@@ -117,7 +117,7 @@ void Render_GTest01() {
 			}
 		}
 	}
-	G6.insert(&G6_I, 0, 0, 0);
+	G6.insert(&G6_I);
 	G6.add(&G6_G);
 	G6.setGlobalLightSource(1.6, 0.2);
 
@@ -538,6 +538,7 @@ void Render_CTest02() {
 	W.insert(&W1);
 
 	bitmap img(600, 400);
+	W.Render_Sampling = 2;
 	W.setGlobalLightSource(0, 0, 1);
 	W.render(img, point(100, 30, 50), point(0, 0, 0), 0, 0.02);
 	img.out("IMAGE\\RT.bmp");
@@ -558,11 +559,11 @@ void Render_CTest03() {
 	W1.setGlobalLightSource(0, 0, 1);
 	for (string i = "00"; i[0] < '3'; i[1]++) {
 		S1.C.z = (i[0] - '0') * 10 + i[1] - '0';
-		W1.render(img, point(0, 0, 100), point(0, 0, 0), 0, 0.01);
-		img.out("IMAGE\\T\\RT" + i + ".bmp");
+		//W1.render(img, point(0, 0, 100), point(0, 0, 0), 0, 0.01);
+		//img.out("IMAGE\\T\\RT" + i + ".bmp");
 		if (i[1] == '9') i[0]++, i[1] = '0' - 1;
 	}
-	return;
+	//return;
 
 	bitmap_inc BM(bitmap("D:\\Coding\\AboutImage\\ColorAnalysisTest\\2DFitting\\Origin\\SK01.bmp"), point(0, 0, 0), point(19.1, 0, 0), point(0, 0, 8)); W2.add(&BM);
 	// capture from 3D animation film Moana, 16:20, a girl standing on the rock and staring at the sea
@@ -597,13 +598,16 @@ void Render_CTest04() {
 	triangle_ref T5(point(0, 0, 1), point(1, 0, 1), point(0, 1, 1));
 	double cn = 1.3; T1.setIndex(cn), T2.setIndex(cn), T3.setIndex(cn), T4.setIndex(cn), T5.setIndex(cn);
 	point P(0, 0, ERR_ZETA); T1 += P, T2 += P, T3 += P, T4 += P, T5 += P;
-	W.add({ &T1, &T2, &T3, &T4, &T5 });
+	polyhedron T({ &T1, &T2, &T3, &T4, &T5 });
+	rgblight cf(1.08, 0.10, 0.04); T.attcoe = cf;
+	//W.add({ &T1, &T2, &T3, &T4, &T5 });
+	W.add(&T);
 	plane_grid G(0.0); W.add(&G);
 	//plane_dif G(0.0); G.setcolor(DarkSeaGreen); W.add(&G);
 	parallelogram G1(point(-1, 0, ERR_ZETA), point(cos(2.8), sin(2.8)), 2 * point(cos(2.8 - PI / 2), sin(2.8 - PI / 2))); G1.setcolor(Brown); W.add(&G1);
 	fout << W << endl;
 
-	W.Render_Sampling = 2;
+	W.Render_Sampling = 8;
 	W.setGlobalLightSource(0, 0, 1);
 	bitmap img(600, 400);
 	W.render(img, point(10, -6, 5), point(0, 0, 0), 0, 0.06);

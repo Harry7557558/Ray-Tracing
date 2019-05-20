@@ -1,0 +1,254 @@
+﻿<!doctype html>
+<html>
+<head>
+    <title>MyCAD 2D</title>
+    <meta charset="utf-8" />
+    <style>
+        #content {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        #canvas, #preview {
+            position: fixed;
+            left: 0;
+            top: 0;
+            margin: 0;
+            padding: 0;
+            cursor: none;
+        }
+
+        #tool {
+            position: fixed;
+            right: 20px;
+            top: 20px;
+        }
+    </style>
+    <script id="global">
+        var canvas, preview;
+
+        var Origin = [0, 0], Unit = 20;
+
+        function fromCoordinate(P) {
+            return [P[0] * Unit + Origin[0], -P[1] * Unit + Origin[1]];
+        }
+        function fromCanvas(P) {
+            return [(P[0] - Origin[0]) / Unit, -(P[1] - Origin[1]) / Unit];
+        }
+
+        var Points = [[NaN, NaN]];
+        var Objs = [[]];
+        var Status = "line";
+        var CursorType = "default";
+        var Previewing = -1;
+
+        function init() {
+            canvas = document.getElementById("canvas"), preview = document.getElementById("preview");
+            Origin = [window.innerWidth / 2, window.innerHeight / 2];
+            window.onresize = function () {
+                resizeCanvas();
+            };
+            window.onkeydown = function () {
+                Onkeydown(event);
+            }
+            window.onmousewheel = function () {
+                mouseScroll(event);
+            }
+            resizeCanvas();
+        }
+        function resizeCanvas() {
+            var w = window.innerWidth, h = window.innerHeight;
+            w = Math.floor(1 * w), h = Math.floor(1 * h);
+            if ((w >= 50) && (h >= 50) && ((canvas.width !== w) || (canvas.height !== h))) {
+                canvas.width = preview.width = w;
+                canvas.height = preview.height = h;
+                canvas.style.width = preview.style.width = w + "px";
+                canvas.style.height = preview.style.height = h + "px";
+            }
+            redraw();
+        }
+
+
+    </script>
+</head>
+<body onload="init()">
+    <div id="content" oncontextmenu="event.preventDefault()">
+        <canvas id="canvas"></canvas>
+        <canvas id="preview" onmousemove="cursorMove(event)" onclick="mouseClick(event)" oncontextmenu="rightClick(event)"></canvas>
+        <div id="tool"></div>
+    </div>
+    <script>
+        Objs.push(new Array);
+        Objs[Objs.length - 1].push("line");
+
+        function redraw() {
+            var ctx = canvas.getContext("2d");
+
+            // background
+            ctx.fillStyle = "rgb(12,12,12)";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // axis
+            ctx.strokeStyle = "SlateBlue";
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(Origin[0], 0);
+            ctx.lineTo(Origin[0], canvas.height);
+            ctx.moveTo(0, Origin[1]);
+            ctx.lineTo(canvas.width, Origin[1]);
+            ctx.stroke();
+
+            // grid
+
+
+
+            ctx.strokeStyle = "White";
+            ctx.lineWidth = 1;
+            ctx.setLineDash([]);
+            for (var i = 0; i < Objs.length; i++) {
+                switch (Objs[i][0]) {
+                    case "line": {
+                        Line(ctx, i);
+                    }
+                }
+            }
+        }
+        function repreview(mouseevent) {
+            var ctx = preview.getContext("2d");
+            ctx.clearRect(0, 0, preview.width, preview.height);
+            if (Previewing != -1) redraw();
+            drawCursor(mouseevent);
+        }
+
+        function drawCursor(event) {
+            var x = event.clientX, y = event.clientY;
+            var ctx = preview.getContext("2d");
+            switch (CursorType) {
+                case "default": {
+                    ctx.strokeStyle = "Lime";
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([]);
+                    ctx.beginPath();
+                    ctx.moveTo(x - 12, y);
+                    ctx.lineTo(x + 12, y);
+                    ctx.moveTo(x, y - 12);
+                    ctx.lineTo(x, y + 12);
+                    ctx.stroke();
+                    break;
+                }
+            }
+        }
+
+
+
+    </script>
+
+    <script id="events">
+        function cursorMove(event) {
+            var P = fromCanvas([event.clientX, event.clientY]);
+            switch (Status) {
+                case "select": {
+                    repreview(event);
+                    break;
+                }
+                case "line": {
+                    Points[0] = P;
+                    repreview(event);
+                    break;
+                }
+                case "circle": {
+                    break;
+                }
+                case "arc": {
+                    break;
+                }
+                case "spline": {
+                    break;
+                }
+            }
+        }
+
+        function mouseClick(event) {
+            if (Status != "line") {
+                Objs.push(new Array);
+                Objs[Objs.length - 1].push("line");
+                Status = "line";
+            }
+
+            var P = fromCanvas([event.clientX, event.clientY]);
+            var ctx = canvas.getContext("2d");
+            ctx.strokeStyle = "White";
+            switch (Status) {
+                case "select": {
+                    break;
+                }
+                case "line": {
+                    Points.push(P);
+                    Points[0] = P;
+                    Objs[Objs.length - 1].push(Points.length - 1);
+                    Previewing = Objs.length - 1;
+                    break;
+                }
+                case "circle": {
+                    break;
+                }
+                case "arc": {
+                    break;
+                }
+                case "spline": {
+                    break;
+                }
+            }
+        }
+
+        function Onkeydown(event) {
+            if (event.keyCode != 116 && event.keyCode != 123) event.preventDefault();   // F5, F12
+            console.log(event.keyCode);
+            switch (event.keyCode) {
+                case 13: { // Enter
+                    Points[0] = [NaN, NaN];
+                    Status = "select";
+                    Previewing = -1;
+                    redraw();
+                    cursorMove(event);
+                }
+            }
+        }
+
+        function rightClick(event) {
+
+        }
+
+        function mouseScroll(event) {
+            var d = Math.exp(0.001 * event.wheelDelta);
+            var x = event.clientX, y = event.clientY;
+            Origin[0] = Origin[0] * d + x * (1 - d), Origin[1] = Origin[1] * d + y * (1 - d);
+            Unit *= d;
+            redraw();
+        }
+    </script>
+
+    <script id="Shapes">
+        function Line(ctx, $pointlist) {
+            var pointlist = Objs[$pointlist];
+            if (pointlist.length < 2) return;
+            ctx.beginPath();
+            var i = 0; if ("string" == typeof pointlist[0]) i = 1;
+            var P = fromCoordinate(Points[pointlist[i]]);
+            ctx.moveTo(P[0], P[1]);
+            for (i++; i < pointlist.length; i++) {
+                P = fromCoordinate(Points[pointlist[i]]);
+                ctx.lineTo(P[0], P[1]);
+            }
+            if ($pointlist == Previewing && !isNaN(Points[0][0])) {
+                P = fromCoordinate(Points[0]);
+                ctx.lineTo(P[0], P[1]);
+            }
+            ctx.stroke();
+        }
+    </script>
+</body>
+</html>

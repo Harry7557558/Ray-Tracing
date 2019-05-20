@@ -7,3 +7,5 @@ The 3D grapher is to include basic shapes (triangles and parallelograms, circles
 This is my first time to make UI. I decide to try a 2D grapher first, then it would be easier for me to make the 3D grapher. 
 
 If you have any advises, please comment me at Github Issues. Thank you! 
+
+**2019.5.20**

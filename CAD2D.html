@@ -30,7 +30,7 @@
     <script id="global">
         var canvas, preview;
 
-        var Origin = [0, 0], Unit = 20;
+        var Origin = [0, 0], Unit = 15;
 
         function fromCoordinate(P) {
             return [P[0] * Unit + Origin[0], -P[1] * Unit + Origin[1]];
@@ -39,12 +39,11 @@
             return [(P[0] - Origin[0]) / Unit, -(P[1] - Origin[1]) / Unit];
         }
 
-        var Points = [[NaN, NaN]];
-        var Objs = [[]];
-        var Status = "line";
+        var Points = [[NaN, NaN], [0, 0]];
+        var Objs = [];
+        var Status = "select";
         var CursorType = "default";
-        var Previewing = -1;
-        var FitPoint = 0;  // 0: disable(default); -1: disable(manual); 1: on
+        var CurrentEditing = -1;
 
         var PreviousWindowSize = [0, 0];
         function init() {
@@ -80,6 +79,9 @@
             redraw();
         }
 
+        var FitPoint = 0;  // 0: disable(default); -1: disable(manual); 1: on
+        var FitPointTarget = -1;
+
     </script>
 </head>
 <body onload="init()">
@@ -90,17 +92,57 @@
     </div>
     <script>
         Objs.push(new Array);
-        Objs[Objs.length - 1].push("line");
+        Objs[Objs.length - 1].push("polyline");
 
         function redraw() {
+            var w = canvas.width, h = canvas.height;
             var ctx = canvas.getContext("2d");
 
-            // background
-            ctx.fillStyle = "rgb(12,12,12)";
+            // Background
+            ctx.fillStyle = "rgb(16,20,23)";
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // axis
-            ctx.strokeStyle = "SlateBlue";
+            // Grid
+            var L = 100 / Unit;
+            var tp = Math.pow(10, Math.floor(Math.log(L) / Math.LN10));
+            L /= tp; L = (L < 2 ? 1 : L < 5 ? 2 : 5) * tp;
+            var l = L / 5;
+            var LeftTop = fromCanvas([0, 0]), RightBottom = fromCanvas([w, h]);
+            LeftTop[0] = Math.round(LeftTop[0] / l - 0.5), LeftTop[1] = Math.round(LeftTop[1] / l + 0.5);
+            RightBottom[0] = Math.round(RightBottom[0] / l + 0.5), RightBottom[1] = Math.round(RightBottom[1] / l - 0.5);
+
+            // Minor gridlines
+            ctx.strokeStyle = "rgb(55,65,75)";
+            ctx.lineWidth = 0.2;
+            ctx.setLineDash([]);
+            ctx.beginPath();
+            for (var i = LeftTop[0]; i <= RightBottom[0]; i++) {
+                var P = fromCoordinate([i * l, 0]);
+                ctx.moveTo(P[0], 0), ctx.lineTo(P[0], h);
+            }
+            for (var i = LeftTop[1]; i >= RightBottom[1]; i--) {
+                var P = fromCoordinate([0, i * l]);
+                ctx.moveTo(0, P[1]), ctx.lineTo(w, P[1]);
+            }
+            ctx.stroke();
+
+            // Major gridlines
+            LeftTop[0] = Math.round(LeftTop[0] / 5 - 0.5), LeftTop[1] = Math.round(LeftTop[1] / 5 + 0.5);
+            RightBottom[0] = Math.round(RightBottom[0] / 5 + 0.5), RightBottom[1] = Math.round(RightBottom[1] / 5 - 0.5); ctx.strokeStyle = "rgb(55,65,75)";
+            ctx.lineWidth = 0.4;
+            ctx.beginPath();
+            for (var i = LeftTop[0]; i <= RightBottom[0]; i++) {
+                var P = fromCoordinate([i * L, 0]);
+                ctx.moveTo(P[0], 0), ctx.lineTo(P[0], h);
+            }
+            for (var i = LeftTop[1]; i >= RightBottom[1]; i--) {
+                var P = fromCoordinate([0, i * L]);
+                ctx.moveTo(0, P[1]), ctx.lineTo(w, P[1]);
+            }
+            ctx.stroke();
+
+            // Axis
+            ctx.strokeStyle = "rgb(80,75,140)";
             ctx.lineWidth = 1;
             ctx.beginPath();
             ctx.moveTo(Origin[0], 0);
@@ -109,26 +151,27 @@
             ctx.lineTo(canvas.width, Origin[1]);
             ctx.stroke();
 
-            // grid
-
-
-
+            // Objects
             ctx.strokeStyle = "White";
-            ctx.lineWidth = 1;
-            ctx.setLineDash([]);
+            ctx.lineWidth = 1.2;
             for (var i = 0; i < Objs.length; i++) {
                 switch (Objs[i][0]) {
-                    case "line": {
-                        Line(ctx, i);
+                    case "polyline": {
+                        Line(ctx, i); break;
+                    }
+                    case "segment": {
+                        Segment(ctx, i); break;
                     }
                 }
             }
+
         }
         function repreview(mouseevent) {
+            redraw();
             var ctx = preview.getContext("2d");
             ctx.clearRect(0, 0, preview.width, preview.height);
-            if (Previewing != -1) redraw();
             drawCursor(mouseevent);
+            if (FitPointTarget != -1) highlightPoint(Points[FitPointTarget]);
         }
 
         function drawCursor(event) {
@@ -149,12 +192,36 @@
                 }
             }
         }
+        function highlightPoint(P) {
+            var ctx = preview.getContext("2d");
+            ctx.strokeStyle = "Lime";
+            ctx.lineWidth = 1;
+            ctx.setLineDash([]);
+            var Q = fromCoordinate(P);
+            ctx.moveTo(Q[0] - 6, Q[1]);
+            ctx.lineTo(Q[0] + 6, Q[1]);
+            ctx.moveTo(Q[0], Q[1] - 6);
+            ctx.lineTo(Q[0], Q[1] + 6);
+            ctx.stroke();
+        }
 
 
 
     </script>
 
     <script id="events">
+        function FindFitPoint(P) {
+            var dist = Infinity, dir = -1, dx, dy, d;
+            for (var i = 1; i < Points.length; i++) {
+                dx = P[0] - Points[i][0], dy = P[1] - Points[i][1];
+                d = dx * dx + dy * dy;
+                if (d < dist) dist = d, dir = i;
+            }
+            if (CurrentEditing != -1 && dir == Objs[CurrentEditing][Objs[CurrentEditing].length - 1]) return -1;
+            if (Math.sqrt(dist) * Unit < 20) return dir;
+            return -1;
+        }
+
         function cursorMove(event) {
             var P = fromCanvas([event.clientX, event.clientY]);
             switch (Status) {
@@ -162,8 +229,11 @@
                     repreview(event);
                     break;
                 }
-                case "line": {
+                case "polyline": {
                     Points[0] = P;
+                    if (FitPoint == 1) {
+                        FitPointTarget = FindFitPoint(P);
+                    }
                     repreview(event);
                     break;
                 }
@@ -180,10 +250,14 @@
         }
 
         function mouseClick(event) {
-            if (Status != "line") {
+            if (FitPoint != -1) FitPoint = 1;
+
+            // For debug
+            if (Status == "select") {
                 Objs.push(new Array);
-                Objs[Objs.length - 1].push("line");
-                Status = "line";
+                Objs[Objs.length - 1].push("polyline");
+                Status = "polyline";
+                CurrentEditing = Objs.length - 1;
             }
 
             var P = fromCanvas([event.clientX, event.clientY]);
@@ -193,11 +267,15 @@
                 case "select": {
                     break;
                 }
-                case "line": {
+                case "polyline": {
+                    if (FitPointTarget != -1) {
+                        Objs[CurrentEditing].push(FitPointTarget);
+                        FitPointTarget = -1;
+                        break;
+                    }
                     Points.push(P);
                     Points[0] = P;
-                    Objs[Objs.length - 1].push(Points.length - 1);
-                    Previewing = Objs.length - 1;
+                    Objs[CurrentEditing].push(Points.length - 1);
                     break;
                 }
                 case "circle": {
@@ -216,35 +294,77 @@
         function Onkeydown(event) {
             if (event.keyCode != 116 && event.keyCode != 123) event.preventDefault();   // F5, F12
             else return;
+            if (keyStack[keyStack.length - 1] == event.keyCode) return;
             keyStack.push(event.keyCode);
             switch (event.keyCode) {
                 case 13: { // Enter
                     Points[0] = [NaN, NaN];
                     Status = "select";
-                    Previewing = -1;
-                    redraw();
+                    CurrentEditing = -1;
+                    if (FitPoint != -1) FitPoint = 0;
+                    FitPointTarget = -1;
                     cursorMove(event);
-                    console.log("Enter");
+                    isolateLine();
+                    //redraw(); break;
+                    mouseClick(event); break;   // For debug
+                }
+                case 16: { // Shift
+                    console.log("Shift");
                     break;
                 }
                 case 17: { // Ctrl
-                    //console.log("Ctrl");
+                    console.log("Ctrl");
                     break;
                 }
-                case 114: { // F3
-                    if (FitPoint == -1) FitPoint = Previewing ? 1 : 0;
-                    else FitPoint = -1;
-                    console.log("F3");
+                case 18: { // Alt
+                    console.log("Alt");
                     break;
                 }
-                case 90: { // Z
+                case 33: { // PageUp
+                    Origin[1] -= canvas.height * 0.3;
+                    redraw(); break;
+                }
+                case 34: { // PageDown
+                    Origin[1] += canvas.height * 0.3;
+                    redraw(); break;
+                }
+                case 37: { // left
+                    Origin[0] -= canvas.width * 0.1;
+                    redraw(); break;
+                }
+                case 38: { // top
+                    Origin[1] -= canvas.height * 0.1;
+                    redraw(); break;
+                }
+                case 39: { // right
+                    Origin[0] += canvas.width * 0.1;
+                    redraw(); break;
+                }
+                case 40: { // bottom
+                    Origin[1] += canvas.height * 0.1;
+                    redraw(); break;
+                }
+                case 89: { // y
+                    if (keyStack.length == 2 && keyStack[0] == 17) {
+                        console.log("Ctrl+Y");
+                    }
+                    break;
+                }
+                case 90: { // z
                     if (keyStack.length == 2 && keyStack[0] == 17) {
                         console.log("Ctrl+Z");
                     }
                     break;
                 }
+                case 114: { // F3
+                    if (FitPoint == -1) FitPoint = (CurrentEditing == -1) ? 0 : 1;
+                    else FitPoint = -1, FitPointTarget = -1;
+                    console.log("F3");
+                    break;
+                }
                 case 122: { // F11
                     document.getElementById("content").webkitRequestFullscreen();
+                    break;
                 }
                 default: {
                     console.log("Keycode: ", event.keyCode);
@@ -255,7 +375,12 @@
         function Onkeyup(event) {
             if (event.keyCode != 116 && event.keyCode != 123) event.preventDefault();
             else return;
-            for (i = keyStack.length - 1; i >= 0; i--) if (keyStack[i] == event.keyCode) keyStack.splice(i, 1);
+            for (i = keyStack.length - 1; i >= 0; i--) {
+                if (keyStack[i] == event.keyCode) {
+                    keyStack.splice(i, 1);
+                    //break;
+                }
+            }
         }
 
         function rightClick(event) {
@@ -263,12 +388,13 @@
         }
 
         function mouseScroll(event) {
-            var d = Math.exp(0.001 * event.wheelDelta);
+            var d = Math.exp(0.0008 * event.wheelDelta);
             var x = event.clientX, y = event.clientY;
             Origin[0] = Origin[0] * d + x * (1 - d), Origin[1] = Origin[1] * d + y * (1 - d);
             Unit *= d;
-            redraw();
+            repreview(event);
         }
+
     </script>
 
     <script id="Shapes">
@@ -283,11 +409,48 @@
                 P = fromCoordinate(Points[pointlist[i]]);
                 ctx.lineTo(P[0], P[1]);
             }
-            if ($pointlist == Previewing && !isNaN(Points[0][0])) {
+            if ($pointlist == CurrentEditing && !isNaN(Points[0][0])) {
                 P = fromCoordinate(Points[0]);
                 ctx.lineTo(P[0], P[1]);
             }
             ctx.stroke();
+        }
+
+        function Segment(ctx, $pointlist) {
+            ctx.beginPath();
+            var P = fromCoordinate(Points[Objs[$pointlist][1]]);
+            ctx.moveTo(P[0], P[1]);
+            P = fromCoordinate(Points[Objs[$pointlist][2]]);
+            ctx.lineTo(P[0], P[1]);
+            ctx.stroke();
+        }
+
+        function isolateLine() {
+            // isolate polyline into sigments; erase repeated segments
+            var SegmentsList = [], p1, p2;
+            for (d = 0; d < Objs.length; d++) {
+                if (Objs[d][0] == "polyline") {
+                    if (Objs[d].length <= 2);
+                    else for (i = 1; i < Objs[d].length - 1; i++) {
+                        p1 = Objs[d][i], p2 = Objs[d][i + 1];
+                        if (p1 > p2) {
+                            var p3 = p1; p1 = p2, p2 = p3;
+                        }
+                        if (p1 != p2) for (j = 0; j <= SegmentsList.length; j++) {
+                            if (j == SegmentsList.length) {
+                                SegmentsList.push(Objs.length);
+                                Objs.push(["segment", p1, p2]);
+                            }
+                            if (p1 == Objs[SegmentsList[j]][1] && p2 == Objs[SegmentsList[j]][2]) break;
+                        }
+                    }
+                    Objs.splice(d, 1), d--;
+                }
+                else if (Objs[d][0] == "segment") {
+                    // Since all segments are generated with above step, not necessary to check repeat. 
+                    SegmentsList.push(d);
+                }
+            }
         }
     </script>
 </body>

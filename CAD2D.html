@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html>
 <head>
     <title>MyCAD 2D</title>
@@ -44,25 +44,34 @@
         var Status = "line";
         var CursorType = "default";
         var Previewing = -1;
+        var FitPoint = 0;  // 0: disable(default); -1: disable(manual); 1: on
 
+        var PreviousWindowSize = [0, 0];
         function init() {
             canvas = document.getElementById("canvas"), preview = document.getElementById("preview");
+            PreviousWindowSize = [window.innerWidth, window.innerHeight];
             Origin = [window.innerWidth / 2, window.innerHeight / 2];
             window.onresize = function () {
                 resizeCanvas();
-            };
+            },
             window.onkeydown = function () {
                 Onkeydown(event);
-            }
+            },
+            window.onkeyup = function () {
+                Onkeyup(event);
+            },
             window.onmousewheel = function () {
                 mouseScroll(event);
-            }
+            };
             resizeCanvas();
         }
         function resizeCanvas() {
-            var w = window.innerWidth, h = window.innerHeight;
-            w = Math.floor(1 * w), h = Math.floor(1 * h);
-            if ((w >= 50) && (h >= 50) && ((canvas.width !== w) || (canvas.height !== h))) {
+            var w = Math.floor(window.innerWidth), h = Math.floor(window.innerHeight);
+            var prevw = PreviousWindowSize[0], prevh = PreviousWindowSize[1];
+            Unit *= Math.sqrt((w * h) / (prevw * prevh));
+            Origin[0] *= w / prevw, Origin[1] *= h / prevh;
+            PreviousWindowSize = [w, h];
+            if ((canvas.width !== w) || (canvas.height !== h)) {
                 canvas.width = preview.width = w;
                 canvas.height = preview.height = h;
                 canvas.style.width = preview.style.width = w + "px";
@@ -70,7 +79,6 @@
             }
             redraw();
         }
-
 
     </script>
 </head>
@@ -204,9 +212,11 @@
             }
         }
 
+        var keyStack = [];
         function Onkeydown(event) {
             if (event.keyCode != 116 && event.keyCode != 123) event.preventDefault();   // F5, F12
-            console.log(event.keyCode);
+            else return;
+            keyStack.push(event.keyCode);
             switch (event.keyCode) {
                 case 13: { // Enter
                     Points[0] = [NaN, NaN];
@@ -214,8 +224,38 @@
                     Previewing = -1;
                     redraw();
                     cursorMove(event);
+                    console.log("Enter");
+                    break;
+                }
+                case 17: { // Ctrl
+                    //console.log("Ctrl");
+                    break;
+                }
+                case 114: { // F3
+                    if (FitPoint == -1) FitPoint = Previewing ? 1 : 0;
+                    else FitPoint = -1;
+                    console.log("F3");
+                    break;
+                }
+                case 90: { // Z
+                    if (keyStack.length == 2 && keyStack[0] == 17) {
+                        console.log("Ctrl+Z");
+                    }
+                    break;
+                }
+                case 122: { // F11
+                    document.getElementById("content").webkitRequestFullscreen();
+                }
+                default: {
+                    console.log("Keycode: ", event.keyCode);
+                    break;
                 }
             }
+        }
+        function Onkeyup(event) {
+            if (event.keyCode != 116 && event.keyCode != 123) event.preventDefault();
+            else return;
+            for (i = keyStack.length - 1; i >= 0; i--) if (keyStack[i] == event.keyCode) keyStack.splice(i, 1);
         }
 
         function rightClick(event) {

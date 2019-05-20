@@ -62,6 +62,9 @@
             window.onmousewheel = function () {
                 mouseScroll(event);
             };
+            Array.prototype.insert = function (item, index) {
+                this.splice(index, 0, item);
+            };
             resizeCanvas();
         }
         function resizeCanvas() {
@@ -82,6 +85,18 @@
         var FitPoint = 0;  // 0: disable(default); -1: disable(manual); 1: on
         var FitPointTarget = -1;
 
+        var EditHistory = [[1]];
+        function logHistory(opr) {
+            if (EditHistory[0] < EditHistory.length) {
+                EditHistory.splice(EditHistory[0], EditHistory.length - EditHistory[0]);
+            }
+            EditHistory.push(opr);
+            EditHistory[0]++;
+        }
+        function restoreHistory() {
+
+        }
+
     </script>
 </head>
 <body onload="init()">
@@ -92,7 +107,12 @@
     </div>
     <script>
         Objs.push(new Array);
-        Objs[Objs.length - 1].push("polyline");
+        Objs[Objs.length - 1].push("segment");
+
+        function Objs_erase(dir) {
+            Objs.splice(dir, 1);
+            if (CurrentEditing > dir) CurrentEditing--;
+        }
 
         function redraw() {
             var w = canvas.width, h = canvas.height;
@@ -155,7 +175,8 @@
             ctx.strokeStyle = "White";
             ctx.lineWidth = 1.2;
             for (var i = 0; i < Objs.length; i++) {
-                switch (Objs[i][0]) {
+                if (Objs[i].length <= 1) Objs_erase(i), i--;
+                else switch (Objs[i][0]) {
                     case "polyline": {
                         Line(ctx, i); break;
                     }
@@ -229,7 +250,7 @@
                     repreview(event);
                     break;
                 }
-                case "polyline": {
+                case "segment": {
                     Points[0] = P;
                     if (FitPoint == 1) {
                         FitPointTarget = FindFitPoint(P);
@@ -255,9 +276,9 @@
             // For debug
             if (Status == "select") {
                 Objs.push(new Array);
-                Objs[Objs.length - 1].push("polyline");
-                Status = "polyline";
                 CurrentEditing = Objs.length - 1;
+                Objs[CurrentEditing].push("segment");
+                Status = "segment";
             }
 
             var P = fromCanvas([event.clientX, event.clientY]);
@@ -267,15 +288,29 @@
                 case "select": {
                     break;
                 }
-                case "polyline": {
+                case "segment": {
                     if (FitPointTarget != -1) {
                         Objs[CurrentEditing].push(FitPointTarget);
                         FitPointTarget = -1;
-                        break;
                     }
-                    Points.push(P);
-                    Points[0] = P;
-                    Objs[CurrentEditing].push(Points.length - 1);
+                    else {
+                        Points.push(P);
+                        Objs[CurrentEditing].push(Points.length - 1);
+                    }
+                    if (Objs[CurrentEditing].length == 3) {
+                        Objs.insert(["segment", Objs[CurrentEditing][1], Objs[CurrentEditing][2]], CurrentEditing);
+                        logHistory(["new segment", CurrentEditing, Objs[CurrentEditing][1]]);
+                        if (Objs[CurrentEditing][1] > Objs[CurrentEditing][2]) {
+                            var c = Objs[CurrentEditing][1];
+                            Objs[CurrentEditing][1] = Objs[CurrentEditing][2], Objs[CurrentEditing][2] = c;
+                        }
+                        CurrentEditing++;
+                        Objs[CurrentEditing].splice(1, 1);
+                    }
+                    else {
+                        logHistory(["begin line", Objs[CurrentEditing][1]]);
+                    }
+                    console.log(EditHistory);
                     break;
                 }
                 case "circle": {
@@ -300,11 +335,11 @@
                 case 13: { // Enter
                     Points[0] = [NaN, NaN];
                     Status = "select";
+                    if (Objs[CurrentEditing].length <= 2) Objs_erase(CurrentEditing);
                     CurrentEditing = -1;
                     if (FitPoint != -1) FitPoint = 0;
                     FitPointTarget = -1;
                     cursorMove(event);
-                    isolateLine();
                     //redraw(); break;
                     mouseClick(event); break;   // For debug
                 }
@@ -351,8 +386,41 @@
                     break;
                 }
                 case 90: { // z
-                    if (keyStack.length == 2 && keyStack[0] == 17) {
+                    if (keyStack.length == 2 && keyStack[0] == 17) { // Ctrl+Z
+                        if (EditHistory[0] <= 2) {
+                            EditHistory = [[1]];
+                            if (Status == "segment") Objs_erase(CurrentEditing);
+                            Status = "select";
+                            CurrentEditing = -1;
+                            redraw(); break;
+                        }
                         console.log("Ctrl+Z");
+                        EditHistory[0]--;
+                        var _beginLine = function _beginLine(hist) {
+                            if (Status == "segment") {
+                                Objs[CurrentEditing][1] = hist[1];
+                            }
+                        };
+                        var _newSegment = function _newSegment(hist) {
+                            var del = hist[1];
+                            hist[1] = Objs[del].slice(0);
+                            if (Status == "segment") {
+                                Objs[CurrentEditing][1] = hist[2];
+                            }
+                            Objs_erase(del);
+                        }
+                        var hist = EditHistory[EditHistory[0]];
+                        switch (hist[0]) {
+                            case "begin line": {
+                                _beginLine(hist.slice(0, 2)); break;
+                                // signature, dir of beginpoint
+                            }
+                            case "new segment": {
+                                _newSegment(hist.slice(0, 3)); break;
+                                // signature, dir of object, dir of beginpoint
+                            }
+                        }
+                        redraw();
                     }
                     break;
                 }
@@ -398,8 +466,8 @@
     </script>
 
     <script id="Shapes">
-        function Line(ctx, $pointlist) {
-            var pointlist = Objs[$pointlist];
+        function Line(ctx, obj) {
+            var pointlist = Objs[obj];
             if (pointlist.length < 2) return;
             ctx.beginPath();
             var i = 0; if ("string" == typeof pointlist[0]) i = 1;
@@ -409,49 +477,23 @@
                 P = fromCoordinate(Points[pointlist[i]]);
                 ctx.lineTo(P[0], P[1]);
             }
-            if ($pointlist == CurrentEditing && !isNaN(Points[0][0])) {
+            if (obj == CurrentEditing && !isNaN(Points[0][0])) {
                 P = fromCoordinate(Points[0]);
                 ctx.lineTo(P[0], P[1]);
             }
             ctx.stroke();
         }
 
-        function Segment(ctx, $pointlist) {
+        function Segment(ctx, obj) {
             ctx.beginPath();
-            var P = fromCoordinate(Points[Objs[$pointlist][1]]);
+            var P = fromCoordinate(Points[Objs[obj][1]]);
             ctx.moveTo(P[0], P[1]);
-            P = fromCoordinate(Points[Objs[$pointlist][2]]);
+            if (Objs[obj].length == 3) P = fromCoordinate(Points[Objs[obj][2]]);
+            else if (!isNaN(Points[0][0])) P = fromCoordinate(Points[0]);
             ctx.lineTo(P[0], P[1]);
             ctx.stroke();
         }
 
-        function isolateLine() {
-            // isolate polyline into sigments; erase repeated segments
-            var SegmentsList = [], p1, p2;
-            for (d = 0; d < Objs.length; d++) {
-                if (Objs[d][0] == "polyline") {
-                    if (Objs[d].length <= 2);
-                    else for (i = 1; i < Objs[d].length - 1; i++) {
-                        p1 = Objs[d][i], p2 = Objs[d][i + 1];
-                        if (p1 > p2) {
-                            var p3 = p1; p1 = p2, p2 = p3;
-                        }
-                        if (p1 != p2) for (j = 0; j <= SegmentsList.length; j++) {
-                            if (j == SegmentsList.length) {
-                                SegmentsList.push(Objs.length);
-                                Objs.push(["segment", p1, p2]);
-                            }
-                            if (p1 == Objs[SegmentsList[j]][1] && p2 == Objs[SegmentsList[j]][2]) break;
-                        }
-                    }
-                    Objs.splice(d, 1), d--;
-                }
-                else if (Objs[d][0] == "segment") {
-                    // Since all segments are generated with above step, not necessary to check repeat. 
-                    SegmentsList.push(d);
-                }
-            }
-        }
     </script>
 </body>
 </html>

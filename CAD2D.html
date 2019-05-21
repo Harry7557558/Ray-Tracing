@@ -107,13 +107,14 @@
             }
             Command.style.width = (0.6 * w) + "px", Command.style.height = Command.style.lineHeight = (14 + 0.01 * h) + "px";
             Command.style.fontSize = (12 + 0.002 * h) + "px";
+            Command.style.left = (0.2 * w) + "px", Command.style.bottom = (0.0002 * h * h) + "px";
             redraw();
         }
 
         var FitPoint = 0;  // 0: disable(default); -1: disable(manual); 1: on
         var FitPointTarget = -1;
 
-        var EditHistory = [[1]];
+        var EditHistory = [1];
         function logHistory(opr) {
             if (EditHistory[0] < EditHistory.length) {
                 EditHistory.splice(EditHistory[0], EditHistory.length - EditHistory[0]);
@@ -126,6 +127,188 @@
         }
 
         var Commanding = false;
+
+        var Debug = {
+            copyArray : function copyArray(src) {
+                if (typeof src != "object") return src;
+                var r = [];
+                for (var i = 0; i < src.length; i++) r.push(Debug.copyArray(src[i]));
+                return r;
+            },
+            checkIllegal: function checkIllegal(src) {
+                var isPositiveInt = function (n) {
+                    if (typeof n != "number") return false;
+                    if (Math.round(n) != n) return false;
+                    return n > 0;
+                },
+                isWholeNumber = function (n) {
+                    if (typeof n != "number") return false;
+                    if (Math.round(n) != n) return false;
+                    return n >= 0;
+                };
+
+                // basic checks
+                if (Status == "select" && CurrentEditing != -1) {
+                    throw "CurrentEditing equals to " + CurrentEditing + " in select mode";
+                }
+                if (FitPoint != 1 && FitPointTarget != -1) {
+                    throw "FitPointTarget equals to " + FitPointTarget + " when FitPoint is off";
+                }
+                if (CurrentEditing != -1 && (!isWholeNumber(CurrentEditing) || CurrentEditing >= Objs.length)) {
+                    throw "Invalid CurrentEditing " + CurrentEditing;
+                }
+                if (FitPointTarget != -1 && (!isPositiveInt(FitPointTarget) || FitPointTarget >= Points.length)) {
+                    throw "Invalid FitPointTarget " + FitPointTarget;
+                }
+
+                // check points
+                if (Points.length < 2) {
+                    throw "Invalid Points length";
+                }
+                if (CurrentEditing == -1 && (!isNaN(Points[0][0]) || !isNaN(Points[0][1]))) {
+                    throw "Points[0] not equal to NaN when CurrentEditing is equal to -1";
+                }
+                if (Points[1][0]!=0 || Points[1][1]!=0) {
+                    throw "Points[1] not equal to [0,0]";
+                }
+                for (var i = 2; i < Points.length; i++) {
+                    if (typeof Points[i] != "object" || Points[i].length != 2) {
+                        throw "Invalid point [" + i + "]";
+                    }
+                    if (isNaN(Points[i][0]) || isNaN(Points[i][1])) {
+                        throw "Points[" + i + "] equals to NaN";
+                    }
+                }
+
+                // check objects
+                for (var i = 0; i < Objs.length; i++) {
+                    var s = "Objs[" + i + "] ";
+                    if (Objs[i].length == 0) {
+                        throw s + "Empty";
+                    }
+                    if (typeof Objs[i][0] != "string") {
+                        throw s + "Signature Missing";
+                    }
+                    /*if (Objs[i].length == 1) {
+                        throw s + "Parameter Missing";
+                    }*/
+                    switch (Objs[i][0]) {
+                        case "segment": {
+                            if (i != CurrentEditing && Objs[i].length != 3) {
+                                throw s + "Invalid: Length " + Objs[i].length + "/3";
+                            }
+                            /*if (i == CurrentEditing && Objs[i].length != 2) {
+                                throw s + "Invalid: Length " + Objs[i].length + "/2";
+                            }*/
+                            if (Objs[i].length == 3) {
+                                if (!isPositiveInt(Objs[i][1]) || !isPositiveInt(Objs[i][1]) 
+                                    || (Objs[i][1] >= Points.length || Objs[i][2] >= Points.length)) {
+                                    throw s + "Parameter Invalid";
+                                }
+                                if (Objs[i][1] == Objs[i][2]) {
+                                    throw s + "two endpoints of segment are equal";
+                                }
+                            }
+                            break;
+                        }
+                        default: {
+                            throw "Invalid Object Signature '" + Objs[i][0] + "'";
+                        }
+                    }
+                }
+
+                // check history
+                if (EditHistory.length == 0) {
+                    throw "Empty History";
+                }
+                if (!isPositiveInt(EditHistory[0]) || EditHistory[0] > EditHistory.length) {
+                    throw "Invalid History Indicator";
+                }
+                for (var i = 1; i < EditHistory.length; i++) {
+                    if (EditHistory[i].length == 0) {
+                        throw s + "Empty";
+                    }
+                    if (typeof EditHistory[i][0] != "string") {
+                        throw s + "Signature Missing";
+                    }
+                    if (EditHistory[i].length == 1) {
+                        throw s + "Parameter Missing";
+                    }
+                    var s = "EditHistory[" + i + "] ";
+                    switch (EditHistory[i][0]) {
+                        case "begin line": {
+                            // signature, dir of startpoint
+                            if (EditHistory[i].length != 2) {
+                                throw s + "Invalid: Length " + EditHistory[i].length + "/2";
+                            }
+                            if (!isPositiveInt(EditHistory[i][1]) || EditHistory[i][1] >= Points.length) {
+                                throw s + "Parameter Invalid";
+                            }
+                            break;
+                        }
+                        case "new segment": {
+                            break;
+                        }
+                        default: {
+                            throw "Invalid History Signature '" + EditHistory[i][0] + "'";
+                        }
+                    }
+                }
+                for (var i = 1; i < EditHistory[0]; i++) {
+                    var s = "EditHistory[" + i + "] ";
+                    switch (EditHistory[i][0]) {
+                        case "begin line": {
+                            break;
+                        }
+                        case "new segment": {
+                            // signature, dir of object
+                            if (EditHistory[i].length != 2) {
+                                throw s + "Invalid: Length " + EditHistory[i].length + "/3";
+                            }
+                            if (!isWholeNumber(EditHistory[i][1]) || EditHistory[i][1] >= Objs.length) {
+                                throw s + "Parameter Invalid";
+                            }
+                            break;
+                        }
+                        default: {
+                            throw "Invalid History Signature '" + EditHistory[i][0] + "'";
+                        }
+                    }
+                }
+                for (var i = EditHistory[0]; i < EditHistory.length; i++) {
+                    var s = "EditHistory[" + i + "] ";
+                    switch (EditHistory[i][0]) {
+                        case "begin line": {
+                            break;
+                        }
+                        case "new segment": {
+                            // signature, backup of object
+                            if (EditHistory[i].length != 2) {
+                                throw s + "Invalid: Length " + EditHistory[i].length + "/2";
+                            }
+                            if (typeof EditHistory[i][1] != "object" || EditHistory[i][1].length != 3 || EditHistory[i][1][0] != "segment") {
+                                throw s + "Invalid Backup";
+                            }
+                            if (!isPositiveInt(EditHistory[i][1][1]) || !isPositiveInt(EditHistory[i][1][2])
+                                || (EditHistory[i][1][1] >= Points.length || EditHistory[i][1][2] >= Points.length)) {
+                                throw s + "Backup Parameter Invalid";
+                            }
+                            if (EditHistory[i][1][1] == EditHistory[i][1][2]) {
+                                throw s + "Backup: two endpoints of segment are equal";
+                            }
+                            break;
+                        }
+                        default: {
+                            throw "Invalid History Signature '" + EditHistory[i][0] + "'";
+                        }
+                    }
+                }
+
+            },
+            check: function check(condition, message) {
+                if (!condition) throw message;
+            }
+        };
     </script>
 </head>
 <body onload="init()">
@@ -134,15 +317,18 @@
         <canvas id="preview" onmousemove="cursorMove(event)" onclick="mouseClick(event)" oncontextmenu="rightClick(event)"></canvas>
         <div id="tool"></div>
         <div id="cmd" title="command line" contenteditable spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"
-             onfocus="Commanding=true;"onkeydown="if (event.keyCode == 13) event.preventDefault(), runCommand();"></div>
+             onfocus="Commanding=true;" onkeydown="if(event.keyCode==13)event.preventDefault(),runCommand();" onmouseover="preview.getContext('2d').clearRect(0, 0, preview.width, preview.height);"></div>
     </div>
     <script>
-        Objs.push(new Array);
-        Objs[Objs.length - 1].push("segment");
 
         function Objs_erase(dir) {
             Objs.splice(dir, 1);
             if (CurrentEditing > dir) CurrentEditing--;
+            else if (CurrentEditing == dir) CurrentEditing = -1, Points[0] = [NaN, NaN];
+        }
+        function Objs_insert(dir, item) {
+            Objs.splice(dir, 0, item);
+            if (CurrentEditing >= dir) CurrentEditing++;
         }
 
         function redraw() {
@@ -206,7 +392,7 @@
             ctx.strokeStyle = "White";
             ctx.lineWidth = 1.2;
             for (var i = 0; i < Objs.length; i++) {
-                if (Objs[i].length <= 1) Objs_erase(i), i--;
+                if (Objs[i].length <= 1);
                 else switch (Objs[i][0]) {
                     case "polyline": {
                         Line(ctx, i); break;
@@ -302,16 +488,10 @@
         }
 
         function mouseClick(event) {
+            Debug.checkIllegal();
+
             Commanding = false;
             if (FitPoint != -1) FitPoint = 1;
-
-            // For debug
-            if (Status == "select") {
-                Objs.push(new Array);
-                CurrentEditing = Objs.length - 1;
-                Objs[CurrentEditing].push("segment");
-                Status = "segment";
-            }
 
             var P = fromCanvas([event.clientX, event.clientY]);
             var ctx = canvas.getContext("2d");
@@ -330,19 +510,17 @@
                         Objs[CurrentEditing].push(Points.length - 1);
                     }
                     if (Objs[CurrentEditing].length == 3) {
-                        Objs.insert(["segment", Objs[CurrentEditing][1], Objs[CurrentEditing][2]], CurrentEditing);
-                        logHistory(["new segment", CurrentEditing, Objs[CurrentEditing][1]]);
-                        if (Objs[CurrentEditing][1] > Objs[CurrentEditing][2]) {
-                            var c = Objs[CurrentEditing][1];
-                            Objs[CurrentEditing][1] = Objs[CurrentEditing][2], Objs[CurrentEditing][2] = c;
-                        }
+                        Objs_insert(CurrentEditing, ["segment", Objs[CurrentEditing][1], Objs[CurrentEditing][2]]);
+                        CurrentEditing--;
+                        logHistory(["new segment", CurrentEditing]);
                         CurrentEditing++;
                         Objs[CurrentEditing].splice(1, 1);
                     }
                     else {
                         logHistory(["begin line", Objs[CurrentEditing][1]]);
                     }
-                    console.log(EditHistory);
+                    Debug.checkIllegal();
+                    console.log("Add Point", "\nPoints: ", Debug.copyArray(Points), "\nObjs: ", Debug.copyArray(Objs), "\nCurrentEditing: ", CurrentEditing, "\nEditHistory: ", Debug.copyArray(EditHistory));
                     break;
                 }
                 case "circle": {
@@ -369,12 +547,11 @@
                     Points[0] = [NaN, NaN];
                     Status = "select";
                     if (Objs[CurrentEditing].length <= 2) Objs_erase(CurrentEditing);
-                    CurrentEditing = -1;
+                    CurrentEditing = -1, Points[0] = [NaN, NaN];
                     if (FitPoint != -1) FitPoint = 0;
                     FitPointTarget = -1;
                     cursorMove(event);
-                    //redraw(); break;
-                    mouseClick(event); return;   // For debug
+                    redraw(); break;
                 }
                 case 16: { // Shift
                     console.log("Shift");
@@ -416,47 +593,78 @@
                     redraw(); return;
                 }
                 case 89: { // y
-                    if (keyStack.length == 2 && keyStack[0] == 17) {
-                        console.log("Ctrl+Y");
-                        return;
+                    if (keyStack.length == 2 && keyStack[0] == 17) { // Ctrl+Y
+                        Debug.checkIllegal();
+                        var dir = EditHistory[0];
+                        if (dir == EditHistory.length) return;
+                        else switch (EditHistory[dir][0]) {
+                            case "begin line": {
+                                if (Status != "select") CurrentEditing = -1, Points[0] = [NaN, NaN], Status = "select";
+                                if (FitPoint != -1) FitPoint = 0;
+                                if (++dir != EditHistory.length && EditHistory[dir][0] == "new segment") EditHistory[0]++;  // directly do next step
+                                else break;
+                            }
+                            case "new segment": {
+                                if (CurrentEditing != -1) {
+                                    Objs_insert(CurrentEditing, ["segment", EditHistory[dir][1][1], EditHistory[dir][1][2]]);
+                                    Objs[CurrentEditing][1] = Objs[CurrentEditing - 1][2];
+                                    EditHistory[dir][1] = CurrentEditing - 1;
+                                    break;
+                                }
+                                Objs.push(["segment", EditHistory[dir][1][1], EditHistory[dir][1][2]]);
+                                EditHistory[dir][1] = Objs.length - 1;
+                                if (CurrentEditing != -1) CurrentEditing++;
+                                break;
+                            }
+                        }
+                        EditHistory[0]++;
+                        console.log("Ctrl+Y", "\nPoints: ", Debug.copyArray(Points), "\nObjs: ", Debug.copyArray(Objs), "\nCurrentEditing: ", CurrentEditing, "\nEditHistory: ", Debug.copyArray(EditHistory));
+                        Debug.checkIllegal();
+                        redraw(); return;
                     }
                     break;
                 }
                 case 90: { // z
                     if (keyStack.length == 2 && keyStack[0] == 17) { // Ctrl+Z
-                        if (EditHistory[0] <= 2) {
-                            EditHistory = [[1]];
+                        Debug.checkIllegal();
+                        if (EditHistory[0] == 1) {
                             if (Status == "segment") Objs_erase(CurrentEditing);
                             Status = "select";
-                            CurrentEditing = -1;
+                            CurrentEditing = -1, Points[0] = [NaN, NaN];
+                            Debug.checkIllegal();
                             redraw(); return;
                         }
-                        console.log("Ctrl+Z");
                         EditHistory[0]--;
-                        var _beginLine = function _beginLine(hist) {
-                            if (Status == "segment") {
-                                Objs[CurrentEditing][1] = hist[1];
-                            }
-                        };
-                        var _newSegment = function _newSegment(hist) {
-                            var del = hist[1];
-                            hist[1] = Objs[del].slice(0);
-                            if (Status == "segment") {
-                                Objs[CurrentEditing][1] = hist[2];
-                            }
-                            Objs_erase(del);
-                        };
                         var hist = EditHistory[EditHistory[0]];
                         switch (hist[0]) {
                             case "begin line": {
-                                _beginLine(hist.slice(0, 2)); break;
-                                // signature, dir of beginpoint
+                                // signature, dir of startpoint
+                                if (Status == "segment") {
+                                    if (Objs[CurrentEditing].length <= 2) Objs_erase(CurrentEditing);
+                                    Status = "select";
+                                    CurrentEditing = -1, Points[0] = [NaN, NaN];
+                                    if (FitPoint != -1) FitPoint = 0;
+                                    break;
+                                }
+                                else if (EditHistory[EditHistory[0] - 1][0] == "new segment") {
+                                    EditHistory[0]--;
+                                    hist = EditHistory[EditHistory[0]];
+                                }
+                                else break;
                             }
                             case "new segment": {
-                                _newSegment(hist.slice(0, 3)); break;
-                                // signature, dir of object, dir of beginpoint
+                                // signature, dir of object
+                                var del = hist[1];
+                                hist[1] = ["segment", Objs[del][1], Objs[del][2]];
+                                if (Status == "segment") {
+                                    Objs[CurrentEditing][1] = hist[1][1];
+                                }
+                                Objs_erase(del);
+                                break;
                             }
                         }
+                        console.log("Ctrl+Z", "\nPoints: ", Debug.copyArray(Points), "\nObjs: ", Debug.copyArray(Objs), "\nCurrentEditing: ", CurrentEditing, "\nEditHistory: ", Debug.copyArray(EditHistory));
+                        Debug.checkIllegal();
                         redraw(); return;
                     }
                     break;
@@ -524,7 +732,9 @@
             }
         }
         function Onkeyup(event) {
-            if (Commanding) return;
+            if (Commanding) {
+                keyStack = []; return;
+            }
             if (event.keyCode != 116 && event.keyCode != 123) event.preventDefault();
             else return;
             for (i = keyStack.length - 1; i >= 0; i--) {
@@ -550,9 +760,17 @@
         function runCommand() {
             setTimeout(function () { Commanding = false; }, 100);
             
-            var cmd = Command.innerText;
+            var cmd = Command.innerText.toLocaleLowerCase();
             Command.innerText = "";
             Command.blur();
+
+            if (cmd === "l" || cmd === "line") {
+                CurrentEditing = Objs.length;
+                Objs.push(new Array);
+                Objs[CurrentEditing].push("segment");
+                Status = "segment";
+                if (FitPoint != -1) FitPoint = 1;
+            }
         }
 
     </script>

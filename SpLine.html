@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html>
 <head>
     <title>Spline Test</title>
@@ -48,6 +48,12 @@
             resizeCanvas();
             window.onresize = function () {
                 resizeCanvas();
+            };
+            window.onkeydown = function () {
+                if (event.keyCode == 13 || event.keyCode == 32) {
+                    pointlistX = [], pointlistY = [];
+                    resizeCanvas();
+                }
             };
         }
 

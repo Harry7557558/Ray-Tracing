@@ -23,8 +23,10 @@ typedef chrono::duration<double> fsec;
 #include <cstdlib>
 
 #define ERR_EPSILON 1e-8	// minimum distance of intersection
+#define ERR_EPSILON_SN 1e-9
 #define ERR_UPSILON 1e+12
 #define ERR_ZETA 1e-6	// minumum distance of SDF test, may cause threads jointing problems when too large
+#define ERR_ZETA_SN 1e-6
 
 // For Debugging
 extern ofstream fout("IMAGE\\Log.txt");
@@ -118,7 +120,7 @@ public:
 		*this = M * (*this);
 	}
 	friend ostream& operator << (ostream& os, const point &a) {
-		os << "(" << a.x << "," << a.y << "," << a.z << ")";
+		os << noshowpos << "(" << a.x << "," << a.y << "," << a.z << ")";
 		return os;
 	}
 };
@@ -360,15 +362,18 @@ inline point PMin(point A, point B) {
 	return point(min(A.x, B.x), min(A.y, B.y), min(A.z, B.z));
 }
 
-// Solve equation ax^3+bx^2+cx+d=0 with Cardano formula, for intersection tests of spline surfaces
+// Solve equation ax^3+bx^2+cx+d=0 with Cardano formula
 // return 1: two or three real roots, r, u, v;
 // return 0: one real root r and two complex roots u+vi, u-vi;
 bool solveCubic(double a, double b, double c, double d, double &r, double &u, double &v) {
 	b /= a, c /= a, d /= a;		// now a=1
 	double p = c - b * b / 3, q = (b*b / 13.5 - c / 3) * b + d;		// => t^3+pt+q=0, x=t-b/3
 	b /= 3, p /= 3, q /= -2; a = q * q + p * p * p;
-	if (a >= 0) {
-		a = sqrt(a); u = cbrt(q + a), v = cbrt(q - a);
+	if (a > 0) {
+		a = sqrt(a);
+		//u = cbrt(q + a), v = cbrt(q - a);
+		u = q + a; u = u > 0 ? pow(u, 1. / 3) : -pow(-u, 1. / 3);
+		v = q - a; v = v > 0 ? pow(v, 1. / 3) : -pow(-v, 1. / 3);
 		r = u + v;
 		v = sqrt(0.75)*(u - v);
 		u = -0.5 * r - b, r -= b;
@@ -385,6 +390,45 @@ bool solveCubic(double a, double b, double c, double d, double &r, double &u, do
 	}
 }
 
+// solve ax^4+bx^3+cx^2+dx+e=0, return minimum possitive real root
+inline double pick_random(double min, double max);
+double solveQuartic(double a, double b, double c, double d, double e) {
+	b /= a, c /= a, d /= a, e /= a, a = 1;
+	double x = 0, dx;
+	double a_ = 4 * a, b_ = 3 * b, c_ = 2 * c, d_ = d;
+	double r, u, v;
+	if (solveCubic(a_, b_, c_, d_, r, u, v)) {
+		double mi = min(min(u, v), r), ma = max(max(u, v), r);	// to minimas
+		if ((((a*mi + b)*mi + c)*mi + d)*mi + e > 0 && (((a*ma + b)*ma + c)*ma + d)*ma + e > 0) return NAN;
+		// both minimas with values greater than 0 => no real root
+	}
+	else {
+		if ((((a*r + b)*r + c)*r + d)*r + e > 0) return NAN;	// minima with value greate 0
+	}
+	x = -0.25*b;	// third derivative equal to zero
+	unsigned n = 0; do {
+		if (++n > 30 && abs(dx) > 1) x = pick_random(-2, 2) - 0.25*b, n -= 30;
+		u = (((a*x + b)*x + c)*x + d)*x + e, v = ((a_*x + b_)*x + c_)*x + d_;
+		dx = u / v; x -= dx;
+	} while (abs(dx) > ERR_EPSILON_SN && ++n < 60);		// finding one root x using Newton's method
+	if (n == 60) return NAN;
+	c_ = b + x, d_ = x * c_ + c, e = x * d_ + d, d = d_, c = c_, b = 1, a = 0;	// Euclid division
+	if (solveCubic(b, c, d, e, r, u, v)) {
+		if (x < ERR_EPSILON) x = INFINITY; if (r < ERR_EPSILON) r = INFINITY; if (u < ERR_EPSILON) u = INFINITY; if (v < ERR_EPSILON) v = INFINITY;
+		x = min(min(u, v), min(x, r));
+		if (x == INFINITY) x = NAN;
+	}
+	else {
+		if (x < ERR_EPSILON) x = r > ERR_EPSILON ? r : NAN;
+		else x = r < ERR_EPSILON ? x : min(x, r);
+	}
+	if (isnan(x)) return x; 
+	/*n = 0; do {
+		u = (((a*x + b)*x + c)*x + d)*x + e, v = ((a_*x + b_)*x + c_)*x + d_;
+		dx = u / v; x -= dx;
+	} while (abs(dx) > ERR_EPSILON_SN && ++n < 20);		// dispose error*/
+	return x;
+}
 
 
 /* About random, for solving render equations */

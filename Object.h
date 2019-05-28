@@ -663,6 +663,51 @@ public:
 	int telltype() const { return Sphere_Sign; }
 };
 
+/* ring class */
+#define Ring_Sign 0x00000006
+class ring :public objectSF {
+public:
+	point C; double R, r; double rx, ry, rz;
+	ring() :R(0), r(0), rx(0), ry(0), rz(0) {}
+	ring(const point &C, const double &R, const double &r) {
+		this->C = C, this->R = R, this->r = r, rx = ry = rz = 0;
+	}
+	ring(const point &C, const double &R, const double &r, const double &rx, const double &rz) {
+		this->C = C, this->R = R, this->r = r, this->rx = rx, this->ry = 0, this->rz = rz;
+	}
+	ring(const point &C, const double &R, const double &r, const double &rx, const double &ry, const double &rz) {
+		this->C = C, this->R = R, this->r = r, this->rx = rx, this->ry = ry, this->rz = rz;
+	}
+	point Max() const {
+		return C + point(R + r, R + r, r);
+	}
+	point Min() const {
+		return C - point(R + r, R + r, r);
+	}
+	void meet(intersect &Res, const ray &a) const {
+		Res.meet = false;
+		point P = a.orig - C;
+		double x2y2 = P.x*P.x + P.y*P.y, z2 = P.z*P.z, a2b2 = a.dir.x*a.dir.x + a.dir.y*a.dir.y, c2 = a.dir.z*a.dir.z, axby = P.x*a.dir.x + P.y*a.dir.y, cz = P.z*a.dir.z,
+			x2y2z2 = x2y2 + z2, a2b2c2 = a2b2 + c2, axbycz = axby + cz, R2pr2 = R * R + r * r, R2mr2 = R * R - r * r;
+		double t4 = a2b2c2 * a2b2c2, t3 = 4 * a2b2c2 * axbycz, t2 = 2 * a2b2c2 * x2y2z2 + 4 * axbycz * axbycz, t1 = 4 * x2y2z2 * axbycz, t0 = x2y2z2 * x2y2z2;
+		t2 += 2 * (R2mr2*c2 - R2pr2 * a2b2), t1 += 4 * (cz*R2mr2 - axby * R2pr2), t0 += 2 * (R2mr2*z2 - R2pr2 * x2y2) + R2mr2 * R2mr2;
+		double t = solveQuartic(t4, t3, t2, t1, t0);
+		if (isnan(t)) return;
+		Res.dist = t * a.dir.mod(); if (abs(Res.dist) < ERR_EPSILON) return;
+		Res.intrs = P + t * a.dir;
+		Res.ut = atan2(Res.intrs.y, Res.intrs.x), Res.vt = asin(Res.intrs.z / r); if (isnan(Res.vt)) Res.vt = Res.intrs.z > 0 ? PI / 2 : -PI / 2;
+		point N = point(cos(Res.ut)*cos(Res.vt), sin(Res.ut)*cos(Res.vt), sin(Res.vt));
+		Res.reflect = a.dir - 2 * dot(a.dir, N)*N;
+		Res.intrs += C;
+		Res.meet = true;
+	}
+	void print(ostream& os) const {
+		os << "Surface(" << "cos(u)*(" << noshowpos << R << showpos << r << "*cos(v))" << showpos << C.x << "," 
+			<< "sin(u)*(" << noshowpos << R << showpos << r << "*cos(v))" << showpos << C.y << "," << noshowpos << r << "*sin(v)" << showpos << C.z << ",u,0,2*pi,v,0,2*pi)";
+	}
+	int telltype() const { return Cylinder_Sign; }
+};
+
 #endif
 
 #ifndef _INC_object2D_dif

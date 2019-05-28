@@ -33,6 +33,11 @@ The rings goes through the most wonderful optimization I have ever made. <br/>
 <pre>CPU:     44min => 5.4s
 Memory:  1.26GB => 56MB</pre>
 
+**Update on 2019-05-27:** 
+Vector ring, 0.13s elapsed! 
+
+![_](ring_vec.jpg)
+
 ![_](Γ.jpg)
 
 This picture shows <a href="https://en.wikipedia.org/wiki/Gamma_function" target="_blank">Gamma function</a> on complex plane. It's consists of more than 1.6 million triangles. It requires about 20 seconds and 200M memories to render. 

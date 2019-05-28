@@ -274,7 +274,7 @@ void Render_GTest02() {
 	parallelogram G4_LD({ -2,-2,0 }, { 2,-2,0 }, { -2,2,0 }, 1);
 	//G4_LD.reflect = rgblight(0.4, 0.4, 0.7), G4_LD.absorb = rgblight(0.6, 0.6, 0.3);	// gray-blue
 	//G4_LD.reflect = rgb(255, 255, 100);	// bright yellow
-	G4_LD.reflect = rgb(178, 102, 255);	// mauve
+	G4_LD.reflect = rgb(178, 102, 255);
 	for (int i = 0; i < NP; i++) {
 		//W->reflect = rgblight(0.8, 0.8, 0.8), W->absorb = rgblight(0.2, 0.2, 0.2);	// silver
 		//W->reflect = rgblight(rgb(218, 165, 32)), W->absorb = rgb(15, 115, 25);	// gold
@@ -500,6 +500,18 @@ void Render_GTest03() {
 #pragma warning(pop)
 
 #endif
+
+void Render_GTest04() {
+	World W;
+	parallelogram G({ -2,-2,0 }, { 2,-2,0 }, { -2,2,0 }, 1); G.setcolor(rgb(178, 102, 255)); W.add(&G);
+	//ring R(point(0, 0, 0.4), 1.2, 0.4); R.setcolor(Silver); W.add(&R);
+	ring R(point(0, 0, 0.12), 1.2, 0.12); R.setcolor(Gold); G.setcolor(Silver); W.add(&R);
+	bitmap img(600, 400);
+	W.setGlobalLightSource(PI / 2, 0);
+	W.Render_Sampling = 4;
+	W.render(img, point(30, 60, 40), point(0, 0, 0), 0, 0.004);
+	img.out("IMAGE\\RT.bmp");
+}
 
 // water and two "pillars"
 void Render_CTest01() {

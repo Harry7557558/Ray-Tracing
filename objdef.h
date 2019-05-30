@@ -22,11 +22,9 @@ typedef chrono::duration<double> fsec;
 
 #include <cstdlib>
 
-#define ERR_EPSILON 1e-8	// minimum distance of intersection
-#define ERR_EPSILON_SN 1e-9
+#define ERR_EPSILON 1e-7	// minimum distance of intersection
 #define ERR_UPSILON 1e+12
-#define ERR_ZETA 1e-6	// minumum distance of SDF test, may cause threads jointing problems when too large
-#define ERR_ZETA_SN 1e-6
+#define ERR_ZETA 1e-5	// minumum distance of SDF test, may cause threads jointing problems when too large
 
 // For Debugging
 extern ofstream fout("IMAGE\\Log.txt");
@@ -228,7 +226,7 @@ struct intersect {
 	double dist;	// distance from the intersect to the origin
 	point intrs;	// point of intersection
 	point reflect;	// reflect vector
-	double ut, vt;	// reserve
+	double ut, vt, wt;	// reserve
 };
 struct intersect2D {
 	bool meet = 0;
@@ -239,9 +237,14 @@ struct intersect2D {
 };
 
 /* Extreme points of an object */
-struct maxmin {
+class PMaxMin {
+public:
 	point max;	// maximum x,y,z coordinates
 	point min;	// minimum x,y,z coordinates
+	PMaxMin(const point &Max, const point &Min) {
+		max = Max, min = Min;
+	}
+	~PMaxMin() {}
 };
 
 /* Light class, each channel is a float between 0 and 1 */
@@ -318,38 +321,45 @@ inline void operator /= (rgblight &a, const double &b) {
 }
 
 
+#define OS_Pointer "0x" << hex << uppercase << setw(8) << setfill('0')
 class borderbox {
 	// Use for border of subgroups of objects
 public:
-	point B1, B2;
-	inline point& Max() { return B2; }
-	inline point& Min() { return B1; }
-	borderbox() { B1 = point(INFINITY, INFINITY, INFINITY), B2 = point(-INFINITY, -INFINITY, -INFINITY); }
+	point Min, Max;
+	borderbox() { Min = point(INFINITY, INFINITY, INFINITY), Max = point(-INFINITY, -INFINITY, -INFINITY); }
+	borderbox(const point &Min, const point &Max) {
+		this->Min = Min, this->Max = Max;
+	}
 	bool meet(const ray &a) const {
 		// http://www.cs.utah.edu/~awilliam/box/box.pdf
 		double tmin, tmax, tymin, tymax, tzmin, tzmax;
-		tmin = ((a.dir.x < 0 ? B2 : B1).x - a.orig.x) / a.dir.x;
-		tmax = ((a.dir.x < 0 ? B1 : B2).x - a.orig.x) / a.dir.x;
-		tymin = ((a.dir.y < 0 ? B2 : B1).y - a.orig.y) / a.dir.y;
-		tymax = ((a.dir.y < 0 ? B1 : B2).y - a.orig.y) / a.dir.y;
+		tmin = ((a.dir.x < 0 ? Max : Min).x - a.orig.x) / a.dir.x;
+		tmax = ((a.dir.x < 0 ? Min : Max).x - a.orig.x) / a.dir.x;
+		tymin = ((a.dir.y < 0 ? Max : Min).y - a.orig.y) / a.dir.y;
+		tymax = ((a.dir.y < 0 ? Min : Max).y - a.orig.y) / a.dir.y;
 		if ((tmin > tymax) || (tymin > tmax)) return 0;
 		if (tymin > tmin) tmin = tymin;
 		if (tymax < tmax) tmax = tymax;
-		tzmin = ((a.dir.z < 0 ? B2 : B1).z - a.orig.z) / a.dir.z;
-		tzmax = ((a.dir.z < 0 ? B1 : B2).z - a.orig.z) / a.dir.z;
+		tzmin = ((a.dir.z < 0 ? Max : Min).z - a.orig.z) / a.dir.z;
+		tzmax = ((a.dir.z < 0 ? Min : Max).z - a.orig.z) / a.dir.z;
 		if ((tmin > tzmax) || (tzmin > tmax)) return 0;
 		if (tzmin > tmin) tmin = tzmin;
 		if (tzmax < tmax) tmax = tzmax;
 		return tmax > 0;
 	}
 	inline bool contain(const point &a) const {
-		return (a.x > B1.x && a.x<B2.x && a.y>B1.y && a.y<B2.y && a.z>B1.z && a.z < B2.z);
+		return (a.x > Min.x && a.x<Max.x && a.y>Min.y && a.y<Max.y && a.z>Min.z && a.z < Max.z);
+	}
+	void fix() {
+		if (Max.x < Min.x) swap(Max.x, Min.x);
+		if (Max.y < Min.y) swap(Max.y, Min.y);
+		if (Max.z < Min.z) swap(Max.z, Min.z);
 	}
 	~borderbox() {}
 	friend ostream& operator << (ostream& os, const borderbox &a) {
-		point A = a.B1, B = point(a.B2.x, a.B1.y, a.B1.z), C = point(a.B2.x, a.B2.y, a.B1.z), D = point(a.B1.x, a.B2.y, a.B1.z),
-			E = point(a.B1.x, a.B1.y, a.B2.z), F = point(a.B2.x, a.B1.y, a.B2.z), G = a.B2, H = point(a.B1.x, a.B2.y, a.B2.z);
-		os << "Polyline(" << A << "," << B << "," << F << "," << G << "," << C << "," << D << "," << H << "," << E << "," <<
+		point A = a.Min, B = point(a.Max.x, a.Min.y, a.Min.z), C = point(a.Max.x, a.Max.y, a.Min.z), D = point(a.Min.x, a.Max.y, a.Min.z),
+			E = point(a.Min.x, a.Min.y, a.Max.z), F = point(a.Max.x, a.Min.y, a.Max.z), G = a.Max, H = point(a.Min.x, a.Max.y, a.Max.z);
+		os << "Borderbox_{" << OS_Pointer << (unsigned)&a << "}: Polyline(" << A << "," << B << "," << F << "," << G << "," << C << "," << D << "," << H << "," << E << "," <<
 			A << "," << E << "," << F << "," << B << "," << C << "," << G << "," << H << "," << D << "," << A << ")";
 		return os;
 	}
@@ -361,6 +371,10 @@ inline point PMax(point A, point B) {
 inline point PMin(point A, point B) {
 	return point(min(A.x, B.x), min(A.y, B.y), min(A.z, B.z));
 }
+
+
+#define ERR_EPSILON_SN 1e-8L
+#define ERR_ZETA_SN 1e-8L
 
 // Solve equation ax^3+bx^2+cx+d=0 with Cardano formula
 // return 1: two or three real roots, r, u, v;
@@ -392,26 +406,134 @@ bool solveCubic(double a, double b, double c, double d, double &r, double &u, do
 
 // solve ax^4+bx^3+cx^2+dx+e=0, return minimum possitive real root
 inline double pick_random(double min, double max);
+namespace MyComplex {
+	class complex {
+	public:
+		double re, im;
+		complex() {}
+		complex(double r) {
+			this->re = r, this->im = 0;
+		}
+		complex(double re, double im) {
+			this->re = re, this->im = im;
+		}
+		complex(const complex &c) {
+			re = c.re, im = c.im;
+		}
+		complex& operator = (const complex &c) {
+			re = c.re, im = c.im; return *this;
+		}
+		~complex() {}
+
+		inline complex operator + (const double &c) const {
+			return complex(re + c, im);
+		}
+		inline complex operator + (const complex &c) const {
+			return complex(re + c.re, im + c.im);
+		}
+		inline complex operator - () const {
+			return complex(-re, -im);
+		}
+		inline complex operator - (const complex &c) const {
+			return complex(re - c.re, im - c.im);
+		}
+		inline complex operator * (const double &c) const {
+			return complex(c*re, c*im);
+		}
+		inline complex operator / (const double &c) const {
+			return complex(re / c, im / c);
+		}
+		inline friend complex operator / (const double &a, const complex &c) {
+			double m = a / (c.re*c.re + c.im * c.im);
+			return complex(m*c.re, -m * c.im);
+		}
+
+		inline complex sqrt() const {
+			double m = std::hypot(re, im);
+			return complex(std::sqrt(0.5*(m + re)),
+				im > 0 ? std::sqrt(0.5*(m - re)) : -std::sqrt(0.5*(m - re)));
+		}
+		inline complex cbrt() const {
+			double s = std::pow(re*re + im * im, 1. / 6), c = std::atan2(im, re) / 3;
+			return complex(s*std::cos(c), s*std::sin(c));
+		}
+
+		friend ostream& operator << (ostream &os, const complex &c) {
+			os << noshowpos << c.re << showpos << c.im << "i";
+			return os;
+		}
+	};
+	inline complex sqrt(double r) {
+		if (r >= 0) return complex(std::sqrt(r), 0);
+		return complex(0, std::sqrt(-r));
+	}
+}
+double solveQuartic_GeneralFormula(double a, double b, double c, double d, double e) {
+	// https://en.wikipedia.org/wiki/Quartic_function#General_formula_for_roots
+	// This way occurs a high error (over 1e-4)
+	b /= a, c /= a, d /= a, e /= a;
+	double b2 = b * b, c2 = c * c;
+	double p = c - 0.375 * b2, q = 0.125 * b2*b - 0.5*b*c + d; p *= 2;
+	double Delta0 = c2 - 3 * b*d + 12 * e, Delta1 = 2 * c2*c - 9 * b*c*d + 27 * b2 * e + 27 * d*d - 72 * c*e;
+	MyComplex::complex Q = ((MyComplex::sqrt(Delta1*Delta1 - 4 * Delta0*Delta0*Delta0) + Delta1)*0.5).cbrt();
+	MyComplex::complex S2 = ((Q + Delta0 / Q) - p) / 3, S = S2.sqrt()*0.5;
+	MyComplex::complex K;
+	K = (-S2 - q / S - p).sqrt()*0.5;
+	MyComplex::complex R1 = S + K, R2 = S - K;
+	K = (q / S - S2 - p).sqrt()*0.5, S = -S;
+	MyComplex::complex R3 = S + K, R4 = S - K;
+	b /= 4; R1.re -= b, R2.re -= b, R3.re -= b, R4.re -= b; b *= 4;
+
+	double r, r1 = INFINITY, r2 = INFINITY, r3 = INFINITY, r4 = INFINITY, dx, u, v;
+	double a_ = 4, b_ = 3 * b, c_ = 2 * c, d_ = d;
+	if (abs(R1.im) < ERR_ZETA_SN && abs(R2.im) < ERR_ZETA_SN) {
+		r1 = R1.re, r2 = R2.re;
+		if (r1 < ERR_EPSILON) r1 = INFINITY;
+		if (r2 < ERR_EPSILON) r2 = INFINITY;
+	}
+	if (abs(R3.im) < ERR_ZETA_SN && abs(R4.im) < ERR_ZETA_SN) {
+		r3 = R3.re, r4 = R4.re;
+		if (r3 < ERR_EPSILON) r3 = INFINITY;
+		if (r4 < ERR_EPSILON) r4 = INFINITY;
+	}
+	if (abs(R1.im) < ERR_ZETA_SN && abs(R4.im) < ERR_ZETA_SN) {
+		// R1,R4 real, R2,R3 conjugate (I didn't proof it, but it's satisfied in over 20,000,000 random-value tests)
+		// Also high error occurs in this situation
+		r1 = R1.re, r4 = R2.re;
+		if (r1 < ERR_EPSILON) r1 = INFINITY;
+		if (r4 < ERR_EPSILON) r4 = INFINITY;
+	}
+	r = min(min(r1, r2), min(r3, r4));
+	if (r == INFINITY) return NAN;
+	unsigned n = 0; do {
+		u = (((a*r + b)*r + c)*r + d)*r + e, v = ((a_*r + b_)*r + c_)*r + d_;
+		dx = u / v; r -= dx;
+	} while (abs(dx) > ERR_EPSILON_SN && ++n < 30);
+	//if (r < ERR_EPSILON) fout << "W";
+	//if (isnan(r)) fout << "M";
+	return r;
+}
 double solveQuartic(double a, double b, double c, double d, double e) {
-	b /= a, c /= a, d /= a, e /= a, a = 1;
+	b /= a, c /= a, d /= a, e /= a;
+	//double B = b, C = c, D = d, E = e;
 	double x = 0, dx;
-	double a_ = 4 * a, b_ = 3 * b, c_ = 2 * c, d_ = d;
+	double a_ = 4, b_ = 3 * b, c_ = 2 * c, d_ = d;
 	double r, u, v;
 	if (solveCubic(a_, b_, c_, d_, r, u, v)) {
 		double mi = min(min(u, v), r), ma = max(max(u, v), r);	// to minimas
-		if ((((a*mi + b)*mi + c)*mi + d)*mi + e > 0 && (((a*ma + b)*ma + c)*ma + d)*ma + e > 0) return NAN;
+		if ((((mi + b)*mi + c)*mi + d)*mi + e > 0 && (((ma + b)*ma + c)*ma + d)*ma + e > 0) return NAN;
 		// both minimas with values greater than 0 => no real root
 	}
 	else {
-		if ((((a*r + b)*r + c)*r + d)*r + e > 0) return NAN;	// minima with value greate 0
+		if ((((r + b)*r + c)*r + d)*r + e > 0) return NAN;	// minima with value greate 0
 	}
 	x = -0.25*b;	// third derivative equal to zero
 	unsigned n = 0; do {
 		if (++n > 30 && abs(dx) > 1) x = pick_random(-2, 2) - 0.25*b, n -= 30;
-		u = (((a*x + b)*x + c)*x + d)*x + e, v = ((a_*x + b_)*x + c_)*x + d_;
+		u = (((x + b)*x + c)*x + d)*x + e, v = ((a_*x + b_)*x + c_)*x + d_;
 		dx = u / v; x -= dx;
 	} while (abs(dx) > ERR_EPSILON_SN && ++n < 60);		// finding one root x using Newton's method
-	if (n == 60) return NAN;
+	//if (n == 60 && abs(dx) > 1e-3) return NAN;
 	c_ = b + x, d_ = x * c_ + c, e = x * d_ + d, d = d_, c = c_, b = 1, a = 0;	// Euclid division
 	if (solveCubic(b, c, d, e, r, u, v)) {
 		if (x < ERR_EPSILON) x = INFINITY; if (r < ERR_EPSILON) r = INFINITY; if (u < ERR_EPSILON) u = INFINITY; if (v < ERR_EPSILON) v = INFINITY;
@@ -420,10 +542,10 @@ double solveQuartic(double a, double b, double c, double d, double e) {
 	}
 	else {
 		if (x < ERR_EPSILON) x = r > ERR_EPSILON ? r : NAN;
-		else x = r < ERR_EPSILON ? x : min(x, r);
+		else x = r < ERR_EPSILON ? x : (x < r ? x : r);
 	}
-	if (isnan(x)) return x; 
-	/*n = 0; do {
+	/*b = B, c = C, d = D, e = E; a = 1; a_ *= a, b_ *= b, c_ *= d, d_ *= d; 
+	n = 0; do {
 		u = (((a*x + b)*x + c)*x + d)*x + e, v = ((a_*x + b_)*x + c_)*x + d_;
 		dx = u / v; x -= dx;
 	} while (abs(dx) > ERR_EPSILON_SN && ++n < 20);		// dispose error*/

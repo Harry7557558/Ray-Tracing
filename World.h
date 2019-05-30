@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Object.h"
+#include "CSG.h"
 
 #include <thread>
 #include <mutex>
@@ -22,26 +23,42 @@ public:
 		for (int i = 1; i < Objs.size(); i++) {
 			maxc = Max(maxc, Objs.at(i)->Max());
 			minc = Min(minc, Objs.at(i)->Min());
+			const_cast<object*>(Objs.at(i))->init();
 		}
 		for (int i = 0; i < GObjs.size(); i++) GObjs.at(i)->resize();
 		if (Objs.size() == 0 && !GObjs.empty()) {
-			maxc = GObjs.front()->border.Max(), minc = GObjs.front()->border.Min();
+			maxc = GObjs.front()->border.Max, minc = GObjs.front()->border.Min;
 		}
 		for (int i = ((Objs.size() == 0 && !GObjs.empty()) ? 1 : 0); i < GObjs.size(); i++) {
-			maxc = Max(maxc, GObjs.at(i)->border.Max());
-			minc = Min(minc, GObjs.at(i)->border.Min());
+			maxc = Max(maxc, GObjs.at(i)->border.Max);
+			minc = Min(minc, GObjs.at(i)->border.Min);
 		}
-		border.B1 = minc, border.B2 = maxc;
+		border.Min = minc, border.Max = maxc;
+		border.fix();
 	}
+	bool dynamic_memory;	// indicates whether the destructor should delete elements or not
 	friend int main();
 	friend void Render_GTest01();
 	friend void Render_GTest02();
 	friend void Render_GTest03();
 public:
-	World() {}
+	World() :dynamic_memory(false) {
+		background = rgblight(1, 1, 1);
+	}
+	World(const World &W) : dynamic_memory(true) {
+		for (int i = 0; i < W.Objs.size(); i++) {
+			Objs.push_back(W.Objs[i]->copy());
+		}
+		for (int i = 0; i < W.GObjs.size(); i++) {
+			GObjs.push_back(new World(*(W.GObjs.at(i))));
+		}
+	}
 	~World() {
-		Objs.clear(); 	// DO NOT delete ANY elements there !!!
-		GObjs.clear();
+		if (dynamic_memory) {
+			for (int i = 0; i < Objs.size(); i++) delete Objs.at(i);
+			for (int i = 0; i < GObjs.size(); i++) delete GObjs.at(i);
+		}
+		Objs.clear(); GObjs.clear();
 	}
 	inline void insert(World *a) {
 		GObjs.push_back(a);
@@ -60,7 +77,7 @@ public:
 		N = point(x, y, z);
 	}
 
-	// Find the nearest object
+	// Find the closest object
 	void RayTracing_EnumObjs(const ray &v, intersect &ni, const object* &no, intersect& nt) const {
 		int NB = Objs.size();
 		for (int k = 0; k < NB; k++) {
@@ -103,7 +120,11 @@ public:
 
 	// Calculate the result rgb color with a giving ray
 	double RayTracing(const ray &v, rgblight &c, const double count, const int n) const {
-		if (count < 0.004 || n > 20) { c = rgblight(1, 1, 1); return INFINITY; }
+		if (count < 0.004 || n > 20) {
+			double ang = dot(N, v.dir) / N.mod()*v.dir.mod();
+			c = ang > 0 ? ang * background : rgblight(0, 0, 0);
+			return INFINITY;
+		}
 		if (isnan(count)) { c = rgblight(NAN, NAN, NAN); return NAN; }
 		//for (int i = 0; i < n; i++) fout << " ";
 
@@ -120,10 +141,10 @@ public:
 			//fout << v << endl;
 			double ang = dot(N, v.dir);
 			if (ang <= 0) {
-				c = background; return INFINITY;
+				c = rgblight(0, 0, 0); return INFINITY;
 			}
 			ang /= N.mod()*v.dir.mod();
-			c = rgblight(ang); return INFINITY;
+			c = background * ang; return INFINITY;
 		}
 		else if (isnan(ni.reflect.x)) {
 			// must exit function when nan occur; or may occur endless recursive
@@ -132,6 +153,7 @@ public:
 		else {
 			//fout << ray(v.orig, ni.intrs - v.orig) << endl; fout.flush();
 			// Meet
+			ni.reflect /= ni.reflect.mod();
 			switch (no->telltype() >> 16) {
 			case 0: {	// surface
 				switch ((no->telltype() >> 8) & 0b1111) {
@@ -169,6 +191,7 @@ public:
 			case 1: {	// 3D objects with volumn, debugging
 				point refract; double rlr;
 				((object3D*)no)->refractData(ni, v, 1, refract, rlr);
+				refract /= refract.mod();
 				//fout << count << " " << rlr << " " << (refract.z > 0 ? "U" : "D") << endl;
 
 				double d = RayTracing(ray(ni.intrs, ni.reflect), c, count * rlr, n + 1);
@@ -200,13 +223,21 @@ public:
 				}
 				break;
 			}
+			case 0x1000: {	// XSolid
+				((XSolid*)no)->reflectData(ni, v);
+				//c = rgblight(255, 255, 255); return ni.dist;
+
+				RayTracing(ray(ni.intrs, ni.reflect), c, count * ((XSolid*)no)->col.vsl(), n + 1);
+				return ni.dist;
+			}
 			}
 			return ni.dist;
 		}
 	}
 
 	// oi: object that contains ray end, must match
-	rgblight CalcRGB(const ray &v, const object3D* oi) {
+	rgblight CalcRGB(ray &v, const object3D* oi) {
+		v.dir /= v.dir.mod();
 		rgblight c;
 		double d = -RayTracing(v, c, 1.0, 0);
 		if (oi != 0) {
@@ -225,7 +256,7 @@ public:
 			if (m != n) cout << "\r" << (m / 10) << "." << (m % 10) << "%";
 			n = m;
 			if (sum >= ps) break;
-			Sleep(50);
+			this_thread::sleep_for(chrono::milliseconds(50));
 		}
 	}
 
@@ -280,7 +311,6 @@ public:
 
 
 
-	// class won't be dagamed after rendering
 	/* Parameters (all (solid) angles are in radians):
 		canvas      canvas for rendering
 		C           center of camera
@@ -290,7 +320,7 @@ public:
 	*/
 	static unsigned Render_Sampling;
 	inline double rf_SR(double w, double r, double t) const {
-		// calculate solid angle with given parameters, for somehow use
+		// calculate solid angle with given parameters
 		double h = t * w;
 		double aw = acos((2 * r*r - w * w) / (2 * r*r));
 		double ah = acos((2 * r*r - h * h) / (2 * r*r));
@@ -300,6 +330,8 @@ public:
 		return SR;
 	}
 	void render(bitmap &canvas, point C, point O, double rt, double sr) {
+
+#ifndef FoldUp
 
 		cout << "Initializing...";
 		auto Time_Beg = NTime::now();
@@ -347,6 +379,8 @@ public:
 
 
 		cout << "\nAttempting...";
+
+#endif
 
 		// calculate pixels allocates to each thread
 		ray beg; beg.orig = C;
@@ -423,20 +457,29 @@ public:
 		cout << " Completed. \n\n";
 		auto Time_End = NTime::now();
 		fs = Time_End - Time_Beg;
-		cout << "Elapsed Time: " << setprecision(3) << fs.count() << "s. \n\n\n";
+		cout << "Elapsed Time: " << defaultfloat << setprecision(3) << fs.count() << "s. \n\n\n";
 
+		fout << "Elapsed Time: " << defaultfloat << setprecision(3) << fs.count() << "s. \n\n\n";
 
 
 		// Debug single pixel
-		int debugx = 380, debugy = 340, RP = 0;
+		int debugx = 320, debugy = 220, RP = 0;
 		this->MultiThread_CC(canvas, debugx, debugx + 1, debugy, debugy + 1, C, CV, oi, RP);
-		//canvas.dot(debugx + 1, debugy, Red); canvas.dot(debugx - 1, debugy, Red); canvas.dot(debugx, debugy + 1, Red); canvas.dot(debugx, debugy - 1, Red);
+		//pixel col = Red; canvas.dot(debugx + 1, debugy, col); canvas.dot(debugx - 1, debugy, col); canvas.dot(debugx, debugy + 1, col); canvas.dot(debugx, debugy - 1, col);
 
 	}
 
+	void print(ostream &os, unsigned n) {
+		string space; for (unsigned i = 0; i < n; i++) space += " ";
+		os << space << border << endl; space += " ";
+		for (unsigned i = 0; i < Objs.size(); i++) os << space << *(Objs.at(i)) << endl;
+		for (unsigned i = 0; i < GObjs.size(); i++) GObjs.at(i)->print(os, n + 1);
+	}
 	friend ostream& operator << (ostream& os, const World &W) {
-		for (unsigned i = 0; i < W.Objs.size(); i++) os << *(W.Objs.at(i)) << endl;
-		for (unsigned i = 0; i < W.GObjs.size(); i++) os << *(W.GObjs.at(i)) << endl;
+		os << W.border << endl;
+		for (unsigned i = 0; i < W.Objs.size(); i++) os << " " << *(W.Objs.at(i)) << endl;
+		for (unsigned i = 0; i < W.GObjs.size(); i++) W.GObjs.at(i)->print(os, 1);
+		os << defaultfloat;
 		return os;
 	}
 };

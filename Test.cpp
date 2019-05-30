@@ -195,7 +195,7 @@ void Render_GTest02() {
 		for (int j = 0; j < DIF2; j++) {
 			G4_RS.at(i).at(j) = new World;
 		}
-}
+	}
 #elif DPS==1
 	vector<World*> G4_RS; G4_RS.resize(DIF1);
 	for (int i = 0; i < DIF1; i++) {
@@ -503,13 +503,41 @@ void Render_GTest03() {
 
 void Render_GTest04() {
 	World W;
-	parallelogram G({ -2,-2,0 }, { 2,-2,0 }, { -2,2,0 }, 1); G.setcolor(rgb(178, 102, 255)); W.add(&G);
-	//ring R(point(0, 0, 0.4), 1.2, 0.4); R.setcolor(Silver); W.add(&R);
-	ring R(point(0, 0, 0.12), 1.2, 0.12); R.setcolor(Gold); G.setcolor(Silver); W.add(&R);
-	bitmap img(600, 400);
-	W.setGlobalLightSource(PI / 2, 0);
-	W.Render_Sampling = 4;
-	W.render(img, point(30, 60, 40), point(0, 0, 0), 0, 0.004);
+	//plane_grid PB(-3); W.add(&PB);
+	plane_dif PB(-3); PB.setcolor(LightBlue); W.add(&PB);
+	//WaterSurface WB(-1); WB.setAttCof(0.54, 0.05, 0.02); WB.setIndex(1.33); W.add(&WB);
+
+	World W1;
+	parallelogram G({ -2,-2,0 }, { 2,-2,0 }, { -2,2,0 }, 1); G.setcolor(Silver); W1.add(&G);
+	cylinder C1(point(+1.5, +1.5, 0.1), point(+1.5, +1.5, -3), 0.3); C1.setcolor(Red); W1.add(&C1);
+	cylinder C2(point(-1.5, +1.5, 0.1), point(-1.5, +1.5, -3), 0.3); C2.setcolor(Red); W1.add(&C2);
+	cylinder C3(point(+1.5, -1.5, 0.1), point(+1.5, -1.5, -3), 0.3); C3.setcolor(Red); W1.add(&C3);
+	cylinder C4(point(-1.5, -1.5, 0.1), point(-1.5, -1.5, -3), 0.3); C4.setcolor(Red); W1.add(&C4);
+	cylinder C0(point(0, 0, 0.2), point(0, 0, -1.2), 0.5); C0.setcolor(Brown); W1.add(&C0);
+	circle CC1(point(0, 0, 0.2), 0.5); CC1.setcolor(Brown); W1.add(&CC1);
+	circle CC2(point(0, 0, -1.2), 0.5); CC2.setcolor(Brown); W1.add(&CC2);
+	sphere B1(point(0, 0, 0.3), 0.1); B1.setcolor(SeaShell); W1.add(&B1);
+	torus Rg(point(0, 0, 0.12), 1.2, 0.12); Rg.setcolor(Gold); W1.add(&Rg);
+	W.insert(&W1);
+
+	World W2;
+	const double Tl = 4, Th = 0.8;
+	parallelogram_ref T1(point(-0.5 * Tl, -0.5 * Tl, 0), point(0, Tl), point(Tl, 0));
+	parallelogram_ref T2(point(-0.5 * Tl, -0.5 * Tl, Th), point(Tl, 0), point(0, Tl));
+	parallelogram_ref T3(point(-0.5 * Tl, -0.5 * Tl, 0), point(Tl, 0), point(0, 0, Th));
+	parallelogram_ref T4(point(-0.5 * Tl, -0.5 * Tl, Th), point(0, Tl), point(0, 0, -Th));
+	parallelogram_ref T5(point(0.5 * Tl, 0.5 * Tl, 0), point(0, 0, Th), point(0, -Tl));
+	parallelogram_ref T6(point(0.5 * Tl, 0.5 * Tl, 0), point(-Tl, 0), point(0, 0, Th));
+	polyhedron T({ &T1, &T2, &T3, &T4, &T5, &T6 }); T.setAttCof(0.5, 0.2, 0.1); T.setIndex(1.5); W2.add(&T);
+	//W.insert(&W2);
+
+	fout << W << endl;
+
+	bitmap img(3000, 2000);
+	W.setGlobalLightSource(-1, -1, 2);
+	W.background = rgblight(1);
+	W.Render_Sampling = 8;
+	W.render(img, point(30, 60, 40), point(0, 0, -1), 0, 0.01);
 	img.out("IMAGE\\RT.bmp");
 }
 
@@ -631,6 +659,7 @@ void Render_CTest03() {
 	}
 }
 
+// triangular prism
 void Render_CTest04() {
 	World W;
 	triangle_ref T1(point(0, 0, 0), point(0, 1, 0), point(1, 0, 0));
@@ -648,13 +677,14 @@ void Render_CTest04() {
 	parallelogram G1(point(-1, 0, ERR_ZETA), point(cos(2.8), sin(2.8)), 2 * point(cos(2.8 - PI / 2), sin(2.8 - PI / 2))); G1.setcolor(Brown); W.add(&G1);
 	fout << W << endl;
 
-	W.Render_Sampling = 1;
+	W.Render_Sampling = 2;
 	W.setGlobalLightSource(0, 0, 1);
 	bitmap img(600, 400);
 	W.render(img, point(10, -6, 5), point(0, 0, 0), 0, 0.06);
 	img.out("IMAGE\\RT.bmp");
 }
 
+// "chessboard"
 void Render_LTest01() {
 	World W;
 	spherebulb L(point(0, 0, 3), 0.8, rgblight(1, 1, 2)); W.add(&L);
@@ -683,6 +713,7 @@ void Render_LTest01() {
 
 }
 
+// two spheres inside a room
 void Render_LTest02() {
 	World W;
 	plane_dif B(0.0); B.setcolor(Gray); B.setvar(0.1);
@@ -702,6 +733,7 @@ void Render_LTest02() {
 	canvas.out("IMAGE\\RT.bmp");
 }
 
+// a house on the grassland near a pool
 void Render_LTest03() {
 	World W;
 
@@ -738,4 +770,25 @@ void Render_LTest03() {
 	bitmap canvas(600, 400);
 	W.render(canvas, point(-1, -3, 4), point(1.8, 1.8, 0), 0, 0.6);
 	canvas.out("IMAGE\\RT.bmp");
+}
+
+
+#include "CSG.h"
+
+void Render_XTest00() {
+	World W;
+	plane_grid P(0); W.add(&P);
+	XObjs::Sphere XS1(point(0, 0, 1), 1);
+	XObjs::Sphere XS2(point(0, 1, 1), 1);
+	XObjs::Plane XP(point(0, 0.5, 1), point(-0.4, 1, 1));
+	XSolid X(CSG_IntersectionOp(XSolid(XS1), XSolid(XS2)));
+	X = CSG_SubtractionOp(X, XSolid(XP));
+	X.setColor(White);
+	W.add(&X);
+
+	bitmap img(600, 400);
+	W.setGlobalLightSource(0, 0, 1);
+	W.Render_Sampling = 4;
+	W.render(img, point(10, 10, 10), point(0, 0, 0), 0, 0.1);
+	img.out("IMAGE\\RT.bmp");
 }

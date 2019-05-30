@@ -18,6 +18,11 @@ public:
 	}
 	~object() {}
 
+	virtual object* copy() const {
+		return new object;
+	}
+	virtual void init() {}	// some objects need to be initialized before rendering
+
 	virtual void setcolor(const WebSafeColour &c) {}
 	virtual void setcolor(const pixel &c) {}
 	virtual void setcolor(const rgblight &c) {}
@@ -25,15 +30,16 @@ public:
 
 	/* Intersection Test */
 	virtual void meet(intersect &R, const ray &a) const { WARN("object::meet is called. This function should never be called."); return; }
+	// a.dir must be a unit vector
 
 
 	virtual point Max() const { WARN("object::Max is called. This function should never be called."); return point(); }
 	virtual point Min() const { WARN("object::Min is called. This function should never be called."); return point(); }
 
 	/* return the type of an object, undefined is -1 */
-	virtual int telltype() const { WARN("object::telltype is called. This function should never be called."); return Object_Sign; }
+	virtual unsigned telltype() const { WARN("object::telltype is called. This function should never be called."); return Object_Sign; }
 	friend ostream& operator << (ostream& os, const object &a) {
-		a.print(os); return os;
+		a.print(os); os << defaultfloat; return os;
 	}
 	virtual void print(ostream& os) const { os << "Object Parent Class"; }
 };
@@ -51,6 +57,10 @@ public:
 		reflect = a->reflect;
 	}
 	~objectSF() {}
+
+	object* copy() const {
+		return new objectSF;
+	}
 
 	void setcolor(const WebSafeColour &c) { reflect = color(c); }
 	void setcolor(const pixel &c) { reflect = c; }
@@ -96,10 +106,10 @@ public:
 	plane(const plane &p) :N(p.N), D(p.D) {
 		reflect = p.reflect;
 	}
-	plane(const plane *p) :N(p->N), D(p->D) {
-		reflect = p->reflect;
-	}
 	~plane() {}
+	object* copy() const {
+		return new plane(*this);
+	}
 
 	point Max() const {
 		if (N.x == 0 && N.y == 0 && N.z == 0) return point(0, 0, 0);
@@ -146,19 +156,20 @@ public:
 		double t = (D - dot(N, a.orig)) / dot(N, a.dir);
 		if (t < ERR_EPSILON || t > ERR_UPSILON) return;
 		R.intrs = t * a.dir + a.orig;
-		R.dist = t * a.dir.mod();
+		R.dist = t;
 		R.reflect = 2 * (-dot(a.dir, N) / dot(N, N)) * N + a.dir;
 		R.meet = 1;
 		return;
 	}
 
 	void print(ostream& os) const {
+		os << "Plane_{" << OS_Pointer << (unsigned)this << "}: ";
 		if (abs(N.x) > ERR_EPSILON) os << N.x << "*x";
 		if (abs(N.y) > ERR_EPSILON) os << showpos << N.y << "*y";
 		if (abs(N.z) > ERR_EPSILON) os << showpos << N.z << "*z";
 		os << "=" << noshowpos << D;
 	}
-	int telltype() const { return Plane_Sign; }
+	unsigned telltype() const { return Plane_Sign; }
 };
 
 
@@ -168,9 +179,9 @@ class triangle :public objectSF {
 public:
 	point A, B, C;
 	triangle() {}
-	triangle(triangle* a) {
-		reflect = a->reflect;
-		A = a->A, B = a->B, C = a->C;
+	triangle(const triangle& a) {
+		reflect = a.reflect;
+		A = a.A, B = a.B, C = a.C;
 	}
 	triangle(const point &A, const point &B, const point &C) {
 		this->A = A, this->B = B, this->C = C;
@@ -182,6 +193,10 @@ public:
 		A = *V.begin(), B = *(V.begin() + 1), C = *(V.begin() + 2);
 	}
 	~triangle() {}
+	object* copy() const {
+		return new triangle(*this);
+	}
+
 	void meet(intersect &R, const ray &a) const {
 		// Algorithm: http://www.graphics.cornell.edu/pubs/1997/MT97.pdf
 		R.meet = 0;
@@ -202,7 +217,7 @@ public:
 		t = dot(E2, Q) / det;
 		if (t < ERR_EPSILON) return;
 		R.meet = 1;
-		R.dist = t * a.dir.mod();
+		R.dist = t;
 		R.intrs = (1 - u - v)*A + u * B + v * C;
 		point ON = cross(E1, E2);
 		ON *= dot(a.dir, ON) / dot(ON, ON);
@@ -215,9 +230,6 @@ public:
 		a.A = M * a.A, a.B = M * a.B, a.C = M * a.C;
 		return a;
 	}
-	/*inline void operator *= (matrix<double> M) {
-		A = M * A, B = M * B, C = M * C;
-	}*/
 	inline void rotate(const double &rx, const double &ry, const double &rz) {
 		matrix<double> M = matrix<double>({ {cos(rz),-sin(rz),0}, {sin(rz),cos(rz),0}, {0,0,1} })
 			* matrix<double>({ {cos(ry),0,sin(ry)}, {0,1,0}, {-sin(ry),0,cos(ry)} })
@@ -235,12 +247,13 @@ public:
 		A += a, B += a, C += a;
 	}
 	void print(ostream& os) const {
-		os << "Surface(if(u+v<1," << noshowpos << A.x << "*(1-u-v)" << showpos << B.x << "*u" << showpos << C.x << "*v" << "), "
+		os << "Triangle_{" << OS_Pointer << (unsigned)this << "}: ";
+		os << "Surface(if (u + v < 1, " << noshowpos << A.x << "*(1 - u - v)" << showpos << B.x << "*u" << showpos << C.x << "*v" << "), "
 			<< noshowpos << A.y << "*(1-u-v)" << showpos << B.y << "*u" << showpos << C.y << "*v" << ", "
 			<< noshowpos << A.z << "*(1-u-v)" << showpos << B.z << "*u" << showpos << C.z << "*v" << ", "
 			<< "u, 0, 1, v, 0, 1)" << noshowpos;
 	}
-	int telltype() const { return Triangle_Sign; }
+	unsigned telltype() const { return Triangle_Sign; }
 };
 
 /* parallelogram class */
@@ -249,9 +262,9 @@ class parallelogram :public objectSF {
 public:
 	point O, A, B;
 	parallelogram() {}
-	parallelogram(parallelogram* a) {
-		reflect = a->reflect;
-		A = a->A, B = a->B, O = a->O;
+	parallelogram(const parallelogram& a) {
+		reflect = a.reflect;
+		A = a.A, B = a.B, O = a.O;
 	}
 	parallelogram(const point &O, const point &A, const point &B) {
 		this->O = O, this->A = A, this->B = B;
@@ -264,6 +277,10 @@ public:
 		this->O = O, this->A = A, this->B = B;
 	}
 	~parallelogram() {}
+	object* copy() const {
+		return new parallelogram(*this);
+	}
+
 	void meet(intersect &R, const ray &a) const {
 		R.meet = 0;
 		point T, P = cross(a.dir, B), Q;
@@ -279,7 +296,7 @@ public:
 		t = dot(B, Q) / det;
 		if (t < ERR_EPSILON) return;
 		R.meet = 1;
-		R.dist = t * a.dir.mod();
+		R.dist = t;
 		R.intrs = O + u * A + v * B;
 		point ON = cross(A, B);
 		ON *= dot(a.dir, ON) / dot(ON, ON);
@@ -317,12 +334,13 @@ public:
 		O += a;
 	}
 	void print(ostream& os) const {
+		os << "Parallelogram_{" << OS_Pointer << (unsigned)this << "}: ";
 		os << "Surface(" << noshowpos << O.x << showpos << A.x << "*u" << showpos << B.x << "*v" << ", "
 			<< noshowpos << O.y << showpos << A.y << "*u" << showpos << B.y << "*v" << ", "
 			<< noshowpos << O.z << showpos << A.z << "*u" << showpos << B.z << "*v" << ", "
 			<< "u, 0, 1, v, 0, 1)" << noshowpos;
 	}
-	int telltype() const { return Parallelogram_Sign; }
+	unsigned telltype() const { return Parallelogram_Sign; }
 };
 
 
@@ -332,9 +350,9 @@ class circle :public objectSF {
 public:
 	point C; double r; double rx, ry, rz;	// First rotate x, then rotate z    R = Rz * Rx		// Clockwise??!!
 	circle() :r(0), rx(0), ry(0), rz(0) {}
-	circle(circle* a) {
-		reflect = a->reflect;
-		C = a->C, r = a->r; rx = a->rx, ry = a->ry, rz = a->rz;
+	circle(const circle& a) {
+		reflect = a.reflect;
+		C = a.C, r = a.r; rx = a.rx, ry = a.ry, rz = a.rz;
 	}
 	circle(const point &C, const double &r) {
 		this->C = C, this->r = r, rx = ry = rz = 0;
@@ -345,6 +363,11 @@ public:
 	circle(const point &C, const double &r, const double &rx, const double &ry, const double &rz) {
 		this->C = C, this->r = r, this->rx = rx, this->ry = ry, this->rz = rz;
 	}
+	~circle() {}
+	object* copy() const {
+		return new circle(*this);
+	}
+
 	inline friend circle operator + (circle c, const point &p) {
 		c.C += p; return c;
 	}
@@ -422,11 +445,10 @@ public:
 		if ((s.orig.z < -ERR_EPSILON) == (s.dir.z < -ERR_EPSILON)) return;
 		if ((s.orig.z > ERR_EPSILON) == (s.dir.z > ERR_EPSILON)) return;
 		double t = -s.orig.z / s.dir.z;
-		R.intrs.x = s.dir.x*t + s.orig.x, R.intrs.y = s.dir.y*t + s.orig.y;
+		R.intrs.x = s.dir.x*t + s.orig.x, R.intrs.y = s.dir.y*t + s.orig.y, R.intrs.z = 0;
 		R.dist = R.intrs.x * R.intrs.x + R.intrs.y * R.intrs.y;
 		if (R.dist > r*r) return;
 		R.dist = (R.intrs - s.orig).mod();
-		//R.reflect = point(2 * R.intrs.x - ry.orig.x, 2 * R.intrs.y - ry.orig.y, ry.orig.z);
 		R.reflect = point(s.dir.x, s.dir.y, -s.dir.z);
 
 		sx = -sx;
@@ -443,6 +465,7 @@ public:
 		return;
 	}
 	void print(ostream& os) const {
+		os << "Circle_{" << OS_Pointer << (unsigned)this << "}: ";
 		os << "Rotate(Rotate(Rotate(Surface(";
 		os << "v*cos(u)" << showpos << C.x << ", ";
 		os << "v*sin(u)" << showpos << C.y << ", ";
@@ -452,7 +475,7 @@ public:
 			<< noshowpos << ry << ", " << point(C) << ", yAxis), "
 			<< noshowpos << rz << ", " << point(C) << ", zAxis)";
 	}
-	int telltype() const { return Circle_Sign; }
+	unsigned telltype() const { return Circle_Sign; }
 };
 
 
@@ -462,9 +485,9 @@ class cylinder :public objectSF {
 public:
 	point C; double r, h; double rx, ry, rz;
 	cylinder() :r(0), h(0), rx(0), ry(0), rz(0) {}
-	cylinder(cylinder* a) {
-		reflect = a->reflect;
-		C = a->C, r = a->r, h = a->h; rx = a->rx, ry = a->ry, rz = a->rz;
+	cylinder(const cylinder& a) {
+		reflect = a.reflect;
+		C = a.C, r = a.r, h = a.h; rx = a.rx, ry = a.ry, rz = a.rz;
 	}
 	cylinder(const point &C, const double &r, const double &h) {
 		this->C = C, this->r = r, this->h = h, rx = ry = rz = 0;
@@ -490,6 +513,11 @@ public:
 		rz = atan2(b.x, -b.y);
 		ry = 0;
 	}
+	~cylinder() {}
+	object* copy() const {
+		return new cylinder(*this);
+	}
+
 	inline void operator += (const point &a) {
 		C += a;
 	}
@@ -568,7 +596,6 @@ public:
 		}
 		R.intrs.x = s.dir.x*R.dist + s.orig.x;
 		R.intrs.y = s.dir.y*R.dist + s.orig.y;
-		R.dist *= s.dir.mod();
 		R.reflect.x = R.intrs.x, R.reflect.y = R.intrs.y, R.reflect.z = 0;
 		R.reflect /= R.reflect.mod();
 		R.reflect *= -2 * dot(s.dir, R.reflect);
@@ -588,6 +615,7 @@ public:
 		return;
 	}
 	void print(ostream& os) const {
+		os << "Cylinder_{" << OS_Pointer << (unsigned)this << "}: ";
 		os << "Rotate(Rotate(Rotate(Surface(";
 		os << noshowpos << r << "*cos(u)" << showpos << C.x << ", ";
 		os << noshowpos << r << "*sin(u)" << showpos << C.y << ", ";
@@ -597,7 +625,7 @@ public:
 			<< noshowpos << ry << ", " << point(C) << ", yAxis), "
 			<< noshowpos << rz << ", " << point(C) << ", zAxis)";
 	}
-	int telltype() const { return Cylinder_Sign; }
+	unsigned telltype() const { return Cylinder_Sign; }
 };
 
 
@@ -610,25 +638,29 @@ public:
 	sphere(const point &C, const double &r) {
 		this->C = C, this->r = r;
 	}
-	sphere(sphere* a) {
-		reflect = a->reflect;
-		C = a->C, r = a->r;
+	sphere(const sphere& a) {
+		reflect = a.reflect;
+		C = a.C, r = a.r;
 	}
 	sphere(const initializer_list<double> &C, const double &r) {
 		this->C = point(C), this->r = r;
 	}
+	~sphere() {}
+	object* copy() const {
+		return new sphere(*this);
+	}
+
 	void meet(intersect &R, const ray &a) const {
 		R.meet = 0;
-		point p = C - a.orig;
-		if (dot(p, a.dir) < 0) return;
-		double sm = a.dir.mod();
-		double d = cross(p, a.dir).mod() / sm;
+		point P = C - a.orig;
+		if (dot(P, a.dir) < 0) return;
+		double d = cross(P, a.dir).mod();
 		if (d > r) return;
 		d *= d;
-		R.dist = sqrt(dot(p, p) - d) - sqrt(r*r - d);
-		point s = a.dir * (R.dist / sm), n = s - p;
-		R.intrs = s + a.orig;
-		R.reflect = s - (2 * dot(s, n) / dot(n, n)) * n;
+		R.dist = sqrt(dot(P, P) - d) - sqrt(r*r - d);
+		point S = a.dir * R.dist, N = S - P;
+		R.intrs = S + a.orig;
+		R.reflect = S - (2 * dot(S, N) / dot(N, N)) * N;
 		R.meet = 1;
 		return;
 	}
@@ -658,26 +690,34 @@ public:
 	}
 
 	void print(ostream& os) const {
-		os << "Sphere(" << C << "," << r << ")";
+		os << "Sphere_{" << OS_Pointer << (unsigned)this << "}: Sphere(" << C << "," << r << ")";
 	}
-	int telltype() const { return Sphere_Sign; }
+	unsigned telltype() const { return Sphere_Sign; }
 };
 
 /* ring class */
-#define Ring_Sign 0x00000006
-class ring :public objectSF {
+#define Torus_Sign 0x00000006
+class torus :public objectSF {
 public:
 	point C; double R, r; double rx, ry, rz;
-	ring() :R(0), r(0), rx(0), ry(0), rz(0) {}
-	ring(const point &C, const double &R, const double &r) {
+	torus() :R(0), r(0), rx(0), ry(0), rz(0) {}
+	torus(const torus &a) {
+		C = a.C, R = a.R, r = a.r, rx = a.rx, ry = a.ry, rz = a.rz;
+	}
+	torus(const point &C, const double &R, const double &r) {
 		this->C = C, this->R = R, this->r = r, rx = ry = rz = 0;
 	}
-	ring(const point &C, const double &R, const double &r, const double &rx, const double &rz) {
+	torus(const point &C, const double &R, const double &r, const double &rx, const double &rz) {
 		this->C = C, this->R = R, this->r = r, this->rx = rx, this->ry = 0, this->rz = rz;
 	}
-	ring(const point &C, const double &R, const double &r, const double &rx, const double &ry, const double &rz) {
+	torus(const point &C, const double &R, const double &r, const double &rx, const double &ry, const double &rz) {
 		this->C = C, this->R = R, this->r = r, this->rx = rx, this->ry = ry, this->rz = rz;
 	}
+	~torus() {}
+	object* copy() const {
+		return new torus(*this);
+	}
+
 	point Max() const {
 		return C + point(R + r, R + r, r);
 	}
@@ -687,14 +727,15 @@ public:
 	void meet(intersect &Res, const ray &a) const {
 		Res.meet = false;
 		point P = a.orig - C;
-		double x2y2 = P.x*P.x + P.y*P.y, z2 = P.z*P.z, a2b2 = a.dir.x*a.dir.x + a.dir.y*a.dir.y, c2 = a.dir.z*a.dir.z, axby = P.x*a.dir.x + P.y*a.dir.y, cz = P.z*a.dir.z,
+		point s = P.mod()*a.dir;	// issues in numerically solving quartic equations
+		double x2y2 = P.x*P.x + P.y*P.y, z2 = P.z*P.z, a2b2 = s.x*s.x + s.y*s.y, c2 = s.z*s.z, axby = P.x*s.x + P.y*s.y, cz = P.z*s.z,
 			x2y2z2 = x2y2 + z2, a2b2c2 = a2b2 + c2, axbycz = axby + cz, R2pr2 = R * R + r * r, R2mr2 = R * R - r * r;
 		double t4 = a2b2c2 * a2b2c2, t3 = 4 * a2b2c2 * axbycz, t2 = 2 * a2b2c2 * x2y2z2 + 4 * axbycz * axbycz, t1 = 4 * x2y2z2 * axbycz, t0 = x2y2z2 * x2y2z2;
 		t2 += 2 * (R2mr2*c2 - R2pr2 * a2b2), t1 += 4 * (cz*R2mr2 - axby * R2pr2), t0 += 2 * (R2mr2*z2 - R2pr2 * x2y2) + R2mr2 * R2mr2;
-		double t = solveQuartic(t4, t3, t2, t1, t0);
-		if (isnan(t)) return;
-		Res.dist = t * a.dir.mod(); if (abs(Res.dist) < ERR_EPSILON) return;
-		Res.intrs = P + t * a.dir;
+		Res.dist = solveQuartic(t4, t3, t2, t1, t0);
+		if (isnan(Res.dist)) return;
+		Res.dist *= P.mod();
+		Res.intrs = P + Res.dist * a.dir;
 		Res.ut = atan2(Res.intrs.y, Res.intrs.x), Res.vt = asin(Res.intrs.z / r); if (isnan(Res.vt)) Res.vt = Res.intrs.z > 0 ? PI / 2 : -PI / 2;
 		point N = point(cos(Res.ut)*cos(Res.vt), sin(Res.ut)*cos(Res.vt), sin(Res.vt));
 		Res.reflect = a.dir - 2 * dot(a.dir, N)*N;
@@ -702,10 +743,11 @@ public:
 		Res.meet = true;
 	}
 	void print(ostream& os) const {
-		os << "Surface(" << "cos(u)*(" << noshowpos << R << showpos << r << "*cos(v))" << showpos << C.x << "," 
+		os << "Ring_{" << OS_Pointer << (unsigned)this << "}: ";
+		os << "Surface(" << "cos(u)*(" << noshowpos << R << showpos << r << "*cos(v))" << showpos << C.x << ", "
 			<< "sin(u)*(" << noshowpos << R << showpos << r << "*cos(v))" << showpos << C.y << "," << noshowpos << r << "*sin(v)" << showpos << C.z << ",u,0,2*pi,v,0,2*pi)";
 	}
-	int telltype() const { return Cylinder_Sign; }
+	unsigned telltype() const { return Cylinder_Sign; }
 };
 
 #endif
@@ -720,6 +762,9 @@ public:
 	objectSF_dif() {}
 	objectSF_dif(const objectSF_dif &a) { this->reflect = a.reflect; }
 	~objectSF_dif() {}
+	object* copy() const {
+		return new objectSF_dif(*this);
+	}
 
 	void setvar(double d) { }
 
@@ -755,10 +800,10 @@ public:
 	plane_dif(const plane_dif &p) :N(p.N), D(p.D) {
 		reflect = p.reflect;
 	}
-	plane_dif(const plane_dif *p) :N(p->N), D(p->D) {
-		reflect = p->reflect;
-	}
 	~plane_dif() {}
+	object* copy() const {
+		return new plane_dif(*this);
+	}
 
 	point Max() const {
 		if (N.x == 0 && N.y == 0 && N.z == 0) return point(0, 0, 0);
@@ -780,14 +825,14 @@ public:
 		double t = (D - dot(N, a.orig)) / dot(N, a.dir);
 		if (t < ERR_EPSILON || t > ERR_UPSILON) return;
 		R.intrs = t * a.dir + a.orig;
-		R.dist = t * a.dir.mod();
+		R.dist = t;
 		R.reflect = N / N.mod();
 		if (dot(a.dir, N) > 0) R.reflect = -R.reflect;
 		R.meet = 1;
 		return;
 	}
 
-	int telltype() const { return Plane_Dif_Sign; }
+	unsigned telltype() const { return Plane_Dif_Sign; }
 };
 
 #define Parallelogram_Dif_Sign 0x00000101
@@ -811,6 +856,9 @@ public:
 		if (absolute) this->A -= O, this->B -= O;
 	}
 	~parallelogram_dif() {}
+	object* copy() const {
+		return new parallelogram_dif(*this);
+	}
 	void meet(intersect &R, const ray &a) const {
 		R.meet = 0;
 		point T, P = cross(a.dir, B), Q;
@@ -826,7 +874,7 @@ public:
 		t = dot(B, Q) / det;
 		if (t < ERR_EPSILON) return;
 		R.meet = 1;
-		R.dist = t * a.dir.mod();
+		R.dist = t;
 		R.intrs = O + u * A + v * B;
 		R.reflect = cross(A, B);
 		if (dot(a.dir, R.reflect) > 0) R.reflect = -R.reflect;
@@ -848,7 +896,7 @@ public:
 			<< noshowpos << O.z << showpos << A.z << "*u" << showpos << B.z << "*v" << ", "
 			<< "u, 0, 1, v, 0, 1)" << noshowpos;
 	}
-	int telltype() const { return Parallelogram_Dif_Sign; }
+	unsigned telltype() const { return Parallelogram_Dif_Sign; }
 };
 
 #define Triangle_Dif_Sign 0x00000102
@@ -871,6 +919,9 @@ public:
 		this->A = A, this->B = B, this->C = C;
 	}
 	~triangle_dif() {}
+	object* copy() const {
+		return new triangle_dif(*this);
+	}
 	void meet(intersect &R, const ray &a) const {
 		// Algorithm: http://www.graphics.cornell.edu/pubs/1997/MT97.pdf
 		R.meet = 0;
@@ -887,7 +938,7 @@ public:
 		t = dot(E2, Q) / det;
 		if (t < ERR_EPSILON) return;
 		R.meet = 1;
-		R.dist = t * a.dir.mod();
+		R.dist = t;
 		R.intrs = (1 - u - v)*A + u * B + v * C;
 		R.reflect = cross(E1, E2);
 		if (dot(a.dir, R.reflect) > 0) R.reflect = -R.reflect;
@@ -902,7 +953,7 @@ public:
 	void print(ostream& os) const {
 		os << "Polyline(" << A << "," << B << "," << C << "," << A << ")";
 	}
-	int telltype() const { return Triangle_Dif_Sign; }
+	unsigned telltype() const { return Triangle_Dif_Sign; }
 };
 
 #endif
@@ -914,7 +965,11 @@ public:
 class objectSF_col : public objectSF {
 public:
 	objectSF_col() {}
+	objectSF_col(const objectSF_col &a) {}
 	~objectSF_col() {}
+	object* copy() const {
+		return new objectSF_col(*this);
+	}
 
 	// get color with calculated intersection data
 	virtual void getcol(const intersect &R, rgblight &c) { WARN("objectSF_col::getcol is called. This function should never be called."); }
@@ -944,6 +999,10 @@ public:
 	plane_grid(const double &z_int, const double &side_length_x, const double &side_length_y) : c1(LightBlue), c2(Gray) { this->z_int = z_int, wx = side_length_x, hy = side_length_y; }
 	plane_grid(const double &z_int, const double &side_length, const rgblight &c1, const rgblight &c2) { this->z_int = z_int, wx = hy = side_length, this->c1 = c1, this->c2 = c2; }
 	plane_grid(const double &z_int, const double &side_length_x, const double &side_length_y, const rgblight &c1, const rgblight &c2) { this->z_int = z_int, wx = side_length_x, hy = side_length_y, this->c1 = c1, this->c2 = c2; }
+	~plane_grid() {}
+	object* copy() const {
+		return new plane_grid(*this);
+	}
 
 	point Max() const {
 		return point(INFINITY, INFINITY, z_int);
@@ -970,7 +1029,7 @@ public:
 		c = (int(floor(R.intrs.x / wx)) ^ int(floor(R.intrs.y / hy))) & 1 ? c2 : c1;
 	}
 
-	int telltype() const { return Plane_Grid_Sign; }
+	unsigned telltype() const { return Plane_Grid_Sign; }
 };
 
 
@@ -1019,6 +1078,10 @@ public:
 	bitmap_inc(const bitmap &M, const point &O, const point &X, const point &Y, const insertType::insert_type &t) {
 		bitmap_inc(M, O, X, Y, t);
 	}
+	~bitmap_inc() {}
+	object* copy() const {
+		return new bitmap_inc(*this);
+	}
 
 	point Max() const {
 		return point(max({ O.x, O.x + A.x, O.x + B.x, O.x + A.x + B.x }),
@@ -1044,7 +1107,7 @@ public:
 		double t = dot(B, Q) / det;
 		if (t < ERR_EPSILON) return;
 		R.meet = 1;
-		R.dist = t * a.dir.mod();
+		R.dist = t;
 		R.intrs = O + R.ut * A + R.vt * B;
 		point ON = O - R.intrs;
 		point OA = ON + A, OB = ON + B;
@@ -1059,7 +1122,7 @@ public:
 		c = M[y][x];
 	}
 
-	int telltype() const { return Bitmap_Inc_Sign; }
+	unsigned telltype() const { return Bitmap_Inc_Sign; }
 };
 
 #endif
@@ -1076,11 +1139,14 @@ public:
 	rgblight attcoe;	// light attenuation coefficient, color doesn't apply
 	double ri; // refractive index
 	object3D() { ri = 1; }
-	object3D(object3D* a) {
-		attcoe = a->attcoe;
-		ri = a->ri;
+	object3D(const object3D& a) {
+		attcoe = a.attcoe;
+		ri = a.ri;
 	}
 	~object3D() {}
+	object* copy() const {
+		return new object3D(*this);
+	}
 
 	void setAttCof(const double &a) { attcoe.r = attcoe.g = attcoe.b = abs(a); }
 	void setAttCof(const double &r, const double &g, const double &b) { attcoe.r = abs(r), attcoe.g = abs(g), attcoe.b = abs(b); }
@@ -1096,6 +1162,7 @@ public:
 
 	// inside => negative, outside => positive
 	virtual double SDF(const point &A) const { WARN("\aobject3D::SDF is called. This function should never be called."); return NAN; }
+
 	virtual bool contain(const point &A) const { WARN("\aobject3D::inside is called. This function should never be called."); return false; }
 
 	void print(ostream& os) const { os << "object3D parent class"; }
@@ -1109,6 +1176,9 @@ public:
 	double z_int;
 	WaterSurface() {
 		z_int = 0; ri = 1.33;
+	}
+	WaterSurface(const WaterSurface* &a) {
+		z_int = a->z_int;
 	}
 	WaterSurface(const double &z_int) {
 		this->z_int = z_int; ri = 1.33;
@@ -1126,6 +1196,10 @@ public:
 	point Min() const {
 		return point(-INFINITY, -INFINITY, z_int);
 	}
+	object* copy() const {
+		return new WaterSurface(*this);
+	}
+	~WaterSurface() {}
 
 	void meet(intersect &R, const ray &a) const {
 		R.meet = 0;
@@ -1156,7 +1230,7 @@ public:
 		}
 
 		// Fresnel Equations
-		double cci = abs(R.reflect.z) / R.reflect.mod(), cco = abs(refract.z) / refract.mod();
+		double cci = abs(R.reflect.z), cco = abs(refract.z);
 		double Rs, Rp;
 		if (a.dir.z < 0) {
 			Rs = (mi*cci - ri * cco) / (mi*cci + ri * cco); Rs *= Rs;
@@ -1180,11 +1254,11 @@ public:
 		return A.z < z_int;
 	}
 
-	int telltype() const {
+	unsigned telltype() const {
 		return WaterSurface_Sign;
 	}
 	void print(ostream& os) const {
-		os << "z=" << z_int << endl;
+		os << "z=" << z_int;
 	}
 };
 
@@ -1197,13 +1271,17 @@ public:
 	sphere3D(const point &C, const double &r) {
 		this->C = C, this->r = r, this->ri = 1.5;
 	}
-	sphere3D(sphere3D* a) {
-		attcoe = a->attcoe, ri = a->ri;
-		C = a->C, r = a->r;
+	sphere3D(const sphere3D& a) {
+		attcoe = a.attcoe, ri = a.ri;
+		C = a.C, r = a.r;
 	}
 	sphere3D(const initializer_list<double> &C, const double &r) {
 		this->C = point(C), this->r = r, this->ri = 1.5;
 	}
+	object* copy() const {
+		return new sphere3D(*this);
+	}
+	~sphere3D() {}
 
 	inline void rotate(const double &rx, const double &ry, const double &rz) {
 		matrix<double> M = matrix<double>({ {cos(rz),-sin(rz),0}, {sin(rz),cos(rz),0}, {0,0,1} })
@@ -1242,24 +1320,22 @@ public:
 		}
 		if (pm > r) {
 			if (dot(p, a.dir) < 0) return;
-			double sm = a.dir.mod();
-			double d = cross(p, a.dir).mod() / sm;
+			double d = cross(p, a.dir).mod();
 			if (d > r) return;
 			d *= d;
 			R.dist = sqrt(dot(p, p) - d) - sqrt(r*r - d);
 			if (R.dist < ERR_EPSILON) return;
-			point s = a.dir * (R.dist / sm), n = p - s;
+			point s = a.dir * R.dist, n = p - s;
 			R.intrs = s + a.orig;
 			R.reflect = s - (2 * dot(s, n) / dot(n, n)) * n;
 			R.meet = 1;
 			R.ut = 1;
 		}
 		else {
-			double sm = a.dir.mod();
-			double d = cross(p, a.dir).mod() / sm;
+			double d = cross(p, a.dir).mod();
 			d *= d;
 			R.dist = sqrt(dot(p, p) - d) + sqrt(r*r - d);
-			point s = a.dir * (R.dist / sm), n = s - p;
+			point s = a.dir * R.dist, n = s - p;
 			R.intrs = s + a.orig;
 			R.reflect = s - (2 * dot(s, n) / dot(n, n)) * n;
 			R.meet = 1;
@@ -1293,7 +1369,7 @@ public:
 	void print(ostream& os) const {
 		os << "Sphere(" << C << "," << r << ")";
 	}
-	int telltype() const { return Sphere3D_Sign; }
+	unsigned telltype() const { return Sphere3D_Sign; }
 };
 
 /* Use to construct polyhedrons, shouldn't be directly added to World class */
@@ -1312,6 +1388,9 @@ public:
 		N /= N.mod();
 	}
 	~triangle_ref() {}
+	object* copy() const {
+		return new triangle_ref(*this);
+	}
 	point Max() const { return point(max({ A.x, B.x, C.x }), max({ A.y, B.y, C.y }), max({ A.z, B.z, C.z })); }
 	point Min() const { return point(min({ A.x, B.x, C.x }), min({ A.y, B.y, C.y }), min({ A.z, B.z, C.z })); }
 
@@ -1334,7 +1413,7 @@ public:
 		t = dot(E2, Q) / det;
 		if (t < ERR_EPSILON) return;
 		R.meet = 1;
-		R.dist = t * a.dir.mod();
+		R.dist = t;
 		R.intrs = (1 - u - v)*A + u * B + v * C;
 		double ct = 2 * dot(a.dir, N);
 		R.ut = ct < 0 ? 1 : 0;
@@ -1342,7 +1421,7 @@ public:
 		return;
 	}
 	void refractData(const intersect &R, const ray &a, const double &mi, point &refract, double &rlr) const {
-		double ms = a.dir.mod(), c1 = -dot(N, a.dir) / ms;
+		double c1 = -dot(N, a.dir);
 		double n1 = mi, n2 = ri;
 		if (R.ut == 0) n1 = ri, n2 = mi, c1 = -c1;
 		double c = n1 / n2, c2 = sqrt(1 - c * c * (1 - c1 * c1));
@@ -1350,7 +1429,7 @@ public:
 			refract.x = refract.y = refract.z = NAN; rlr = 1;
 			return;
 		}
-		refract = c * a.dir - ((c*c1 - c2)*(R.ut == 0 ? ms : -ms))*N;
+		refract = c * a.dir - (R.ut == 0 ? (c*c1 - c2) : (c2 - c*c1))*N;
 		double Rs = (n2*c1 - n1 * c2) / (n2*c1 + n1 * c2); Rs *= Rs;
 		double Rp = (n2*c2 - n1 * c1) / (n2*c2 + n1 * c1); Rp *= Rp;
 		rlr = 0.5*(Rs + Rp);
@@ -1362,14 +1441,14 @@ public:
 	bool contain(const point &P) const {
 		return dot(P - A, N) < 0;
 	}
-
+	
 	void print(ostream& os) const {
 		os << "Surface(if(u+v<1," << noshowpos << A.x << "*(1-u-v)" << showpos << B.x << "*u" << showpos << C.x << "*v" << "), "
 			<< noshowpos << A.y << "*(1-u-v)" << showpos << B.y << "*u" << showpos << C.y << "*v" << ", "
 			<< noshowpos << A.z << "*(1-u-v)" << showpos << B.z << "*u" << showpos << C.z << "*v" << ", "
 			<< "u, 0, 1, v, 0, 1)" << noshowpos;
 	}
-	int telltype() const { return Triangle_Ref_Sign; }
+	unsigned telltype() const { return Triangle_Ref_Sign; }
 };
 
 #define Parallelogram_Ref_Sign 0x00010003
@@ -1377,23 +1456,26 @@ class parallelogram_ref : public object3D {
 public:
 	point O, A, B, N;	// N is the normal towards air, unit vector
 	parallelogram_ref() {}
-	parallelogram_ref(parallelogram_ref& a) {
+	parallelogram_ref(const parallelogram_ref& a) {
 		A = a.A, B = a.B, O = a.O, N = a.N;
 	}
 	parallelogram_ref(const point &O, const point &A, const point &B) {
-		this->O = O, this->A = O + A, this->B = O + B;
+		this->O = O, this->A = A, this->B = B;
 		N = cross(A, B); double m = N.mod();
 		if (abs(m) < ERR_EPSILON) N = cross(A, A + B), m = N.mod();
 		N /= N.mod();
 	}
 	parallelogram_ref(const point &O, const point &A, const point &B, bool absolute) {
 		this->O = O, this->A = A, this->B = B;
-		if (!absolute) this->A += O, this->B += O;
-		N = cross(this->A - O, this->B - O); double m = N.mod();
-		if (abs(m) < ERR_EPSILON) N = cross(this->A - O, this->A + this->B - O), m = N.mod();
+		if (absolute) this->A -= O, this->B -= O;
+		N = cross(this->A, this->B); double m = N.mod();
+		if (abs(m) < ERR_EPSILON) N = cross(this->A, this->A + this->B), m = N.mod();
 		N /= N.mod();
 	}
 	~parallelogram_ref() {}
+	object* copy() const {
+		return new parallelogram_ref(*this);
+	}
 	point Max() const {
 		return point(max({ O.x, A.x, B.x, A.x + B.x - O.x }),
 			max({ O.y, A.y, B.y, A.y + B.y - O.y }), max({ O.y, A.y, B.y,A.y + B.y - O.y }));
@@ -1409,28 +1491,28 @@ public:
 
 	void meet(intersect &R, const ray &a) const {
 		R.meet = 0;
-		point E1 = A - O, E2 = B - O, T, P = cross(a.dir, E2), Q;
-		double det = dot(E1, P);
+		point T, P = cross(a.dir, B), Q;
+		double det = dot(A, P);
 		if (abs(det) < ERR_EPSILON) return;
 		T = a.orig - O;
 		double t, u, v;
 		u = dot(T, P) / det;
 		if (u < 0.0 || u > 1.0) return;
-		Q = cross(T, E1);
+		Q = cross(T, A);
 		v = dot(a.dir, Q) / det;
 		if (v < 0.0 || v > 1.0) return;
-		t = dot(E2, Q) / det;
+		t = dot(B, Q) / det;
 		if (t < ERR_EPSILON) return;
 		R.meet = 1;
-		R.dist = t * a.dir.mod();
-		R.intrs = (1 - u - v)*O + u * A + v * B;
+		R.dist = t;
+		R.intrs = O + u * A + v * B;
 		double ct = 2 * dot(a.dir, N);
 		R.ut = ct < 0 ? 1 : 0;
 		R.reflect = a.dir - ct * N;
 		return;
 	}
 	void refractData(const intersect &R, const ray &a, const double &mi, point &refract, double &rlr) const {
-		double ms = a.dir.mod(), c1 = -dot(N, a.dir) / ms;
+		double c1 = -dot(N, a.dir);
 		double n1 = mi, n2 = ri;
 		if (R.ut == 0) n1 = ri, n2 = mi, c1 = -c1; // ut=1: air->obj; ut=0: obj->air
 		double c = n1 / n2, c2 = sqrt(1 - c * c * (1 - c1 * c1));
@@ -1438,7 +1520,7 @@ public:
 			refract.x = refract.y = refract.z = NAN; rlr = 1;
 			return;
 		}
-		refract = c * a.dir - ((c*c1 - c2)*(R.ut == 0 ? ms : -ms))*N;
+		refract = c * a.dir - (R.ut == 0 ? (c*c1 - c2) : (c2 - c*c1))*N;
 		double Rs = (n2*c1 - n1 * c2) / (n2*c1 + n1 * c2); Rs *= Rs;
 		double Rp = (n2*c2 - n1 * c1) / (n2*c2 + n1 * c1); Rp *= Rp;
 		rlr = 0.5*(Rs + Rp);
@@ -1450,38 +1532,59 @@ public:
 		return dot(P - A, N) < 0;
 	}
 	void print(ostream& os) const {
-		os << "Surface(" << noshowpos << O.x << "*(1-u-v)" << showpos << A.x << "*u" << showpos << B.x << "*v" << ", "
-			<< noshowpos << O.y << "*(1-u-v)" << showpos << A.y << "*u" << showpos << B.y << "*v" << ", "
-			<< noshowpos << O.z << "*(1-u-v)" << showpos << A.z << "*u" << showpos << B.z << "*v" << ", "
+		os << "Surface(" << noshowpos << O.x << showpos << A.x << "*u" << showpos << B.x << "*v" << ", "
+			<< noshowpos << O.y << showpos << A.y << "*u" << showpos << B.y << "*v" << ", "
+			<< noshowpos << O.z << showpos << A.z << "*u" << showpos << B.z << "*v" << ", "
 			<< "u, 0, 1, v, 0, 1)" << noshowpos;
 	}
-	int telltype() const { return Parallelogram_Ref_Sign; }
+	unsigned telltype() const { return Parallelogram_Ref_Sign; }
 };
 
 #define Polyhedron_Sign 0x00010004
 class polyhedron : public object3D {
+	bool dynamic_memory;
 public:
 	vector<const object3D*> tp; // triangles or parallelograms
 	borderbox S;
-	polyhedron() {}
-	polyhedron(const initializer_list<object3D*> objs) {
+	polyhedron() : dynamic_memory(false) {}
+	polyhedron(const polyhedron &a) : dynamic_memory(true) {
+		for (int i = 0; i < a.tp.size(); i++) {
+			tp.push_back(dynamic_cast<object3D*>(a.tp[i]->copy()));
+		}
+	}
+	polyhedron(const initializer_list<object3D*> objs) : dynamic_memory(false) {
 		for (unsigned i = 0, n = objs.size(); i < n; i++) {
 			tp.push_back(objs.begin()[i]);
-			S.Max() = PMax(S.Max(), tp.back()->Max());
-			S.Min() = PMin(S.Min(), tp.back()->Min());
+			S.Max = PMax(S.Max, tp.back()->Max());
+			S.Min = PMin(S.Min, tp.back()->Min());
 		}
 	}
 	void add(const object3D* obj) {
 		tp.push_back(obj);
-		S.Max() = PMax(S.Max(), tp.back()->Max());
-		S.Min() = PMin(S.Min(), tp.back()->Min());
+		S.Max = PMax(S.Max, tp.back()->Max());
+		S.Min = PMin(S.Min, tp.back()->Min());
 	}
-	~polyhedron() { tp.clear(); }
+	void add(const initializer_list<object3D*> objs) {
+		for (unsigned i = 0, n = objs.size(); i < n; i++) {
+			tp.push_back(objs.begin()[i]);
+			S.Max = PMax(S.Max, tp.back()->Max());
+			S.Min = PMin(S.Min, tp.back()->Min());
+		}
+	}
+	object* copy() const {
+		return new polyhedron(*this);
+	}
+	~polyhedron() {
+		if (dynamic_memory) {
+			for (int i = 0; i < tp.size(); i++) delete tp[i];
+		}
+		tp.clear();
+	}
 
 	// Before rendering, make sure all added triangles and parallelograms form a legal polyhedron, and the directions of normals are all correct
 
 	point Max() const {
-		return S.B2;
+		return S.Max;
 
 		point C(-INFINITY, -INFINITY, -INFINITY);
 		point P;
@@ -1492,7 +1595,7 @@ public:
 		return C;
 	}
 	point Min() const {
-		return S.B1;
+		return S.Min;
 
 		point C(INFINITY, INFINITY, INFINITY);
 		point P;
@@ -1504,6 +1607,7 @@ public:
 	}
 
 	void meet(intersect &R, const ray &a) const {
+		//cout << a << endl;
 		R.meet = 0; if (!S.meet(a)) return;
 		unsigned i = 0, n = tp.size();
 		for (i = 0; i < n; i++) {
@@ -1544,10 +1648,15 @@ public:
 		tp[R.vt]->refractData(R, a, mi, refract, rlr);
 	}
 
-	int telltype() const {
+	unsigned telltype() const {
 		return Polyhedron_Sign;
 	}
 
+	void print(ostream& os) const {
+		for (int i = 0; i < tp.size(); i++) {
+			os << "\t"; tp[i]->print(os); os << endl;
+		}
+	}
 };
 
 #endif
@@ -1564,6 +1673,9 @@ public:
 	lightsource() { col.r = col.g = col.b = 1; }
 	lightsource(const lightsource &a) { col = a.col; }
 	~lightsource() {}
+	object* copy() const {
+		return new lightsource(*this);
+	}
 
 	void setcolor(const WebSafeColour &c) { col = color(c); }
 	void setcolor(const pixel &c) { col = c; }
@@ -1579,7 +1691,7 @@ public:
 class spherebulb : public lightsource {
 public:
 	point C; double r;
-	~spherebulb() {}
+	spherebulb() :r(0) { col.r = col.g = col.b = 1; }
 	spherebulb(const point &C, const double &r) {
 		this->C = C, this->r = r, col.r = col.g = col.b = 1;
 	}
@@ -1587,22 +1699,24 @@ public:
 		this->C = C, this->r = r, this->col = col;
 	}
 	spherebulb(const spherebulb &a) { C = a.C, r = a.r, col = a.col; }
-	spherebulb() :r(0) { col.r = col.g = col.b = 1; }
+	object* copy() const {
+		return new spherebulb(*this);
+	}
+	~spherebulb() {}
 
 	void meet(intersect &R, const ray &a) const {
 		R.meet = 0;
 		point p = C - a.orig;
 		if (dot(p, a.dir) < 0) return;
-		double sm = a.dir.mod();
-		double d = cross(p, a.dir).mod() / sm;
+		double d = cross(p, a.dir).mod();
 		if (d > r) return;
 		d *= d;
 		R.dist = sqrt(dot(p, p) - d) - sqrt(r*r - d);
-		point n = a.dir * (R.dist / sm), t = n - p;
+		point n = a.dir * R.dist, t = n - p;
 		R.intrs = n + a.orig;
 		R.reflect = n + abs(2 * dot(n, t) / dot(t, t)) * t;
 
-		R.ut = abs(dot(t, a.dir)) / (t.mod()*a.dir.mod());
+		R.ut = abs(dot(t, a.dir)) / t.mod();
 		R.meet = 1;
 		return;
 	}
@@ -1616,7 +1730,7 @@ public:
 		os << "Sphere(" << a.C << "," << a.r << ")";
 		return os;
 	}
-	int telltype() const { return SphereBulb_Sign; }
+	unsigned telltype() const { return SphereBulb_Sign; }
 
 };
 
@@ -1626,9 +1740,9 @@ class rectbulb : public lightsource {
 public:
 	point O, A, B;
 	rectbulb() {}
-	rectbulb(rectbulb* a) {
-		col = a->col;
-		A = a->A, B = a->B, O = a->O;
+	rectbulb(const rectbulb& a) {
+		col = a.col;
+		A = a.A, B = a.B, O = a.O;
 	}
 	rectbulb(const point &O, const point &A, const point &B) {
 		this->O = O, this->A = O + A, this->B = O + B;
@@ -1645,6 +1759,9 @@ public:
 		O = *V.begin(), A = *(V.begin() + 1), B = *(V.begin() + 2);
 	}
 	~rectbulb() {}
+	object* copy() const {
+		return new rectbulb(*this);
+	}
 	void meet(intersect &R, const ray &a) const {
 		R.meet = 0;
 		point E1 = A - O, E2 = B - O, T, P = cross(a.dir, E2), Q;
@@ -1660,13 +1777,13 @@ public:
 		t = dot(E2, Q) / det;
 		if (t < ERR_EPSILON) return;
 		R.meet = 1;
-		R.dist = t * a.dir.mod();
+		R.dist = t;
 		R.intrs = (1 - u - v)*O + u * A + v * B;
 		point OA = A - R.intrs, OB = B - R.intrs;
 		point ON = cross(OA, OB);
 		ON *= dot(a.dir, ON) / dot(ON, ON);		// NAN occurs when 0/0
 		R.reflect = a.dir - 2 * ON;
-		R.ut = dot(a.dir, ON) / (a.dir.mod()*ON.mod());
+		R.ut = dot(a.dir, ON) / ON.mod();
 		return;
 	}
 	point Max() const {
@@ -1687,7 +1804,7 @@ public:
 			<< "u, 0, 1, v, 0, 1)" << noshowpos;
 		return os;
 	}
-	int telltype() const { return RectBulb_Sign; }
+	unsigned telltype() const { return RectBulb_Sign; }
 };
 
 

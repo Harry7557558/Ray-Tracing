@@ -66,7 +66,7 @@ __Using different refractive indexes__:
 __Insert a bitmap to create a scene__: 
 
 ![_](scene_1.jpg) <br/>
-bitmap source: still of 3D animation film _Moana_, [16:20](Moana_16_20.png)
+bitmap source: still from 3D animation film _Moana_ 16min 20s
 
 In this picture, the bitmap stands on the water, and a specular-reflecting plane is placed beneath the water. Global light source is behind the camera. 
 Fresnel calculation between different medias and damping of light is still debugging. **(2019.5.19)**

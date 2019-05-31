@@ -120,6 +120,8 @@ public:
 
 	// Calculate the result rgb color with a giving ray
 	double RayTracing(const ray &v, rgblight &c, const double count, const int n) const {
+		// Note: "object under water" and "glass in water" situations are still debugging
+
 		if (count < 0.004 || n > 20) {
 			double ang = dot(N, v.dir) / N.mod()*v.dir.mod();
 			c = ang > 0 ? ang * background : rgblight(0, 0, 0);
@@ -224,11 +226,44 @@ public:
 				break;
 			}
 			case 0x1000: {	// XSolid
-				((XSolid*)no)->reflectData(ni, v);
-				//c = rgblight(255, 255, 255); return ni.dist;
+				switch (((XSolid*)no)->type) {
+				case XSolid_Crystal: {
+					// send R.ut as the refractive index of the other media
+					// meet = air->obj ? 1 : 0; intrs = refract; reflect = reflect; vt = rate-of-reflection; 
+					ni.ut = 1;
+					point P = ni.intrs;
+					((XSolid*)no)->reflectData(ni, v);
+					double d = RayTracing(ray(P, ni.reflect), c, count * ni.vt, n + 1);
+					//fout << ni.vt << endl;
+					if (!ni.meet) {
+						// 0*INF => NAN
+						if (((XSolid*)no)->col.r != 0) c.r *= exp(-((XSolid*)no)->col.r * d);
+						if (((XSolid*)no)->col.g != 0) c.g *= exp(-((XSolid*)no)->col.g * d);
+						if (((XSolid*)no)->col.b != 0) c.b *= exp(-((XSolid*)no)->col.b * d);
+					}
+					if (!isnan(ni.intrs.z)) {
+						rgblight c1; double d1 = RayTracing(ray(P, ni.intrs), c1, count * (1 - ni.vt), n + 1);
+						if (ni.meet) {	// air -> obj
+							if (((XSolid*)no)->col.r != 0) c1.r *= exp(-((XSolid*)no)->col.r * d1);
+							if (((XSolid*)no)->col.g != 0) c1.g *= exp(-((XSolid*)no)->col.g * d1);
+							if (((XSolid*)no)->col.b != 0) c1.b *= exp(-((XSolid*)no)->col.b * d1);
+						}
+						if (!isnan(c1.b)) c = c * ni.vt + c1 * (1 - ni.vt);
+					}
+					break;
+				}
+				case XSolid_Diffuse: {
 
-				RayTracing(ray(ni.intrs, ni.reflect), c, count * ((XSolid*)no)->col.vsl(), n + 1);
-				return ni.dist;
+					break;
+				}
+				default: {	// smooth surface
+					((XSolid*)no)->reflectData(ni, v);
+					RayTracing(ray(ni.intrs, ni.reflect), c, count * ((XSolid*)no)->col.vsl(), n + 1);
+					c.r *= ((XSolid*)no)->col.r, c.g *= ((XSolid*)no)->col.g, c.b *= ((XSolid*)no)->col.b;
+					break;
+				}
+				}
+
 			}
 			}
 			return ni.dist;
@@ -463,7 +498,7 @@ public:
 
 
 		// Debug single pixel
-		int debugx = 320, debugy = 220, RP = 0;
+		int debugx = 320, debugy = 120, RP = 0;
 		this->MultiThread_CC(canvas, debugx, debugx + 1, debugy, debugy + 1, C, CV, oi, RP);
 		//pixel col = Red; canvas.dot(debugx + 1, debugy, col); canvas.dot(debugx - 1, debugy, col); canvas.dot(debugx, debugy + 1, col); canvas.dot(debugx, debugy - 1, col);
 

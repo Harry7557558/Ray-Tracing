@@ -6,7 +6,7 @@
 	GeoGebra: https://www.geogebra.org/3d
 */
 
-#include "Matrix.h"
+//#include "Matrix.h"
 #include "D:\Explore\Math\Graph\GraphFun\GraphFun\BitMap.h"
 
 using namespace std;
@@ -21,9 +21,10 @@ typedef chrono::high_resolution_clock NTime;
 typedef chrono::duration<double> fsec;
 
 #include <cstdlib>
+#include <algorithm>
 
 #define ERR_EPSILON 1e-7	// minimum distance of intersection
-#define ERR_UPSILON 1e+12
+#define ERR_UPSILON 1e+8
 #define ERR_ZETA 1e-5	// minumum distance of SDF test, may cause threads jointing problems when too large
 
 // For Debugging
@@ -33,6 +34,7 @@ void WARN(string s) {
 }
 
 
+class matrix3D;
 
 /*
 	Spacial point class.
@@ -56,11 +58,9 @@ public:
 	point(const initializer_list<double> &a) {
 		x = *(a.begin()), y = *(a.begin() + 1), z = *(a.begin() + 2);
 	}
-	inline void operator = (const point &a) {
+	inline point& operator = (const point &a) {
 		x = a.x, y = a.y, z = a.z;
-	}
-	inline void operator = (const initializer_list<double> &a) {
-		x = *(a.begin()), y = *(a.begin() + 1), z = *(a.begin() + 2);
+		return *this;
 	}
 	~point() {}
 	inline friend point Max(const point &A, const point &B) {
@@ -109,19 +109,12 @@ public:
 	inline friend point cross(const point &a, const point &b) {
 		return point(a.y*b.z - a.z*b.y, a.z*b.x - a.x*b.z, a.x*b.y - a.y*b.x);
 	}
-	inline friend point operator * (const matrix<double> &M, const point &a) {
-		return point(M[0][0] * a.x + M[0][1] * a.y + M[0][2] * a.z,
-			M[1][0] * a.x + M[1][1] * a.y + M[1][2] * a.z,
-			M[2][0] * a.x + M[2][1] * a.y + M[2][2] * a.z);
-	}
-	inline void operator *= (const matrix<double> &M) {
-		*this = M * (*this);
-	}
 	friend ostream& operator << (ostream& os, const point &a) {
 		os << noshowpos << "(" << a.x << "," << a.y << "," << a.z << ")";
 		return os;
 	}
 };
+typedef point vec3;
 class point2D {
 public:
 	double x, y;
@@ -178,6 +171,49 @@ public:
 		return os;
 	}
 };
+
+enum matrix_type {
+	Zero, Identity, 
+	Stretching, Rotation, Shearing, Reflection, Projection, 
+};
+class matrix3D {
+	double p[3][3];
+public:
+	matrix3D() {}
+	matrix3D(const matrix_type &Transformation, const double &x, const double &y, const double &z) {
+		switch (Transformation) {
+		case Stretching: {
+			p[0][0] = x, p[0][1] = p[0][2] = 0;
+			p[1][1] = y, p[1][0] = p[1][2] = 0;
+			p[2][2] = z, p[2][0] = p[2][1] = 0;
+			return;
+		}
+		case Rotation: {
+			p[0][0] = cos(y)*cos(z), p[0][1] = sin(x)*sin(y)*cos(z) - cos(x)*sin(z), p[0][2] = cos(x)*sin(y)*cos(z) + sin(x)*sin(z);
+			p[1][0] = cos(y)*sin(z), p[1][1] = sin(x)*sin(y)*sin(z) + cos(x)*cos(z), p[1][2] = cos(x)*sin(y)*sin(z) - sin(x)*cos(z);
+			p[2][0] = -sin(y), p[2][1] = sin(x)*cos(y), p[2][2] = cos(x)*cos(y);
+			return;
+		}
+		}
+	}
+	matrix3D(const initializer_list<double> &l) {
+		for (int i = 0; i < 9; i++) *(&p[0][0] + i) = *(l.begin() + i);
+	}
+	matrix3D(const initializer_list<initializer_list<double>> &l) {
+		for (int i = 0; i < 3; i++) {
+			for (int j = 0; j < 3; j++) {
+				p[i][j] = *((l.begin() + i)->begin() + j);
+			}
+		}
+	}
+	~matrix3D() {}
+
+	inline point operator * (const point &P) const {
+		return point(p[0][0] * P.x + p[0][1] * P.y + p[0][2] * P.z, 
+			p[1][0] * P.x + p[1][1] * P.y + p[1][2] * P.z, p[2][0] * P.x + p[2][1] * P.y + p[2][2] * P.z);
+	}
+};
+
 
 /* Ray class */
 class ray {
@@ -329,6 +365,7 @@ public:
 	borderbox() { Min = point(INFINITY, INFINITY, INFINITY), Max = point(-INFINITY, -INFINITY, -INFINITY); }
 	borderbox(const point &Min, const point &Max) {
 		this->Min = Min, this->Max = Max;
+		fix();
 	}
 	bool meet(const ray &a) const {
 		// http://www.cs.utah.edu/~awilliam/box/box.pdf

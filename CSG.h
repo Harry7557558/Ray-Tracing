@@ -4,7 +4,12 @@
 #include "Object.h"
 #endif
 
-// https://www.iquilezles.org/www/index.htm
+// Reference: https://www.iquilezles.org/www/articles/distfunctions/distfunctions.htm
+
+// All object/SDF/operation/transformations labled "exact" or "not exact" are strictly prooved or disproved
+// object exact: legal shape (not an approximation);  SDF exact: legal distance field (issues won't occur when applying operations); 
+// "not exact" operations/transformations may affect farther operations/transformations
+
 
 namespace XObjs {
 	class XObjs_Comp {
@@ -21,7 +26,8 @@ namespace XObjs {
 		}
 	};
 
-	class Sphere : public XObjs_Comp {
+
+	class Sphere : public XObjs_Comp {	// exact
 		point C; double r;
 	public:
 		Sphere() :r(0) {}
@@ -33,7 +39,7 @@ namespace XObjs {
 		}
 		~Sphere() {}
 
-		double SDF(const point &P) const {
+		double SDF(const point &P) const {	// exact
 			return (P - C).mod() - r;
 		}
 		borderbox MaxMin() const {
@@ -41,7 +47,7 @@ namespace XObjs {
 		}
 	};
 
-	class Plane : public XObjs_Comp {
+	class Plane : public XObjs_Comp {	// exact
 		point N; double D;	// Ax+By+Cz<D, N unit vector
 	public:
 		Plane() :D(0) { N.z = 1; }
@@ -60,7 +66,7 @@ namespace XObjs {
 		Plane(const Plane &p) :N(p.N), D(p.D) {}
 		~Plane() {}
 
-		double SDF(const point &P) const {
+		double SDF(const point &P) const {	// exact
 			return dot(N, P) - D;
 		}
 		borderbox MaxMin() const {
@@ -68,11 +74,11 @@ namespace XObjs {
 		}
 	};
 
-	class Cylinder_std : public XObjs_Comp {
+	class Cylinder_std : public XObjs_Comp {	// exact
 		point C; double r; point D;		// central point, radius, direction vector (unit)
 	public:
 		Cylinder_std() { r = 0; }
-		Cylinder_std(const point &C, const double &r, const  point &d) {
+		Cylinder_std(const point &C, const double &r, const  vec3 &d) {
 			this->C = C, this->r = r, this->D = d;
 			D /= D.mod();
 		}
@@ -85,7 +91,7 @@ namespace XObjs {
 		}
 		~Cylinder_std() {}
 
-		double SDF(const point &P) const {
+		double SDF(const point &P) const {	// exact
 			return cross(P - C, D).mod() - r;
 		}
 		borderbox MaxMin() const {
@@ -98,14 +104,15 @@ namespace XObjs {
 		}
 	};
 
-	class Cone_std : public XObjs_Comp {
+	class Cone_std : public XObjs_Comp {	// exact
 		point C; double alpha; point D;		// 0 < alpha < PI/2, D unit
 	public:
 		Cone_std() { alpha = 0; }
-		Cone_std(const point &C, const point  &P, const double &r) {
+		Cone_std(const point &C, const point &P, const double &r) {
 			this->C = C, this->D = P - C;
-			alpha = atan(r / P.mod());
-			D /= D.mod();
+			double m = D.mod();
+			alpha = atan(r / m);
+			D /= m;
 		}
 		Cone_std(const point &C, const double &alpha, const point &D) {
 			this->C = C, this->alpha = alpha, this->D = D / D.mod();
@@ -115,10 +122,10 @@ namespace XObjs {
 		}
 		~Cone_std() {}
 
-		double SDF(const point &P) const {
-			point S = P - C; double u = dot(S, D), m = S.mod();
-			//if (u < 0) return m;
-			return m * sin(acos(u / m) - alpha);
+		double SDF(const point &P) const {	// exact
+			point S = P - C; double m = S.mod(), theta = acos(dot(S, D) / m) - alpha;
+			if (theta < PI / 2) return m * sin(theta);
+			else return m;
 		}
 		borderbox MaxMin() const {
 			borderbox B;
@@ -127,7 +134,7 @@ namespace XObjs {
 		}
 	};
 
-	class Torus_xOy : public XObjs_Comp {
+	class Torus_xOy : public XObjs_Comp {	// exact
 		point C; double R, r;
 	public:
 		Torus_xOy() { R = 0, r = 0; }
@@ -142,7 +149,7 @@ namespace XObjs {
 		}
 		~Torus_xOy() {}
 
-		double SDF(const point &P) const {
+		double SDF(const point &P) const {	// exact
 			//return hypot(hypot(P.x - C.x, P.y - C.y) - R, P.z - C.z) - r;
 			point S = P - C; double m = sqrt(S.x*S.x + S.y*S.y) - R; m = sqrt(m*m + S.z*S.z); return m - r;
 		}
@@ -154,11 +161,196 @@ namespace XObjs {
 		}
 	};
 
-	class Box : public XObjs_Comp {
-		point O; point A, B, C; // parallelepiped
+	class Box_xOy : public XObjs_Comp {		// exact
+		point Min; point Max;
 	public:
+		Box_xOy() {}
+		Box_xOy(const borderbox &B) {
+			this->Max = B.Max, this->Min = B.Min;
+		}
+		Box_xOy(const point &Max, const point &Min) {
+			this->Max = Max; this->Min = Min;
+		}
+		Box_xOy(const point &Ctr, const double &x_rad, const double &y_rad, const double &z_rad) {
+			this->Max = point(x_rad, y_rad, z_rad), this->Min = -this->Max;
+			this->Max += Ctr, this->Min += Ctr;
+		}
+		Box_xOy(const Box_xOy &other) {
+			this->Max = other.Max, this->Min = other.Min;
+		}
+		~Box_xOy() {}
 
+		double SDF(const point &P) const {	// exact
+			unsigned char xi = (P.x > Min.x && P.x < Max.x), yi = (P.y > Min.y && P.y < Max.y), zi = (P.z > Min.z && P.z < Max.z);
+			switch (xi + yi + zi) {
+			case 3: {
+				return max(max(max(P.x - Max.x, Min.x - P.x), max(P.y - Max.y, Min.y - P.y)), max(P.z - Max.z, Min.z - P.z));
+			}
+			case 2: {
+				if (!xi) return P.x > Max.x ? P.x - Max.x : Min.x - P.x;
+				if (!yi) return P.y > Max.y ? P.y - Max.y : Min.y - P.y;
+				if (!zi) return P.z > Max.z ? P.z - Max.z : Min.z - P.z;
+			}
+			case 1: {
+				double d1, d2;
+				if (xi) { d1 = min(abs(P.y - Max.y), abs(P.y - Min.y)), d2 = min(abs(P.z - Max.z), abs(P.z - Min.z)); return sqrt(d1 * d1 + d2 * d2); }
+				if (yi) { d1 = min(abs(P.x - Max.x), abs(P.x - Min.x)), d2 = min(abs(P.z - Max.z), abs(P.z - Min.z)); return sqrt(d1 * d1 + d2 * d2); }
+				if (zi) { d1 = min(abs(P.x - Max.x), abs(P.x - Min.x)), d2 = min(abs(P.y - Max.y), abs(P.y - Min.y)); return sqrt(d1 * d1 + d2 * d2); }
+			}
+			case 0: {
+				double d1, d2, d3;
+				d1 = min(abs(P.x - Max.x), abs(P.x - Min.x));
+				d2 = min(abs(P.y - Max.y), abs(P.y - Min.y));
+				d3 = min(abs(P.z - Max.z), abs(P.z - Min.z));
+				return sqrt(d1 * d1 + d2 * d2 + d3 * d3);
+			}
+			}
+			return NAN;
+		}
+		borderbox MaxMin() const {
+			return borderbox(Max, Min);
+		}
 	};
+
+	class Cylinder : public XObjs_Comp {	// exact
+		point P1, P2; double r, h; vec3 dir;
+	public:
+		Cylinder() : r(0), h(0) {}
+		Cylinder(const point &P1, const point &P2, const double &r) {
+			this->P1 = P1, this->P2 = P2, this->r = r;
+			dir = P2 - P1; h = dir.mod(), dir /= h;
+		}
+		Cylinder(const point &P1, const double &r, const vec3 &dir) {
+			this->P1 = P1, this->P2 = P1 + dir, this->r = r;
+			this->dir = dir; h = dir.mod(), this->dir /= h;
+		}
+		Cylinder(const point &P1, const double &r, const double &h, const vec3 &dir) {
+			this->dir = dir / dir.mod(); this->h = h;
+			this->P1 = P1, this->P2 = P1 + h * this->dir, this->r = r;
+		}
+		Cylinder(const Cylinder &other) {
+			this->P1 = other.P1, this->P2 = other.P2, this->r = other.r;
+			this->dir = other.dir, this->h = other.h;
+		}
+		~Cylinder() {}
+
+		double SDF(const point &P) const {	// exact
+			point S = P - P1;
+			double n = dot(S, dir);
+			double d = cross(S, dir).mod() - r;
+			if (n < 0) {
+				if (d > 0) return sqrt(d * d + n * n);
+				return -n;
+			}
+			if (n > h) {
+				n -= h;
+				if (d > 0) return sqrt(d * d + n * n);
+				return n;
+			}
+			if (d > 0) return d;
+			return max(max(-n, n - h), d);
+		}
+		borderbox MaxMin() const {
+			point U(abs(P1.x - P2.x), abs(P1.y - P2.y), abs(P1.z - P2.z));
+			U *= r / h;
+			U.x = sqrt(r*r - U.x*U.x), U.y = sqrt(r*r - U.y*U.y), U.z = sqrt(r*r - U.z*U.z);
+			borderbox B(P1, P2); B.fix();
+			B.Max += U, B.Min -= U;
+			return B;
+		}
+	};
+
+	class Cone : public XObjs_Comp {
+		point C, O; vec3 dir; double r, h, l, alpha;
+	public:
+		Cone() { r = h = 0; }
+		Cone(const point &C, const point &P, const double &r) {
+			this->C = C, this->O = P, this->r = r, this->dir = P - C;
+			h = dir.mod(); dir /= h;
+			alpha = atan(r / h), l = r / sin(alpha);
+		}
+		Cone(const point &C, const vec3 &dir, const double &R, const double &theta) {
+			this->C = C, this->dir = dir / dir.mod();
+			this->r = R * sin(theta), this->h = R * cos(theta), this->l = R;
+			this->O = C + dir * this->h;
+			alpha = theta;
+		}
+		Cone(const Cone &other) {
+			this->C = other.C, this->O = other.O; this->dir = other.dir;
+			this->r = r, this->h = h, this->l = l; alpha = atan(r / h);
+		}
+		~Cone() {}
+
+		double SDF(const point &P) const {
+			point S = P - C; double m = S.mod(), u = dot(S, dir), theta = acos(u / m) - alpha;
+			if (theta > PI / 2) return m;
+			if (u > h) {
+				u -= h;
+				double v = m * sin(theta + alpha) - r;
+				if (v > 0) return sqrt(u * u + v * v);
+				return u;
+			}
+			if (theta > 0) {
+				if (m * cos(theta) > l) return sqrt(m*m + l * l - 2 * m*l*cos(theta));
+				return m * sin(theta);
+			}
+			return max(m*sin(theta), u - h);
+		}
+		borderbox MaxMin() const {
+			point ad;
+			double rx = acos(dir.z), rz = atan2(dir.x, -dir.y);
+			double u = -atan(cos(rx)*tan(rz));
+			ad.x = cos(rz)*cos(u) - cos(rx)*sin(rz)*sin(u);
+			u = atan(cos(rx) / tan(rz));
+			ad.y = sin(rz)*cos(u) + cos(rx)*cos(rz)*sin(u);
+			ad.z = sin(rx);
+			ad *= r;
+			return borderbox(PMax(PMax(O + ad, O - ad), C), PMin(PMin(O + ad, O - ad), C));
+		}
+	};
+
+	class Cone_capped : public XObjs_Comp {
+		point C, P1, P2; double r1, r2, h1, h2, l1, l2, alpha; vec3 dir;
+	public:
+		Cone_capped() { r1 = r2 = h1 = h2 = l1 = l2 = alpha = 0; }
+		Cone_capped(const point &P_1, const point &P_2, const double &r_1, const double &r_2) {
+			P1 = P_1, P2 = P_2; r1 = r_1, r2 = r_2; if (r1 > r2) swap(r1, r2), swap(P1, P2);
+			dir = P2 - P1; double h = dir.mod(); dir /= h; alpha = atan((r2 - r1) / h);
+			l1 = r1 / sin(alpha), l2 = r2 / sin(alpha); h1 = r1 / tan(alpha), h2 = r2 / tan(alpha);
+			C = P1 - h1 * dir;
+		}
+		Cone_capped(const point &C, const vec3 &dir, const double &h_1, const double &h_2, const double &alpha) {
+			this->C = C, this->dir = dir / dir.mod(); h1 = h_1, h2 = h_2, this->alpha = alpha;
+			P1 = C + h1 * dir, P2 = C + h2 * dir; r1 = h1 * tan(alpha), r2 = h2 * tan(alpha), l1 = h1 / cos(alpha), l2 = h2 / cos(alpha);
+		}
+		Cone_capped(const Cone_capped &other) {
+			C = other.C, P1 = other.P1, P2 = other.P2; dir = other.dir;
+			r1 = other.r1, r2 = other.r2, h1 = other.h1, h2 = other.h2, l1 = other.l1, l2 = other.l2, alpha = other.alpha;
+		}
+		~Cone_capped() {}
+
+		double SDF(const point &P) const {
+			point s = P - C; double m = s.mod(), u = dot(s, dir), theta = acos(u / m), d = m * sin(theta); theta -= alpha;
+			if (theta > PI / 2) return d < r1 ? h1 - u : sqrt(m*m + l1 * l1 - 2 * m*l1*cos(theta));
+			if (u > h1 && u < h2 && theta < 0) return max(max(h1 - u, u - h2), m*sin(theta));
+			if (u > h2) return d < r2 ? u - h2 : sqrt(m*m + l2 * l2 - 2 * m*l2*cos(theta));
+			if (u < h1) return d < r1 ? h1 - u : m * cos(theta) > l1 ? m * sin(theta) : sqrt(m*m + l1 * l1 - 2 * m*l1*cos(theta));
+			return m * cos(theta) < l2 ? m * sin(theta) : sqrt(m*m + l2 * l2 - 2 * m*l2*cos(theta));
+		}
+		borderbox MaxMin() const {
+			point ad1, ad2;
+			double rx = acos(dir.z), rz = atan2(dir.x, -dir.y);
+			double u = -atan(cos(rx)*tan(rz));
+			ad1.x = cos(rz)*cos(u) - cos(rx)*sin(rz)*sin(u);
+			u = atan(cos(rx) / tan(rz));
+			ad1.y = sin(rz)*cos(u) + cos(rx)*cos(rz)*sin(u);
+			ad1.z = sin(rx);
+			ad2 = ad1 * r2, ad1 *= r1;
+			return borderbox(PMax(PMax(P1 + ad1, P1 - ad1), PMax(P2 + ad2, P2 - ad2)), PMin(PMin(P1 + ad1, P1 - ad1), PMin(P2 + ad2, P2 - ad2)));
+		}
+	};
+
+	
 }
 
 // Windows null pointer: 0x00000000-0x0000FFFF
@@ -394,7 +586,7 @@ public:
 		}
 	}
 
-	friend XSolid CSG_UnionOp(const XSolid &A, const XSolid &B) {
+	friend XSolid CSG_UnionOp(const XSolid &A, const XSolid &B) {	// not exact
 		XSolid X;
 		for (int i = 0; i < A.objs.size(); i++) X.objs.push_back(A.objs.at(i));
 		for (int i = 0; i < B.objs.size(); i++) X.objs.push_back(B.objs.at(i));
@@ -403,7 +595,7 @@ public:
 		X.border.Max = PMax(A.border.Max, B.border.Max), X.border.Min = PMin(A.border.Min, B.border.Min);
 		return X;
 	}
-	friend XSolid CSG_IntersectionOp(const XSolid &A, const XSolid &B) {
+	friend XSolid CSG_IntersectionOp(const XSolid &A, const XSolid &B) {	// not exact
 		XSolid X;
 		for (int i = 0; i < A.objs.size(); i++) X.objs.push_back(A.objs.at(i));
 		for (int i = 0; i < B.objs.size(); i++) X.objs.push_back(B.objs.at(i));
@@ -412,7 +604,7 @@ public:
 		X.border.Max = PMin(A.border.Max, B.border.Max), X.border.Min = PMax(A.border.Min, B.border.Min);
 		return X;
 	}
-	friend XSolid CSG_SubtractionOp(const XSolid &A, const XSolid &B) {
+	friend XSolid CSG_SubtractionOp(const XSolid &A, const XSolid &B) {		// not exact
 		XSolid X;
 		for (int i = 0; i < A.objs.size(); i++) X.objs.push_back(A.objs.at(i));
 		for (int i = 0; i < B.objs.size(); i++) X.objs.push_back(B.objs.at(i));
@@ -421,7 +613,7 @@ public:
 		X.border = A.border;	// need to optimize
 		return X;
 	}
-	friend XSolid CSG_ComplementOp(const XSolid &A) {
+	friend XSolid CSG_ComplementOp(const XSolid &A) {	// exact
 		XSolid X;
 		for (int i = 0; i < A.objs.size(); i++) X.objs.push_back(A.objs.at(i));
 		X.deep_copy(A);
@@ -429,7 +621,7 @@ public:
 		X.border.Max = point(INFINITY, INFINITY, INFINITY), X.border.Min = -X.border.Max;
 		return X;
 	}
-	friend XSolid CSG_RoundingOp(const XSolid &A, double r) {
+	friend XSolid CSG_RoundingOp(const XSolid &A, double r) {	// makes the object larger
 		XSolid X;
 		for (int i = 0; i < A.objs.size(); i++) X.objs.push_back(A.objs.at(i));
 		X.deep_copy(A);
@@ -438,7 +630,7 @@ public:
 		X.border.Max = A.border.Max + point(r, r, r), X.border.Min = A.border.Min - point(r, r, r);
 		return X;
 	}
-	friend XSolid CSG_OnionOp(const XSolid &A, double r) {
+	friend XSolid CSG_OnionOp(const XSolid &A, double r) {	// make larger, problems may occur to concave side
 		XSolid X;
 		for (int i = 0; i < A.objs.size(); i++) X.objs.push_back(A.objs.at(i));
 		X.deep_copy(A);
@@ -448,4 +640,52 @@ public:
 		return X;
 	}
 };
+
+
+
+void VisualizeSDF(XSolid &X, parallelogram p, double S) {
+	X.init();
+	double w = p.A.mod(), h = p.B.mod(), t = h / w;
+	w = sqrt(S / t), h = w * t;
+
+	bitmap canvas(2 * w, 2 * h);
+	double u, v, sdf, x, y, mag, arg; point P;
+
+	for (unsigned i = 0; i < h; i++) {
+		for (unsigned j = 0; j < w; j++) {
+			u = j / w, v = i / h;
+			P = p.O + u * p.A + v * p.B;
+			sdf = X.SDF(P, 0);
+			x = X.SDF(p.O + (u + ERR_ZETA) * p.A + v * p.B, 0) - sdf;
+			y = X.SDF(p.O + u * p.A + (v + ERR_ZETA) * p.B, 0) - sdf;
+			x /= ERR_ZETA, y /= ERR_ZETA;
+			mag = 1 / sqrt(x * x + y * y);
+			arg = atan2(y, x - y);
+
+			// General Visualization of Magnitude
+			double t = tanh(0.5 * sdf);
+			double r, g, b;
+			if (t >= 0) r = ((0.880183 * t - 2.27602) * t + 1.94992) * t + 0.442456, g = ((-1.15153 * t + 1.85887) * t + 0.0899384) * t + 0.0120354, b = ((-0.204874 * t + 0.464309) * t - 0.151561) * t + 0.0178089;
+			else t = -t,
+				r = (((((-7.31545 * t + 13.31) * t - 3.75123) * t - 1.83143) * t - 0.560149) * t + 0.779769) * t + 0.156216,
+				g = (((((-3.53306 * t + 14.265) * t - 21.3179) * t + 13.3875) * t - 2.16183) * t + 0.286874) * t - 9.48835e-05,
+				b = (((((5.62199 * t - 16.1938) * t + 17.7046) * t - 9.38477) * t + 1.85801) * t + 1.08822) * t + 0.29789;
+			if (r > 1) r = 1; if (g > 1) g = 1; if (b > 1) b = 1;
+			if (r < 0) r = 0; if (g < 0) g = 0; if (b < 0) b = 0;
+			canvas[i + h][j] = drgb(r, g, b);
+
+			// Magnitude with Contour, difference = 0.2
+			t = pow(cos(10 * PI * sdf), 12); r = g = b = t;
+			canvas[i + h][j + int(w)] = drgb(r, g, b);
+
+			// Derivative of SDF
+			canvas[i][j] = fromHSL(arg / (2 * PI), 1, 1 - pow(0.4, log(log(mag + 1) + 1.05)));
+
+			// Magnitude + Change
+			canvas[i][j + int(w)] = rgb(0.5*(rgblight(canvas[i][j]) + rgblight(canvas[i + h][j])));
+		}
+	}
+
+	canvas.out("IMAGE\\SDF.bmp");
+}
 

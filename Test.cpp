@@ -2,6 +2,12 @@
 
 using namespace std;
 
+#define ADD_AXIS(W, r) { \
+	cylinder xAxis(point(0, 0, 0), point(ERR_UPSILON, 0, 0), r); xAxis.setcolor(Red);    \
+	cylinder yAxis(point(0, 0, 0), point(0, ERR_UPSILON, 0), r); yAxis.setcolor(Green);	 \
+	cylinder zAxis(point(0, 0, 0), point(0, 0, ERR_UPSILON), r); zAxis.setcolor(Blue);	 \
+	W.add({ &xAxis, &yAxis, &zAxis }); }
+
 
 void sizetest() {
 	cout << "point          " << sizeof(point) << endl;
@@ -785,31 +791,41 @@ void Render_XTest00() {
 	XObjs::Cylinder_std XCSx(point(0, 0, 1), 1, point(1, 0, 0));
 	XObjs::Cylinder_std XCSy(point(0, 0, 1), 1, point(0, 1, 0));
 	XObjs::Cylinder_std XCSz(point(0, 0, 1), 1, point(0, 0, 1));
-	XObjs::Cone_std XCN(point(0, 0, 0), point(0, 0, 1), 0.5);
-	XObjs::Cone_std XCN1(point(0, 0, 1), point(0, 0, 1.5), 0.8);
+	XObjs::Cylinder XC1(point(0, 0, 0.5), point(0, 1, 1.5), 0.5);
+	XObjs::Cone_std XCNS1(point(0, 0, 0), point(0, 0, 1), 0.5);
+	XObjs::Cone_std XCNS2(point(0, 0, 1), point(0, 0, 0), 0.5);
+	XObjs::Cone XCN1(point(1, 0, 0.1), point(-4, 0, 1), 2, atan(0.25));
+	XObjs::Cone_capped XCC1(point(0, 0, 0.1001), point(0, 0, 1), 0.6, 0.2);
 	XObjs::Torus_xOy XT1(point(0, 0, 1), 3, 1);
+	XObjs::Box_xOy XB1(point(1, 1, 1.2), point(-2, 0, 0.5));
 	XSolid X;
 	//X = CSG_SubtractionOp(CSG_IntersectionOp(XSolid(XS1), XSolid(XS2)), XSolid(XP1));
 	X = CSG_IntersectionOp(CSG_IntersectionOp(XSolid(XCSx), XSolid(XCSy)), XSolid(XCSz));
-	//X = CSG_IntersectionOp(XSolid(XS1), XSolid(XCN));
-	//X = XCN1;
-	//X = CSG_RoundingOp(X, 0.5);
-	X = CSG_IntersectionOp(CSG_OnionOp(XSolid(XS1), 0.1), XSolid(XP2));
-	X = XSolid(XT1);
-	X = CSG_OnionOp(X, 0.1);
+	//X = CSG_IntersectionOp(XSolid(XS1), XSolid(XCNS1));
+	//X = XCNS2;
+	//X = CSG_IntersectionOp(CSG_OnionOp(XSolid(XS1), 0.1), XSolid(XP2));
+	//X = XSolid(XT1);
+	//X = CSG_RoundingOp(XSolid(XB1), 0.3);
+	//X = CSG_RoundingOp(X, 0.1);
+	//X = CSG_OnionOp(X, 0.1);
 	X.setColor(White); W.add(&X);
 
 	X.type = XSolid_Crystal; X.setColor(rgblight(0, 0, 0));
-	X.col = rgblight(0.5, 0.2, 0.1);
+	//X.col = rgblight(0.5, 0.2, 0.1);
 
 	sphere3D S(point(-1.5, 1.5, 1), 1); S.C = point(0, 0, 1);
 	S.setIndex(1.5); S.setAttCof(0.8, 0.4, 0.2);
 	//W.add(&S);
 
+	parallelogram Pr(point(3, 0.8, -1), point(-6, 0, 0), point(0, 0, 4)); Pr.setcolor(White); //W.add(&Pr);
 
-	bitmap img(1200, 800);
+
+	//ADD_AXIS(W, 0.05);
+	VisualizeSDF(X, Pr, 600 * 400);
+
+	bitmap img(600, 400);
 	W.setGlobalLightSource(0, 0, 1);
-	W.Render_Sampling = 4;
-	W.render(img, point(10, 10, 10), point(0, 0, 0), 0, 0.5);
+	//W.Render_Sampling = 2;
+	W.render(img, point(10, 10, 10), point(0, 0, 0), 0, 0.1);
 	img.out("IMAGE\\RT.bmp");
 }

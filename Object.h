@@ -133,24 +133,6 @@ public:
 		D += dot(a, N);
 	}
 
-	inline void rotate(const double &rx, const double &ry, const double &rz) {
-		matrix<double> M = matrix<double>({ {cos(rz),-sin(rz),0}, {sin(rz),cos(rz),0}, {0,0,1} })
-			* matrix<double>({ {cos(ry),0,sin(ry)}, {0,1,0}, {-sin(ry),0,cos(ry)} })
-			* matrix<double>({ {1,0,0}, {0,cos(rx),-sin(rx)}, {0,sin(rx),cos(rx)} });
-		point A, B, C;
-		if (N.z != 0) {
-			A = point(0, 0, D / N.z); B = point(1, 0, (D - N.x) / N.z); C = point(0, 1, (D - N.y) / N.z);
-		}
-		else if (N.y != 0) {
-			A = point(0, D / N.y, 0); B = point(1, (D - N.x) / N.y, 0); C = point(0, (D - N.z) / N.y, 1);
-		}
-		else {
-			A = point(D / N.x, 0, 0); B = point((D - N.y) / N.x, 1, 0); C = point((D - N.z) / N.x, 0, 1);
-		}
-		A *= M, B *= M, C *= M;
-		N = cross(B - A, C - A); D = dot(N, A);
-	}
-
 	void meet(intersect &R, const ray &a) const {
 		R.meet = 0;
 		double t = (D - dot(N, a.orig)) / dot(N, a.dir);
@@ -226,16 +208,6 @@ public:
 	}
 	point Max() const { return point(max({ A.x, B.x, C.x }), max({ A.y, B.y, C.y }), max({ A.z, B.z, C.z })); }
 	point Min() const { return point(min({ A.x, B.x, C.x }), min({ A.y, B.y, C.y }), min({ A.z, B.z, C.z })); }
-	inline friend triangle operator * (matrix<double> M, triangle a) {
-		a.A = M * a.A, a.B = M * a.B, a.C = M * a.C;
-		return a;
-	}
-	inline void rotate(const double &rx, const double &ry, const double &rz) {
-		matrix<double> M = matrix<double>({ {cos(rz),-sin(rz),0}, {sin(rz),cos(rz),0}, {0,0,1} })
-			* matrix<double>({ {cos(ry),0,sin(ry)}, {0,1,0}, {-sin(ry),0,cos(ry)} })
-			* matrix<double>({ {1,0,0}, {0,cos(rx),-sin(rx)}, {0,sin(rx),cos(rx)} });
-		A = M * A, B = M * B, C = M * C;
-	}
 	inline void operator *= (const double &t) {
 		A *= t, B *= t, C *= t;
 	}
@@ -311,18 +283,8 @@ public:
 		return point(min({ O.x, O.x + A.x, O.x + B.x, O.x + A.x + B.x }),
 			min({ O.y, O.y + A.y, O.y + B.y, O.y + A.y + B.y }), min({ O.z, O.z + A.z, O.z + B.z, O.z + A.z + B.z }));
 	}
-	inline friend parallelogram operator * (matrix<double> M, parallelogram a) {
-		a.O = M * a.O, a.A = M * a.A, a.B = M * a.B;
-		return a;
-	}
-	inline void operator *= (matrix<double> M) {
-		A = M * A, B = M * B, O = M * O;
-	}
-	inline void rotate(const double &rx, const double &ry, const double &rz) {
-		matrix<double> M = matrix<double>({ {cos(rz),-sin(rz),0}, {sin(rz),cos(rz),0}, {0,0,1} })
-			* matrix<double>({ {cos(ry),0,sin(ry)}, {0,1,0}, {-sin(ry),0,cos(ry)} })
-			* matrix<double>({ {1,0,0}, {0,cos(rx),-sin(rx)}, {0,sin(rx),cos(rx)} });
-		A = M * A, B = M * B, O = M * O;
+	inline friend parallelogram operator * (const matrix3D &M, const parallelogram &P) {
+		return parallelogram(M*P.O, M*P.A, M*P.B);
 	}
 	inline void operator *= (const double &t) {
 		A *= t, B *= t, O *= t;
@@ -373,16 +335,6 @@ public:
 	}
 	inline void operator += (const point &a) {
 		C += a;
-	}
-	inline void rotate(const double &rx, const double &ry, const double &rz) {
-		matrix<double> M = matrix<double>({ {cos(rz),-sin(rz),0}, {sin(rz),cos(rz),0}, {0,0,1} })
-			* matrix<double>({ {cos(ry),0,sin(ry)}, {0,1,0}, {-sin(ry),0,cos(ry)} })
-			* matrix<double>({ {1,0,0}, {0,cos(rx),-sin(rx)}, {0,sin(rx),cos(rx)} });
-		C *= M;
-		M *= matrix<double>({ {cos(this->rz),-sin(this->rz),0}, {sin(this->rz),cos(this->rz),0}, {0,0,1} })
-			* matrix<double>({ {cos(this->ry),0,sin(this->ry)}, {0,1,0}, {-sin(this->ry),0,cos(this->ry)} })
-			* matrix<double>({ {1,0,0}, {0,cos(this->rx),-sin(this->rx)}, {0,sin(this->rx),cos(this->rx)} });
-		this->rx = atan2(M[2][1], M[2][2]), this->rz = atan2(M[1][0], M[0][0]), this->ry = atan2(-M[2][0], hypot(M[2][1], M[2][2]));
 	}
 	inline void operator *= (const double &t) {
 		C *= t, r *= t;
@@ -502,15 +454,7 @@ public:
 		point b = L1 - L0;
 		C = L0, this->r = r, this->h = b.mod();
 		b /= h;
-		/*point v = cross(point(0, 0, 1), b);
-		matrix<double> V = matrix<double>({ {0,-v.z,v.y}, {v.z,0,-v.x}, {-v.y,v.x,0} });
-		V += pow(V, 2) / (1 + b.z) + matrix<double>(3, Matrix_type::_M_Identity);
-		rx = atan2(V[1][0], V[0][0]);
-		rz = atan2(V[2][1], V[2][2]);
-		ry = atan2(-V[2][0], hypot(V[2][1], V[2][2]));
-		// https://math.stackexchange.com/questions/180418/calculate-rotation-matrix-to-align-vector-a-to-vector-b-in-3d */
-		rx = acos(b.z);
-		rz = atan2(b.x, -b.y);
+		rx = acos(b.z), rz = atan2(b.x, -b.y);
 		ry = 0;
 	}
 	~cylinder() {}
@@ -520,16 +464,6 @@ public:
 
 	inline void operator += (const point &a) {
 		C += a;
-	}
-	inline void rotate(const double &rx, const double &ry, const double &rz) {
-		matrix<double> M = matrix<double>({ {cos(rz),-sin(rz),0}, {sin(rz),cos(rz),0}, {0,0,1} })
-			* matrix<double>({ {cos(ry),0,sin(ry)}, {0,1,0}, {-sin(ry),0,cos(ry)} })
-			* matrix<double>({ {1,0,0}, {0,cos(rx),-sin(rx)}, {0,sin(rx),cos(rx)} });
-		C *= M;
-		M *= matrix<double>({ {cos(this->rz),-sin(this->rz),0}, {sin(this->rz),cos(this->rz),0}, {0,0,1} })
-			* matrix<double>({ {cos(this->ry),0,sin(this->ry)}, {0,1,0}, {-sin(this->ry),0,cos(this->ry)} })
-			* matrix<double>({ {1,0,0}, {0,cos(this->rx),-sin(this->rx)}, {0,sin(this->rx),cos(this->rx)} });
-		this->rx = atan2(M[2][1], M[2][2]), this->rz = atan2(M[1][0], M[0][0]), this->ry = atan2(-M[2][0], hypot(M[2][1], M[2][2]));
 	}
 	inline void operator *= (const double &t) {
 		C *= t, r *= t, h *= t;
@@ -663,12 +597,6 @@ public:
 		R.reflect = S - (2 * dot(S, N) / dot(N, N)) * N;
 		R.meet = 1;
 		return;
-	}
-	inline void rotate(const double &rx, const double &ry, const double &rz) {
-		matrix<double> M = matrix<double>({ {cos(rz),-sin(rz),0}, {sin(rz),cos(rz),0}, {0,0,1} })
-			* matrix<double>({ {cos(ry),0,sin(ry)}, {0,1,0}, {-sin(ry),0,cos(ry)} })
-			* matrix<double>({ {1,0,0}, {0,cos(rx),-sin(rx)}, {0,sin(rx),cos(rx)} });
-		C *= M;
 	}
 	inline void operator *= (const double &t) {
 		C *= t, r *= t;
@@ -1283,12 +1211,6 @@ public:
 	}
 	~sphere3D() {}
 
-	inline void rotate(const double &rx, const double &ry, const double &rz) {
-		matrix<double> M = matrix<double>({ {cos(rz),-sin(rz),0}, {sin(rz),cos(rz),0}, {0,0,1} })
-			* matrix<double>({ {cos(ry),0,sin(ry)}, {0,1,0}, {-sin(ry),0,cos(ry)} })
-			* matrix<double>({ {1,0,0}, {0,cos(rx),-sin(rx)}, {0,sin(rx),cos(rx)} });
-		C *= M;
-	}
 	inline void operator *= (const double &t) {
 		C *= t, r *= t;
 	}

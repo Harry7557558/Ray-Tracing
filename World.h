@@ -9,6 +9,8 @@
 
 using namespace std;
 
+#ifndef _INC_WORLD_H
+#define _INC_WORLD_H
 
 class World {
 public:
@@ -20,6 +22,7 @@ public:
 	void resize() {
 		point maxc, minc;
 		if (!Objs.empty()) maxc = Objs.front()->Max(), minc = Objs.front()->Min();
+		const_cast<object*>(Objs.at(0))->init();
 		for (int i = 1; i < Objs.size(); i++) {
 			maxc = Max(maxc, Objs.at(i)->Max());
 			minc = Min(minc, Objs.at(i)->Min());
@@ -120,7 +123,7 @@ public:
 
 	// Calculate the result rgb color with a giving ray
 	double RayTracing(const ray &v, rgblight &c, const double count, const int n) const {
-		// Note: "object under water" and "glass in water" situations are still debugging
+		// Note: "object under water" "glass in water" "camera under water" situations are still debugging
 
 		if (count < 0.004 || n > 20) {
 			double ang = dot(N, v.dir) / N.mod()*v.dir.mod();
@@ -401,12 +404,9 @@ public:
 		double orx = acos(OC.z / r), orz = atan2(OC.x, -OC.y);
 		const double rx = atan2(sin(orx)*cos(rt), cos(orx)), ry = atan2(-sin(orx)*sin(rt), hypot(sin(orx)*cos(rt), cos(orx))),
 			rz = atan2(sin(orz)*cos(rt) + sin(rt)*cos(orx)*cos(orz), cos(rt)*cos(orz) - sin(rt)*cos(orx)*sin(orz));		// first x, then y, finally z
-		Matrix R = Matrix({ {cos(rz),-sin(rz),0}, {sin(rz),cos(rz),0}, {0,0,1} }) *
-			Matrix({ { cos(ry),0,sin(ry) }, {0,1,0}, {-sin(ry),0,cos(ry)} }) *
-			Matrix({ {1,0,0}, {0,cos(rx),-sin(rx)}, {0,sin(rx),cos(rx)} });
+		
 		parallelogram CV(point(w / 2, -h / 2, rs), point(-w, 0), point(0, h));
-		CV *= R;
-		CV += C;
+		CV = matrix3D(Rotation, rx, ry, rz) * CV + C;
 
 
 		this->resize();
@@ -522,3 +522,5 @@ public:
 unsigned World::Render_Sampling = 1;
 
 // https://zhuanlan.zhihu.com/p/41269520
+
+#endif

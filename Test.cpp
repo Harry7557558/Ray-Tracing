@@ -798,26 +798,31 @@ void Render_XTest00() {
 	XObjs::Cone_capped XCC1(point(0, 0, 0.1001), point(0, 0, 1), 0.6, 0.2);
 	XObjs::Torus_xOy XT1(point(0, 0, 1), 3, 1);
 	XObjs::Box_xOy XB1(point(1, 1, 1.2), point(-2, 0, 0.5));
+	XObjs::Box_affine XX1(matrix3D_affine(
+		2, 1, 0, 0,
+		-1, 1, 0, 0,
+		0, 0, 1, 1,
+		0.6, 0, 0, 1));
 	XSolid X;
 	//X = CSG_SubtractionOp(CSG_IntersectionOp(XSolid(XS1), XSolid(XS2)), XSolid(XP1));
-	X = CSG_IntersectionOp(CSG_IntersectionOp(XSolid(XCSx), XSolid(XCSy)), XSolid(XCSz));
+	//X = CSG_IntersectionOp(CSG_IntersectionOp(XSolid(XCSx), XSolid(XCSy)), XSolid(XCSz));
 	//X = CSG_IntersectionOp(XSolid(XS1), XSolid(XCNS1));
-	//X = XCNS2;
 	//X = CSG_IntersectionOp(CSG_OnionOp(XSolid(XS1), 0.1), XSolid(XP2));
-	//X = XSolid(XT1);
-	//X = CSG_RoundingOp(XSolid(XB1), 0.3);
-	//X = CSG_RoundingOp(X, 0.1);
+	X = XX1;
+	X = CSG_RoundingOp(X, 0.2);
 	//X = CSG_OnionOp(X, 0.1);
 	X.setColor(White); W.add(&X);
 
 	X.type = XSolid_Crystal; X.setColor(rgblight(0, 0, 0));
-	//X.col = rgblight(0.5, 0.2, 0.1);
+	X.col = rgblight(0.5, 0.2, 0.1);
 
 	sphere3D S(point(-1.5, 1.5, 1), 1); S.C = point(0, 0, 1);
 	S.setIndex(1.5); S.setAttCof(0.8, 0.4, 0.2);
 	//W.add(&S);
 
-	parallelogram Pr(point(3, 0.8, -1), point(-6, 0, 0), point(0, 0, 4)); Pr.setcolor(White); //W.add(&Pr);
+	parallelogram Pr(point(3, 0.5, -1), point(-6, 0, 0), point(0, 0, 4));
+	Pr = parallelogram(point(-2.5, -1, -1), point(6, 0, 0), point(0, 3, 3));
+	//Pr.setcolor(White); W.add(&Pr);
 
 
 	//ADD_AXIS(W, 0.05);
@@ -826,6 +831,6 @@ void Render_XTest00() {
 	bitmap img(600, 400);
 	W.setGlobalLightSource(0, 0, 1);
 	//W.Render_Sampling = 2;
-	W.render(img, point(10, 10, 10), point(0, 0, 0), 0, 0.1);
+	W.render(img, point(10, -10, 10), point(pick_random(-0.001, 0.001), 0, 0), 0, 0.1);
 	img.out("IMAGE\\RT.bmp");
 }

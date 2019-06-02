@@ -260,7 +260,7 @@ namespace XObjs {
 		}
 	};
 
-	class Cone : public XObjs_Comp {
+	class Cone : public XObjs_Comp {	// exact
 		point C, O; vec3 dir; double r, h, l, alpha;
 	public:
 		Cone() { r = h = 0; }
@@ -281,7 +281,7 @@ namespace XObjs {
 		}
 		~Cone() {}
 
-		double SDF(const point &P) const {
+		double SDF(const point &P) const {	// exact
 			point S = P - C; double m = S.mod(), u = dot(S, dir), theta = acos(u / m) - alpha;
 			if (theta > PI / 2) return m;
 			if (u > h) {
@@ -309,7 +309,7 @@ namespace XObjs {
 		}
 	};
 
-	class Cone_capped : public XObjs_Comp {
+	class Cone_capped : public XObjs_Comp {		// exact
 		point C, P1, P2; double r1, r2, h1, h2, l1, l2, alpha; vec3 dir;
 	public:
 		Cone_capped() { r1 = r2 = h1 = h2 = l1 = l2 = alpha = 0; }
@@ -329,7 +329,7 @@ namespace XObjs {
 		}
 		~Cone_capped() {}
 
-		double SDF(const point &P) const {
+		double SDF(const point &P) const {	// exact
 			point s = P - C; double m = s.mod(), u = dot(s, dir), theta = acos(u / m), d = m * sin(theta); theta -= alpha;
 			if (theta > PI / 2) return d < r1 ? h1 - u : sqrt(m*m + l1 * l1 - 2 * m*l1*cos(theta));
 			if (u > h1 && u < h2 && theta < 0) return max(max(h1 - u, u - h2), m*sin(theta));
@@ -350,7 +350,76 @@ namespace XObjs {
 		}
 	};
 
-	
+	class Box_affine : public XObjs_Comp {
+		matrix3D_affine M;	// applying to an unit cube, the only variable
+		matrix3D_affine M_invert;
+		point P000, P100, P010, P001, P110, P101, P011, P111;
+		vec3 Ex00, Ex01, Ex10, Ex11, Ey00, Ey01, Ey10, Ey11, Ez00, Ez01, Ez10, Ez11;
+		vec3 Px0, Px1, Py0, Py1, Pz0, Pz1; double px0, px1, py0, py1, pz0, pz1;
+	public:
+		Box_affine() { M = matrix3D_affine(1, 0, 0, 0, 1, 0, 0, 0, 1); }
+		Box_affine(const matrix3D_affine &M) {
+			this->M = M;
+		}
+		~Box_affine() {}
+
+		double SDF(const point &P) const {
+
+			point S = M_invert * P;
+			bool xi = S.x > 0 && S.x < 1, yi = S.y > 0 && S.y < 1, zi = S.z > 0 && S.z < 1;
+
+			if (xi && yi && zi) return -min(min(min(abs(dot(P, Px0) + px0), abs(dot(P, Px1) + px1)),
+				min(abs(dot(P, Py0) + py0), abs(dot(P, Py1) + py1))), min(abs(dot(P, Pz0) + pz0), abs(dot(P, Pz1) + pz1)));
+
+			if (!xi && !yi && !zi) return min(min(min((P - P000).mod(), (P - P100).mod()), min((P - P010).mod(), (P - P001).mod())),
+				min(min((P - P011).mod(), (P - P101).mod()), min((P - P110).mod(), (P - P111).mod())));
+
+			if (xi + yi + zi == 2) {
+				if (!xi) return min(abs(dot(P, Px0) + px0), abs(dot(P, Px1) + px1));
+				if (!yi) return min(abs(dot(P, Py0) + py0), abs(dot(P, Py1) + py1));
+				if (!zi) return min(abs(dot(P, Pz0) + pz0), abs(dot(P, Pz1) + pz1));
+			}
+
+			if (xi + yi + zi == 1) {
+				if (xi) return min(min(abs(cross(P - P000, Ex00).mod()), abs(cross(P - P001, Ex01).mod())),
+					min(abs(cross(P - P010, Ex10).mod()), abs(cross(P - P011, Ex11).mod())));
+				if (yi) return min(min(abs(cross(P - P000, Ey00).mod()), abs(cross(P - P001, Ey01).mod())),
+					min(abs(cross(P - P100, Ey10).mod()), abs(cross(P - P101, Ey11).mod())));
+				if (zi) return min(min(abs(cross(P - P000, Ez00).mod()), abs(cross(P - P010, Ez01).mod())),
+					min(abs(cross(P - P100, Ez10).mod()), abs(cross(P - P110, Ez11).mod())));
+			}
+
+			return 0;
+		}
+
+		borderbox MaxMin() const {
+			point P1 = M * point(0, 0, 0), P2 = M * point(1, 0, 0), P3 = M * point(0, 1, 0), P4 = M * point(0, 0, 1),
+				P5 = M * point(0, 1, 1), P6 = M * point(1, 0, 1), P7 = M * point(1, 1, 0), P8 = M * point(1, 1, 1);
+
+			// Since this function will be called before rendering, it would be okay to invert the matrix there.
+			*const_cast<matrix3D_affine*>(&M_invert) = M.invert();
+			*const_cast<point*>(&P000) = M * point(0, 0, 0), *const_cast<point*>(&P001) = M * point(0, 0, 1);
+			*const_cast<point*>(&P100) = M * point(1, 0, 0), *const_cast<point*>(&P010) = M * point(0, 1, 0);
+			*const_cast<point*>(&P110) = M * point(1, 1, 0), *const_cast<point*>(&P101) = M * point(1, 0, 1);
+			*const_cast<point*>(&P011) = M * point(0, 1, 1), *const_cast<point*>(&P111) = M * point(1, 1, 1);
+			*const_cast<vec3*>(&Ex00) = P100 - P000, *const_cast<vec3*>(&Ex01) = P101 - P001, *const_cast<vec3*>(&Ex10) = P110 - P010, *const_cast<vec3*>(&Ex11) = P111 - P011;
+			*const_cast<vec3*>(&Ey00) = P010 - P000, *const_cast<vec3*>(&Ey01) = P011 - P001, *const_cast<vec3*>(&Ey10) = P110 - P100, *const_cast<vec3*>(&Ey11) = P111 - P101;
+			*const_cast<vec3*>(&Ez00) = P001 - P000, *const_cast<vec3*>(&Ez01) = P011 - P010, *const_cast<vec3*>(&Ez10) = P101 - P100, *const_cast<vec3*>(&Ez11) = P111 - P110;
+			*const_cast<vec3*>(&Px0) = cross(Ez00, Ey00), *const_cast<vec3*>(&Px1) = cross(Ey10, Ez10); *const_cast<vec3*>(&Px0) /= Px0.mod(), *const_cast<vec3*>(&Px1) /= Px1.mod();
+			*const_cast<vec3*>(&Py0) = cross(Ex00, Ez00), *const_cast<vec3*>(&Py1) = cross(Ez11, Ex11); *const_cast<vec3*>(&Py0) /= Py0.mod(), *const_cast<vec3*>(&Py1) /= Py1.mod();
+			*const_cast<vec3*>(&Pz0) = cross(Ey00, Ex00), *const_cast<vec3*>(&Pz1) = cross(Ex01, Ey01); *const_cast<vec3*>(&Pz0) /= Pz0.mod(), *const_cast<vec3*>(&Pz1) /= Pz1.mod();
+			*const_cast<vec3*>(&Ex00) /= Ex00.mod(), *const_cast<vec3*>(&Ex01) /= Ex01.mod(), *const_cast<vec3*>(&Ex10) /= Ex10.mod(), *const_cast<vec3*>(&Ex11) /= Ex11.mod();
+			*const_cast<vec3*>(&Ey00) /= Ey00.mod(), *const_cast<vec3*>(&Ey01) /= Ey01.mod(), *const_cast<vec3*>(&Ey10) /= Ey10.mod(), *const_cast<vec3*>(&Ey11) /= Ey11.mod();
+			*const_cast<vec3*>(&Ez00) /= Ez00.mod(), *const_cast<vec3*>(&Ez01) /= Ez01.mod(), *const_cast<vec3*>(&Ez10) /= Ez10.mod(), *const_cast<vec3*>(&Ez11) /= Ez11.mod();
+			*const_cast<double*>(&px0) = -dot(Px0, P000), *const_cast<double*>(&px1) = -dot(Px1, P100);
+			*const_cast<double*>(&py0) = -dot(Py0, P000), *const_cast<double*>(&py1) = -dot(Py1, P111);
+			*const_cast<double*>(&pz0) = -dot(Pz0, P000), *const_cast<double*>(&pz1) = -dot(Pz1, P001);
+
+			return borderbox(PMin(PMin(PMin(P1, P2), PMin(P3, P4)), PMin(PMin(P5, P6), PMin(P7, P8))),
+				PMax(PMax(PMax(P1, P2), PMax(P3, P4)), PMax(PMax(P5, P6), PMax(P7, P8))));
+		}
+	};
+
 }
 
 // Windows null pointer: 0x00000000-0x0000FFFF
@@ -621,7 +690,7 @@ public:
 		X.border.Max = point(INFINITY, INFINITY, INFINITY), X.border.Min = -X.border.Max;
 		return X;
 	}
-	friend XSolid CSG_RoundingOp(const XSolid &A, double r) {	// makes the object larger
+	friend XSolid CSG_RoundingOp(const XSolid &A, double r) {	// makes the object larger, doesn't apply for Union/Intersection/Subtraction objects
 		XSolid X;
 		for (int i = 0; i < A.objs.size(); i++) X.objs.push_back(A.objs.at(i));
 		X.deep_copy(A);
@@ -648,7 +717,7 @@ void VisualizeSDF(XSolid &X, parallelogram p, double S) {
 	double w = p.A.mod(), h = p.B.mod(), t = h / w;
 	w = sqrt(S / t), h = w * t;
 
-	bitmap canvas(2 * w, 2 * h);
+	bitmap canvas(2 * ceil(w), 2 * ceil(h));
 	double u, v, sdf, x, y, mag, arg; point P;
 
 	for (unsigned i = 0; i < h; i++) {

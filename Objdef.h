@@ -173,8 +173,8 @@ public:
 };
 
 enum matrix_type {
-	Zero, Identity, 
-	Stretching, Rotation, Shearing, Reflection, Projection, 
+	Zero, Identity,
+	Stretching, Rotation, Shearing, Reflection, Projection,
 };
 class matrix3D {
 	double p[3][3];
@@ -209,8 +209,169 @@ public:
 	~matrix3D() {}
 
 	inline point operator * (const point &P) const {
-		return point(p[0][0] * P.x + p[0][1] * P.y + p[0][2] * P.z, 
+		return point(p[0][0] * P.x + p[0][1] * P.y + p[0][2] * P.z,
 			p[1][0] * P.x + p[1][1] * P.y + p[1][2] * P.z, p[2][0] * P.x + p[2][1] * P.y + p[2][2] * P.z);
+	}
+
+	friend class matrix3D_affine;
+};
+class matrix3D_affine {
+	double p[4][4];
+	double _det; bool det_calced;
+public:
+	matrix3D_affine() {}
+	matrix3D_affine(const double& _00, const double& _01, const double& _02,
+		const double& _10, const double& _11, const double& _12, const double& _20, const double& _21, const double& _22) {
+		p[0][0] = _00, p[0][1] = _01, p[0][2] = _02, p[1][0] = _10, p[1][1] = _11, p[1][2] = _12, p[2][0] = _20, p[2][1] = _21, p[2][2] = _22;
+		p[0][3] = p[1][3] = p[2][3] = 0, p[3][0] = p[3][1] = p[3][2] = 0, p[3][3] = 1;
+		det_calced = false;
+	}
+	matrix3D_affine(const double& _00, const double& _01, const double& _02, const double& _03, const double& _10, const double& _11, const double& _12, const double &_13,
+		const double& _20, const double& _21, const double& _22, const double& _23, const double& _30, const double& _31, const double& _32, const double& _33) {
+		p[0][0] = _00, p[0][1] = _01, p[0][2] = _02, p[0][3] = _03;
+		p[1][0] = _10, p[1][1] = _11, p[1][2] = _12, p[1][3] = _13;
+		p[2][0] = _20, p[2][1] = _21, p[2][2] = _22, p[2][3] = _23;
+		p[3][0] = _30, p[3][1] = _31, p[3][2] = _32, p[3][3] = _33;
+		det_calced = false;
+	}
+	matrix3D_affine(const matrix3D &other) {
+		for (int i = 0; i < 3; i++) {
+			for (int j = 0; j < 3; j++) {
+				this->p[i][j] = other.p[i][j];
+			}
+			this->p[i][3] = this->p[3][i] = 0;
+		}
+		this->p[3][3] = 1;
+		det_calced = false;
+	}
+	matrix3D_affine(const matrix3D_affine &other) {
+		for (int i = 0; i < 4; i++) {
+			for (int j = 0; j < 4; j++) {
+				this->p[i][j] = other.p[i][j];
+			}
+		}
+		if (this->det_calced = other.det_calced) this->_det = other._det;
+	}
+	matrix3D_affine& operator = (const matrix3D_affine& other) {
+		for (int i = 0; i < 4; i++) {
+			for (int j = 0; j < 4; j++) {
+				this->p[i][j] = other.p[i][j];
+			}
+		}
+		if (this->det_calced = other.det_calced) this->_det = other._det;
+		return *this;
+	}
+	~matrix3D_affine() {}
+
+	inline double* operator [] (const unsigned &n) {
+		det_calced = false;
+		return &p[n][0];
+	}
+	inline point operator * (const point &P) const {
+		double m = p[3][0] * P.x + p[3][1] * P.y + p[3][2] * P.z + p[3][3];
+		return point((p[0][0] * P.x + p[0][1] * P.y + p[0][2] * P.z + p[0][3]) / m,
+			(p[1][0] * P.x + p[1][1] * P.y + p[1][2] * P.z + p[1][3]) / m, (p[2][0] * P.x + p[2][1] * P.y + p[2][2] * P.z + p[2][3]) / m);
+	}
+	matrix3D_affine operator * (const matrix3D_affine &A) const {
+		matrix3D_affine R;
+		for (int m = 0; m < 4; m++) {
+			for (int n = 0; n < 4; n++) {
+				R[m][n] = 0;
+				for (int i = 0; i < 4; i++) R[m][n] += p[m][i] * A.p[i][n];
+			}
+		}
+		return R;
+	}
+	double det() const {
+		fout << "Catch: " << endl << *this << endl << endl;
+
+		if (det_calced) return _det;
+		bool sign = false;
+		double P[4][4];
+		for (int i = 0; i < 4; i++) for (int j = 0; j < 4; j++) P[i][j] = p[i][j];
+		for (int i = 0; i < 4; i++) {
+			if (abs(P[i][i]) < ERR_EPSILON) {
+				P[i][i] = 0;
+				for (int j = i + 1; j < 4; j++) {
+					if (abs(P[i][j]) > ERR_EPSILON) {
+						for (int k = 0; k < 4; k++) swap(P[k][j], P[k][i]);
+
+						fout << "Swap: " << endl;
+						for (int i = 0; i < 4; i++) { for (int j = 0; j < 4; j++) { fout << P[i][j] << "\t"; } fout << endl; }
+						fout << endl << endl;
+
+						sign ^= 1;
+						break;
+					}
+					if (j == 3) return 0;
+				}
+			}
+			for (int j = i + 1; j < 4; j++) {
+				if (abs(P[j][i]) > ERR_EPSILON) {
+					double c = P[j][i] / P[i][i];
+					for (int k = i; k < 4; k++) {
+						P[j][k] -= c * P[i][k];
+					}
+				}
+			}
+		}
+
+		double c = sign ? -1 : 1;
+		for (int i = 0; i < 4; i++) c *= P[i][i];
+		*const_cast<double*>(&_det) = c; *const_cast<bool*>(&det_calced) = true;
+		return c;
+	}
+	matrix3D_affine invert() const {
+		matrix3D_affine R(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);
+		double P[4][4]; for (int i = 0; i < 4; i++) for (int j = 0; j < 4; j++) P[i][j] = p[i][j];
+
+		for (int i = 0; i < 4; i++) {
+			if (abs(P[i][i]) < ERR_EPSILON) {
+				P[i][i] = 0;
+				for (int j = i + 1; j < 4; j++) {
+					if (abs(P[i][j]) > ERR_EPSILON) {
+						for (int k = 0; k < 4; k++) swap(P[k][j], P[k][i]), swap(R.p[k][j], R.p[k][i]);
+
+						break;
+					}
+					if (j == 3) {
+						for (int m = 0; m < 4; m++) for (int n = 0; n < 4; n++) R.p[m][n] = NAN;
+						return R;
+					}
+				}
+			}
+			for (int j = 0; j < 4; j++) {
+				if (j != i && abs(P[j][i]) > ERR_EPSILON) {
+					double c = P[j][i] / P[i][i];
+					for (int k = 0; k < 4; k++) {
+						P[j][k] -= c * P[i][k], R[j][k] -= c * R.p[i][k];
+					}
+
+				}
+			}
+		}
+
+		for (int j = 0; j < 4; j++) {
+			if (abs(P[j][j]) < ERR_EPSILON) {
+				for (int m = 0; m < 4; m++) for (int n = 0; n < 4; n++) R.p[m][n] = NAN;
+				return R;
+			}
+			for (int k = 0; k < 4; k++) {
+				R.p[j][k] /= P[j][j];
+				if (abs(R.p[j][k]) < ERR_EPSILON) R.p[j][k] = 0;
+			}
+		}
+		return R;
+	}
+
+	friend ostream& operator << (ostream& os, const matrix3D_affine &A) {
+		for (int i = 0; i < 4; i++) {
+			for (int j = 0; j < 4; j++) {
+				os << A.p[i][j] << "\t";
+			}
+			os << endl;
+		}
+		return os;
 	}
 };
 
@@ -581,7 +742,7 @@ double solveQuartic(double a, double b, double c, double d, double e) {
 		if (x < ERR_EPSILON) x = r > ERR_EPSILON ? r : NAN;
 		else x = r < ERR_EPSILON ? x : (x < r ? x : r);
 	}
-	/*b = B, c = C, d = D, e = E; a = 1; a_ *= a, b_ *= b, c_ *= d, d_ *= d; 
+	/*b = B, c = C, d = D, e = E; a = 1; a_ *= a, b_ *= b, c_ *= d, d_ *= d;
 	n = 0; do {
 		u = (((a*x + b)*x + c)*x + d)*x + e, v = ((a_*x + b_)*x + c_)*x + d_;
 		dx = u / v; x -= dx;

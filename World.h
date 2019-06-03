@@ -401,7 +401,7 @@ public:
 		const double rs = 0.5 * sqrt(4 * r*r - w * w - h * h);
 
 		// calculate rotation
-		double orx = acos(OC.z / r), orz = atan2(OC.x, -OC.y);
+		double orx = acos(OC.z / r), orz = atan2(OC.x, -OC.y); if (isnan(orz)) orz = 0;
 		const double rx = atan2(sin(orx)*cos(rt), cos(orx)), ry = atan2(-sin(orx)*sin(rt), hypot(sin(orx)*cos(rt), cos(orx))),
 			rz = atan2(sin(orz)*cos(rt) + sin(rt)*cos(orx)*cos(orz), cos(rt)*cos(orz) - sin(rt)*cos(orx)*sin(orz));		// first x, then y, finally z
 		
@@ -423,7 +423,7 @@ public:
 		fsec fs;
 #ifndef DEBUG
 		const int STEP = 8;
-		vector<double> attempt; attempt.resize(canvas.width() / STEP);
+		vector<double> attempt; attempt.resize(canvas.width() / STEP + 1);
 		double u, v;
 		auto t0 = NTime::now();
 		auto t1 = NTime::now();

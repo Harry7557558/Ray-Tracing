@@ -426,7 +426,7 @@ namespace XObjs {
 			this->M = matrix3D_affine(M)*this->M;
 		}
 		void transform(matrix3D_affine M) {
-			this->M = M*this->M;
+			this->M = M * this->M;
 		}
 		void scale(double s) {
 			M.scale(s, s, s);
@@ -486,13 +486,15 @@ namespace XObjs {
 }
 
 // Windows null pointer: 0x00000000-0x0000FFFF
-// 0xABCC    A: number of operated objects;  B: number of extra parameters;  CC: operation #
+// 0xABCC    A: number of operated objects, 0 means apply to point;  B: number of extra parameters;  CC: operation #
 #define CSG_UnionOp_Sign 0x2001
 #define CSG_IntersectionOp_Sign 0x2002
 #define CSG_SubtractionOp_Sign 0x2003
 #define CSG_ComplementOp_Sign 0x1004
 #define CSG_RoundingOp_Sign 0x1105
 #define CSG_OnionOp_Sign 0x1106
+#define CSG_Translation_Sign 0x0107
+#define CSG_Rotation_Sign 0x0108
 
 #define CSG_UnionOperator ((const XObjs::XObjs_Comp*)CSG_UnionOp_Sign)
 #define CSG_IntersectionOperator ((const XObjs::XObjs_Comp*)CSG_IntersectionOp_Sign)
@@ -500,6 +502,9 @@ namespace XObjs {
 #define CSG_ComplementOperator ((const XObjs::XObjs_Comp*)CSG_ComplementOp_Sign)
 #define CSG_RoundingOperator ((const XObjs::XObjs_Comp*)CSG_RoundingOp_Sign)
 #define CSG_OnionOperator ((const XObjs::XObjs_Comp*)CSG_OnionOp_Sign)
+#define CSG_TranslationOperator ((const XObjs::XObjs_Comp*)CSG_Translation_Sign)
+#define CSG_RotationOperator ((const XObjs::XObjs_Comp*)CSG_Rotation_Sign)
+
 
 #include <thread>
 #include <mutex>
@@ -523,10 +528,18 @@ class XSolid : public object {
 			else {
 				this->objs_tp.push_back(new void*[XSolid_Max_Parameter]);
 				for (unsigned m = 0; m < XSolid_Max_Parameter; m++) this->objs_tp.back()[m] = 0;
-				switch (unsigned(objs.at(i))) {
+				switch (unsigned(other.objs.at(i))) {
 				case CSG_RoundingOp_Sign:;
 				case CSG_OnionOp_Sign: {
 					this->objs_tp.back()[0] = new double(*((double*)(other.objs_tp.at(i)[0])));
+					break;
+				}
+				case CSG_Translation_Sign: {
+					this->objs_tp.back()[0] = new point(*((point*)(other.objs_tp.at(i)[0])));
+					break;
+				}
+				case CSG_Rotation_Sign: {
+					this->objs_tp.back()[0] = new matrix3D(*((matrix3D*)(other.objs_tp.at(i)[0])));
 					break;
 				}
 				}
@@ -598,45 +611,6 @@ public:
 	point Min() const { return border.Min; }
 	unsigned telltype() const { return XSolid_Sign; }
 
-	void reborder() {
-		stack<borderbox> s;
-		borderbox t1, t2, t;
-		for (int i = 0, sz = 0; i < objs.size(); i++) {
-			switch ((unsigned)(objs.at(i))) {
-			case CSG_UnionOp_Sign: {
-				t1 = s.top(), s.pop(); t2 = s.top(), s.pop();
-				t.Max = PMax(t1.Max, t2.Max), t.Min = PMin(t1.Min, t2.Min);
-				s.push(t); break;
-			}
-			case CSG_IntersectionOp_Sign: {
-				t1 = s.top(), s.pop(); t2 = s.top(), s.pop();
-				t.Max = PMin(t1.Max, t2.Max), t.Min = PMax(t1.Min, t2.Min);
-				s.push(t); break;
-			}
-			case CSG_SubtractionOp_Sign: {
-				t = s.top(), s.pop(); s.pop();
-				s.push(t); break;	// need to optimize
-			}
-			case CSG_ComplementOp_Sign: {
-				s.top() = borderbox(point(-INFINITY, -INFINITY, -INFINITY), point(INFINITY, INFINITY, INFINITY));
-				break;
-			}
-			case CSG_OnionOp_Sign:;
-			case CSG_RoundingOp_Sign: {
-				double r = *((double*)objs_tp.at(i)[0]); t.Max = point(r, r, r);
-				s.top().Max += t.Max, s.top().Min -= t.Max; break;
-			}
-			default: {
-				if ((unsigned)(objs.at(i)) >> 16) s.push(objs.at(i)->MaxMin());
-				else {
-					cout << OS_Pointer << objs.at(i) << ": ";
-					WARN("Unknown signature!");
-				}
-			}
-			}
-		}
-
-	}
 	void init() {
 		if (objs.empty()) border.Max = border.Min = point(0, 0, 0);
 		border.fix();
@@ -657,10 +631,9 @@ public:
 		Stack = new double*[4]; TIed = false;
 		for (int i = 0; i < 4; i++) Stack[i] = new double[Max_StackLength], Stack_Usage[i] = false;
 
-		reborder();
 	}
 
-	double SDF(const point &P, const unsigned &_thread_No) const {
+	double SDF(point P, const unsigned &_thread_No) const {
 		double *S = Stack[_thread_No];
 		for (unsigned i = 0, l = objs.size(), dir = 0; i < l; i++) {
 			switch ((unsigned)(objs.at(i))) {
@@ -689,6 +662,14 @@ public:
 			}
 			case CSG_OnionOp_Sign: {
 				S[dir - 1] = abs(S[dir - 1]) - *((double*)objs_tp.at(i)[0]);
+				break;
+			}
+			case CSG_Translation_Sign: {
+				P += *((point*)objs_tp.at(i)[0]);
+				break;
+			}
+			case CSG_Rotation_Sign: {
+				P *= *((matrix3D*)objs_tp.at(i)[0]);
 				break;
 			}
 			default: {
@@ -803,6 +784,7 @@ public:
 		X.objs.push_back(CSG_RoundingOperator), X.objs_tp_push();
 		X.objs_tp.back()[0] = new double(r);
 		X.border.Max = A.border.Max + point(r, r, r), X.border.Min = A.border.Min - point(r, r, r);
+		//cout << A.border << endl << X.border << endl;
 		return X;
 	}
 	friend XSolid CSG_OnionOp(const XSolid &A, double r) {	// make larger, problems may occur to concave side
@@ -812,6 +794,39 @@ public:
 		X.objs.push_back(CSG_OnionOperator), X.objs_tp_push();
 		X.objs_tp.back()[0] = new double(r);
 		X.border.Max = A.border.Max + point(r, r, r), X.border.Min = A.border.Min - point(r, r, r);
+		return X;
+	}
+	friend XSolid CSG_Translation(const XSolid &A, const vec3 &P) {		// exact
+		XSolid X;
+		X.objs.push_back(CSG_TranslationOperator), X.objs_tp_push();
+		X.objs_tp.back()[0] = new point(-P);
+		for (int i = 0; i < A.objs.size(); i++) X.objs.push_back(A.objs.at(i));
+		X.deep_copy(A);
+		X.objs.push_back(CSG_TranslationOperator), X.objs_tp_push();
+		X.objs_tp.back()[0] = new point(P);
+		X.border.Max = A.border.Max + P, X.border.Min = A.border.Min + P;
+		//cout << A.border << endl << X.border << endl;
+		return X;
+	}
+	friend XSolid CSG_Rotation(const XSolid &A, double rx, double ry, double rz) {	// exact, rotate about origin
+		matrix3D M(Rotation, rx, ry, rz);
+		XSolid X;
+		X.objs.push_back(CSG_RotationOperator), X.objs_tp_push();
+		X.objs_tp.back()[0] = new matrix3D(M.invert());
+		for (int i = 0; i < A.objs.size(); i++) X.objs.push_back(A.objs.at(i));
+		X.deep_copy(A);
+		X.objs.push_back(CSG_RotationOperator), X.objs_tp_push();
+		X.objs_tp.back()[0] = new matrix3D(M);
+
+		X.border.Max = PMax(PMax(PMax(M*point(A.border.Min.x, A.border.Min.y, A.border.Min.z), M*point(A.border.Min.x, A.border.Min.y, A.border.Max.z)),
+			PMax(M*point(A.border.Min.x, A.border.Max.y, A.border.Min.z), M*point(A.border.Max.x, A.border.Min.y, A.border.Min.z))),
+			PMax(PMax(M*point(A.border.Max.x, A.border.Max.y, A.border.Max.z), M*point(A.border.Max.x, A.border.Max.y, A.border.Min.z)),
+				PMax(M*point(A.border.Max.x, A.border.Min.y, A.border.Max.z), M*point(A.border.Min.x, A.border.Max.y, A.border.Max.z))));
+		X.border.Min = PMin(PMin(PMin(M*point(A.border.Min.x, A.border.Min.y, A.border.Min.z), M*point(A.border.Min.x, A.border.Min.y, A.border.Max.z)),
+			PMin(M*point(A.border.Min.x, A.border.Max.y, A.border.Min.z), M*point(A.border.Max.x, A.border.Min.y, A.border.Min.z))),
+			PMin(PMin(M*point(A.border.Max.x, A.border.Max.y, A.border.Max.z), M*point(A.border.Max.x, A.border.Max.y, A.border.Min.z)),
+				PMin(M*point(A.border.Max.x, A.border.Min.y, A.border.Max.z), M*point(A.border.Min.x, A.border.Max.y, A.border.Max.z))));
+		//cout << A.border << endl << X.border << endl;
 		return X;
 	}
 };

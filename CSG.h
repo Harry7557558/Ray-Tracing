@@ -393,9 +393,6 @@ namespace XObjs {
 		}
 
 		borderbox MaxMin() const {
-			point P1 = M * point(0, 0, 0), P2 = M * point(1, 0, 0), P3 = M * point(0, 1, 0), P4 = M * point(0, 0, 1),
-				P5 = M * point(0, 1, 1), P6 = M * point(1, 0, 1), P7 = M * point(1, 1, 0), P8 = M * point(1, 1, 1);
-
 			// Since this function will be called before rendering, it would be okay to invert the matrix there.
 			*const_cast<matrix3D_affine*>(&M_invert) = M.invert();
 			*const_cast<point*>(&P000) = M * point(0, 0, 0), *const_cast<point*>(&P001) = M * point(0, 0, 1);
@@ -415,8 +412,74 @@ namespace XObjs {
 			*const_cast<double*>(&py0) = -dot(Py0, P000), *const_cast<double*>(&py1) = -dot(Py1, P111);
 			*const_cast<double*>(&pz0) = -dot(Pz0, P000), *const_cast<double*>(&pz1) = -dot(Pz1, P001);
 
+			point P1 = M * point(0, 0, 0), P2 = M * point(1, 0, 0), P3 = M * point(0, 1, 0), P4 = M * point(0, 0, 1),
+				P5 = M * point(0, 1, 1), P6 = M * point(1, 0, 1), P7 = M * point(1, 1, 0), P8 = M * point(1, 1, 1);
 			return borderbox(PMin(PMin(PMin(P1, P2), PMin(P3, P4)), PMin(PMin(P5, P6), PMin(P7, P8))),
 				PMax(PMax(PMax(P1, P2), PMax(P3, P4)), PMax(PMax(P5, P6), PMax(P7, P8))));
+		}
+
+		/* This part doesn't require high efficiency */
+		point center() {
+			return M * point(0.5, 0.5, 0.5);
+		}
+		void transform(matrix3D M) {
+			this->M = matrix3D_affine(M)*this->M;
+		}
+		void transform(matrix3D_affine M) {
+			this->M = M*this->M;
+		}
+		void scale(double s) {
+			M.scale(s, s, s);
+		}
+		void scale(double x, double y, double z) {
+			M.scale(x, y, z);
+		}
+		void scale(point P, double s) {
+			M.translate(-P.x, -P.y, -P.z);
+			M.scale(s, s, s);
+			M.translate(P.x, P.y, P.z);
+		}
+		void scale(point P, double x, double y, double z) {
+			M.translate(-P.x, -P.y, -P.z);
+			M.scale(x, y, z);
+			M.translate(P.x, P.y, P.z);
+		}
+		void translate(double x, double y, double z) {
+			M.translate(x, y, z);
+		}
+		void operator += (point P) {
+			M.translate(P.x, P.y, P.z);
+		}
+		void operator -= (point P) {
+			M.translate(-P.x, -P.y, -P.z);
+		}
+		void rotate(double rz) {
+			M.rotate(0, 0, rz);
+		}
+		void rotate(point P, double rz) {
+			M.translate(-P.x, -P.y, -P.z);
+			M.rotate(0, 0, rz);
+			M.translate(P.x, P.y, P.z);
+		}
+		void rotate(double rx, double rz) {
+			M.rotate(rx, 0, rz);
+		}
+		void rotate(point P, double rx, double rz) {
+			M.translate(-P.x, -P.y, -P.z);
+			M.rotate(rx, 0, rz);
+			M.translate(P.x, P.y, P.z);
+		}
+		void rotate(double rx, double ry, double rz) {
+			M.rotate(rx, ry, rz);
+		}
+		void rotate(point P, double rx, double ry, double rz) {
+			M.translate(-P.x, -P.y, -P.z);
+			M.rotate(rx, ry, rz);
+			M.translate(P.x, P.y, P.z);
+		}
+		void perspective(double x, double y, double z) {
+			M.perspective(x, y, z);
+			// 1/x, 1/y, 1/z, 1/(x+1), 1/(y+1), 1/(z+1)
 		}
 	};
 
@@ -454,7 +517,7 @@ class XSolid : public object {
 		for (unsigned m = 0; m < XSolid_Max_Parameter; m++) this->objs_tp.back()[m] = 0;
 	}
 	void deep_copy(const XSolid &other) {
-		// assign objs_dir
+		// assign objs_dir, don't copy object
 		for (unsigned i = 0; i < other.objs_tp.size(); i++) {
 			if (other.objs_tp.at(i) == 0) this->objs_tp.push_back(0);
 			else {
@@ -524,7 +587,7 @@ public:
 			}
 		}
 		if (Stack != 0) {
-			delete Stack[0], Stack[1], Stack[2], Stack[3];
+			delete Stack[0]; delete Stack[1]; delete Stack[2]; delete Stack[3];
 			delete Stack; Stack = 0;
 		}
 	}
@@ -535,6 +598,45 @@ public:
 	point Min() const { return border.Min; }
 	unsigned telltype() const { return XSolid_Sign; }
 
+	void reborder() {
+		stack<borderbox> s;
+		borderbox t1, t2, t;
+		for (int i = 0, sz = 0; i < objs.size(); i++) {
+			switch ((unsigned)(objs.at(i))) {
+			case CSG_UnionOp_Sign: {
+				t1 = s.top(), s.pop(); t2 = s.top(), s.pop();
+				t.Max = PMax(t1.Max, t2.Max), t.Min = PMin(t1.Min, t2.Min);
+				s.push(t); break;
+			}
+			case CSG_IntersectionOp_Sign: {
+				t1 = s.top(), s.pop(); t2 = s.top(), s.pop();
+				t.Max = PMin(t1.Max, t2.Max), t.Min = PMax(t1.Min, t2.Min);
+				s.push(t); break;
+			}
+			case CSG_SubtractionOp_Sign: {
+				t = s.top(), s.pop(); s.pop();
+				s.push(t); break;	// need to optimize
+			}
+			case CSG_ComplementOp_Sign: {
+				s.top() = borderbox(point(-INFINITY, -INFINITY, -INFINITY), point(INFINITY, INFINITY, INFINITY));
+				break;
+			}
+			case CSG_OnionOp_Sign:;
+			case CSG_RoundingOp_Sign: {
+				double r = *((double*)objs_tp.at(i)[0]); t.Max = point(r, r, r);
+				s.top().Max += t.Max, s.top().Min -= t.Max; break;
+			}
+			default: {
+				if ((unsigned)(objs.at(i)) >> 16) s.push(objs.at(i)->MaxMin());
+				else {
+					cout << OS_Pointer << objs.at(i) << ": ";
+					WARN("Unknown signature!");
+				}
+			}
+			}
+		}
+
+	}
 	void init() {
 		if (objs.empty()) border.Max = border.Min = point(0, 0, 0);
 		border.fix();
@@ -549,9 +651,13 @@ public:
 			if (Max_StackLength < sz) Max_StackLength = sz;
 		}
 
-		if (Stack != 0) delete Stack[0], Stack[1], Stack[2], Stack[3], Stack;
+		if (Stack != 0) {
+			delete Stack[0]; delete Stack[1]; delete Stack[2]; delete Stack[3]; delete Stack;
+		}
 		Stack = new double*[4]; TIed = false;
 		for (int i = 0; i < 4; i++) Stack[i] = new double[Max_StackLength], Stack_Usage[i] = false;
+
+		reborder();
 	}
 
 	double SDF(const point &P, const unsigned &_thread_No) const {
@@ -578,7 +684,7 @@ public:
 				break;
 			}
 			case CSG_RoundingOp_Sign: {
-				S[dir - 1] -= *((double*)objs_tp.at(i)[0]);		// doesn't work
+				S[dir - 1] -= *((double*)objs_tp.at(i)[0]);
 				break;
 			}
 			case CSG_OnionOp_Sign: {
@@ -712,7 +818,7 @@ public:
 
 
 
-void VisualizeSDF(XSolid &X, parallelogram p, double S) {
+void VisualizeSDF(XSolid X, parallelogram p, double S) {
 	X.init();
 	double w = p.A.mod(), h = p.B.mod(), t = h / w;
 	w = sqrt(S / t), h = w * t;
@@ -728,8 +834,9 @@ void VisualizeSDF(XSolid &X, parallelogram p, double S) {
 			x = X.SDF(p.O + (u + ERR_ZETA) * p.A + v * p.B, 0) - sdf;
 			y = X.SDF(p.O + u * p.A + (v + ERR_ZETA) * p.B, 0) - sdf;
 			x /= ERR_ZETA, y /= ERR_ZETA;
-			mag = 1 / sqrt(x * x + y * y);
+			mag = sqrt(x * x + y * y);
 			arg = atan2(y, x - y);
+			if (isnan(arg)) mag = arg = 0;
 
 			// General Visualization of Magnitude
 			double t = tanh(0.5 * sdf);
@@ -748,7 +855,7 @@ void VisualizeSDF(XSolid &X, parallelogram p, double S) {
 			canvas[i + h][j + int(w)] = drgb(r, g, b);
 
 			// Derivative of SDF
-			canvas[i][j] = fromHSL(arg / (2 * PI), 1, 1 - pow(0.4, log(log(mag + 1) + 1.05)));
+			canvas[i][j] = fromHSL(arg / (2 * PI), 0.8, 1 - pow(0.7, log(log(mag + 1) + 1.05)));
 
 			// Magnitude + Change
 			canvas[i][j + int(w)] = rgb(0.5*(rgblight(canvas[i][j]) + rgblight(canvas[i + h][j])));

@@ -200,6 +200,10 @@ public:
 		}
 		}
 	}
+	matrix3D(const double& _00, const double& _01, const double& _02,
+		const double& _10, const double& _11, const double& _12, const double& _20, const double& _21, const double& _22) {
+		p[0][0] = _00, p[0][1] = _01, p[0][2] = _02, p[1][0] = _10, p[1][1] = _11, p[1][2] = _12, p[2][0] = _20, p[2][1] = _21, p[2][2] = _22;
+	}
 	matrix3D(const initializer_list<double> &l) {
 		for (int i = 0; i < 9; i++) *(&p[0][0] + i) = *(l.begin() + i);
 	}
@@ -210,11 +214,54 @@ public:
 			}
 		}
 	}
+	matrix3D(const matrix3D &other) {
+		for (int i = 0; i < 3; i++) {
+			for (int j = 0; j < 3; j++) {
+				p[i][j] = other.p[i][j];
+			}
+		}
+	}
 	~matrix3D() {}
 
 	inline point operator * (const point &P) const {
 		return point(p[0][0] * P.x + p[0][1] * P.y + p[0][2] * P.z,
 			p[1][0] * P.x + p[1][1] * P.y + p[1][2] * P.z, p[2][0] * P.x + p[2][1] * P.y + p[2][2] * P.z);
+	}
+	friend void operator *= (point &P, const matrix3D &A) {
+		double x = P.x, y = P.y, z = P.z;
+		P.x = A.p[0][0] * x + A.p[0][1] * y + A.p[0][2] * z;
+		P.y = A.p[1][0] * x + A.p[1][1] * y + A.p[1][2] * z;
+		P.z = A.p[2][0] * x + A.p[2][1] * y + A.p[2][2] * z;
+	}
+	matrix3D operator * (const matrix3D &A) const {
+		matrix3D R;
+		for (int m = 0; m < 3; m++) {
+			for (int n = 0; n < 3; n++) {
+				R.p[m][n] = 0;
+				for (int i = 0; i < 3; i++) R.p[m][n] += p[m][i] * A.p[i][n];
+			}
+		}
+		return R;
+	}
+
+	friend ostream& operator << (ostream& os, const matrix3D &A) {
+		for (int i = 0; i < 3; i++) {
+			for (int j = 0; j < 3; j++) {
+				os << A.p[i][j] << "\t";
+			}
+			os << endl;
+		}
+		return os;
+	}
+
+	matrix3D invert() {
+		matrix3D M(
+			p[1][1] * p[2][2] - p[1][2] * p[2][1], p[0][2] * p[2][1] - p[0][1] * p[2][2], p[0][1] * p[1][2] - p[0][2] * p[1][1],
+			p[1][2] * p[2][0] - p[1][0] * p[2][2], p[0][0] * p[2][2] - p[0][2] * p[2][0], p[0][2] * p[1][0] - p[0][0] * p[1][2],
+			p[1][0] * p[2][1] - p[1][1] * p[2][0], p[0][1] * p[2][0] - p[0][0] * p[2][1], p[0][0] * p[1][1] - p[0][1] * p[1][0]);
+		double det = p[0][0] * (p[1][1] * p[2][2] - p[1][2] * p[2][1]) - p[0][1] * (p[1][0] * p[2][2] - p[1][2] * p[2][0]) + p[0][2] * (p[1][0] * p[2][1] - p[1][1] * p[2][0]);
+		for (int i = 0; i < 3; i++) for (int j = 0; j < 3; j++) M.p[i][j] /= det;
+		return M;
 	}
 
 	friend class matrix3D_affine;
@@ -287,8 +334,8 @@ public:
 		matrix3D_affine R;
 		for (int m = 0; m < 4; m++) {
 			for (int n = 0; n < 4; n++) {
-				R[m][n] = 0;
-				for (int i = 0; i < 4; i++) R[m][n] += p[m][i] * A.p[i][n];
+				R.p[m][n] = 0;
+				for (int i = 0; i < 4; i++) R.p[m][n] += p[m][i] * A.p[i][n];
 			}
 		}
 		if (this->det_calced && A.det_calced) R.det_calced = true, R._det = this->_det * A._det;

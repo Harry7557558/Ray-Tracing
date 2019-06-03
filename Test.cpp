@@ -1,3 +1,4 @@
+#pragma once
 #include "World.h"
 
 using namespace std;
@@ -814,7 +815,7 @@ void Render_XTest00() {
 	X.setColor(White); W.add(&X);
 
 	X.type = XSolid_Crystal; X.setColor(rgblight(0, 0, 0));
-	X.col = rgblight(0.5, 0.2, 0.1);
+	//X.col = rgblight(0.5, 0.2, 0.1);
 
 	sphere3D S(point(-1.5, 1.5, 1), 1); S.C = point(0, 0, 1);
 	S.setIndex(1.5); S.setAttCof(0.8, 0.4, 0.2);
@@ -832,5 +833,48 @@ void Render_XTest00() {
 	W.setGlobalLightSource(0, 0, 1);
 	//W.Render_Sampling = 2;
 	W.render(img, point(10, -10, 10), point(pick_random(-0.001, 0.001), 0, 0), 0, 0.1);
+	img.out("IMAGE\\RT.bmp");
+}
+
+void Affine_SDF_test() {
+	World W;
+	plane_grid P(0); W.add(&P);
+	XObjs::Box_affine XX1(matrix3D_affine(
+		1, 0, 0, 0,
+		0, 1, 0, 0,
+		0, 0, 1, 0,
+		0, 0, 0, 1));
+	XX1 += point(0, 0, 0.01);
+
+
+	//XX1.scale(2, 1, 1);
+	//XX1.rotate(0, -0.3);
+	//XX1.scale(point(-1, 1, 0), 1.5);
+	//XX1.rotate(point(2, 0), 2);
+
+	XX1.scale(2);
+	XX1.translate(-1, -1, -1);
+	XX1.perspective(0, 0, 0.2);
+	XX1.translate(1, 1, 1);
+
+	XSolid X = XX1;
+	//X.setColor(White);
+	X.type = XSolid_Crystal; X.col = rgblight(0.5, 0.2, 0.1);
+
+	//XX1 += point(0, 0, 1.5);
+	//X = CSG_RoundingOp(XSolid(XX1), 1);
+	//X = CSG_OnionOp(X, 0.5);
+
+	parallelogram Pr(point(-6, -4, 1), point(12, 0, 0), point(0, 8, 0));
+	VisualizeSDF(X, Pr, 600 * 400);
+	//Pr.setcolor(White); W.add(&Pr);
+
+	//ADD_AXIS(W, 0.05);
+
+	W.add(&X);
+	bitmap img(600, 400);
+	W.setGlobalLightSource(0, 0, 1);
+	W.Render_Sampling = 1;
+	W.render(img, point(10, -10, 10), point(pick_random(-0.001, 0.001), 0, 0), 0, 0.2);
 	img.out("IMAGE\\RT.bmp");
 }

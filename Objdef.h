@@ -6,8 +6,12 @@
 	GeoGebra: https://www.geogebra.org/3d
 */
 
-//#include "Matrix.h"
+#pragma warning(disable: 4244)	// conversion from 'type1' to 'type2', possible loss of data
+#pragma warning(disable: 4018)	// signed/unsigned mismatch, sometimes cause problems
+
 #include "D:\Explore\Math\Graph\GraphFun\GraphFun\BitMap.h"
+#include <queue>
+#include <stack>
 
 using namespace std;
 
@@ -219,7 +223,14 @@ class matrix3D_affine {
 	double p[4][4];
 	double _det; bool det_calced;
 public:
-	matrix3D_affine() {}
+	matrix3D_affine() {
+		for (int i = 0; i < 4; i++) {
+			for (int j = 0; j < 4; j++) {
+				p[i][j] = i == j ? 1 : 0;
+			}
+		}
+		det_calced = true, _det = 1;
+	}
 	matrix3D_affine(const double& _00, const double& _01, const double& _02,
 		const double& _10, const double& _11, const double& _12, const double& _20, const double& _21, const double& _22) {
 		p[0][0] = _00, p[0][1] = _01, p[0][2] = _02, p[1][0] = _10, p[1][1] = _11, p[1][2] = _12, p[2][0] = _20, p[2][1] = _21, p[2][2] = _22;
@@ -280,6 +291,7 @@ public:
 				for (int i = 0; i < 4; i++) R[m][n] += p[m][i] * A.p[i][n];
 			}
 		}
+		if (this->det_calced && A.det_calced) R.det_calced = true, R._det = this->_det * A._det;
 		return R;
 	}
 	double det() const {
@@ -361,7 +373,36 @@ public:
 				if (abs(R.p[j][k]) < ERR_EPSILON) R.p[j][k] = 0;
 			}
 		}
+
+		if (this->det_calced) R.det_calced = true, R._det = 1.0 / this->_det;
 		return R;
+	}
+
+	void scale(double x, double y, double z) {
+		*this = matrix3D_affine(
+			x, 0, 0,
+			0, y, 0,
+			0, 0, z)*(*this);
+	}
+	void translate(double x, double y, double z) {
+		*this = matrix3D_affine(
+			1, 0, 0, x,
+			0, 1, 0, y,
+			0, 0, 1, z,
+			0, 0, 0, 1)*(*this);
+	}
+	void rotate(double rx, double ry, double rz) {
+		*this = matrix3D_affine(
+			cos(ry)*cos(rz), sin(rx)*sin(ry)*cos(rz) - cos(rx)*sin(rz), cos(rx)*sin(ry)*cos(rz) + sin(rx)*sin(rz),
+			cos(ry)*sin(rz), sin(rx)*sin(ry)*sin(rz) + cos(rx)*cos(rz), cos(rx)*sin(ry)*sin(rz) - sin(rx)*cos(rz),
+			-sin(ry), sin(rx)*cos(ry), cos(rx)*cos(ry)) * (*this);
+	}
+	void perspective(double x, double y, double z) {
+		*this = matrix3D_affine(
+			1, 0, 0, 0,
+			0, 1, 0, 0,
+			0, 0, 1, 0,
+			x, y, z, 1)*(*this);
 	}
 
 	friend ostream& operator << (ostream& os, const matrix3D_affine &A) {

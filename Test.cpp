@@ -810,24 +810,25 @@ void Render_XTest00() {
 	//X = CSG_IntersectionOp(XSolid(XS1), XSolid(XCNS1));
 	//X = CSG_IntersectionOp(CSG_OnionOp(XSolid(XS1), 0.1), XSolid(XP2));
 	X = XX1;
-	X = CSG_RoundingOp(X, 0.2);
+	//X = CSG_RoundingOp(X, 0.2);
 	//X = CSG_OnionOp(X, 0.1);
 	X.setColor(White); W.add(&X);
 
 	X.type = XSolid_Crystal; X.setColor(rgblight(0, 0, 0));
-	//X.col = rgblight(0.5, 0.2, 0.1);
+	X.col = rgblight(0.5, 0.2, 0.1);
 
 	sphere3D S(point(-1.5, 1.5, 1), 1); S.C = point(0, 0, 1);
 	S.setIndex(1.5); S.setAttCof(0.8, 0.4, 0.2);
 	//W.add(&S);
 
 	parallelogram Pr(point(3, 0.5, -1), point(-6, 0, 0), point(0, 0, 4));
-	Pr = parallelogram(point(-2.5, -1, -1), point(6, 0, 0), point(0, 3, 3));
-	//Pr.setcolor(White); W.add(&Pr);
+	Pr = parallelogram(point(-2.5, -1.5, 1.2), point(6, 0, 0), point(0, 4, 0));
+	VisualizeSDF(X, Pr, 600 * 400);
+	Pr.setcolor(White); W.add(&Pr);
 
+	//X = CSG_RoundingOp(X, 0.2);
 
 	//ADD_AXIS(W, 0.05);
-	VisualizeSDF(X, Pr, 600 * 400);
 
 	bitmap img(600, 400);
 	W.setGlobalLightSource(0, 0, 1);
@@ -876,5 +877,31 @@ void Affine_SDF_test() {
 	W.setGlobalLightSource(0, 0, 1);
 	W.Render_Sampling = 1;
 	W.render(img, point(10, -10, 10), point(pick_random(-0.001, 0.001), 0, 0), 0, 0.2);
+	img.out("IMAGE\\RT.bmp");
+}
+
+void SDF_Transformation_Test() {
+	XObjs::Cylinder C(point(0, 0, 0.001), point(0, 0, 2), 0.5);
+	XObjs::Sphere S(point(0, 0, 1), 1);
+	XSolid X = C;
+
+	X = CSG_Translation(X, point(-1, -1, 0.5));
+	X = CSG_RoundingOp(X, 0.5);
+	//X = CSG_IntersectionOp(X, XSolid(S));
+	X = CSG_Rotation(X, -0.3, 0, -PI / 2);
+
+	X.type = XSolid_Smooth; X.setColor(Gray);
+	//X.type = XSolid_Crystal; //X.col = rgblight(0.5, 0.2, 0.1);
+
+	parallelogram Pr(point(-6, -4, 1), point(12, 0, 0), point(0, 8, 0)); //Pr.setcolor(White), W.add(&Pr);
+	VisualizeSDF(X, Pr, 600 * 400);
+
+	World W; W.add(&X);
+	plane_grid P(0); W.add(&P);
+	bitmap img(600, 400);
+	//W.Render_Sampling = 2;
+	W.setGlobalLightSource(0, 0, 1);
+	ADD_AXIS(W, 0.05);
+	W.render(img, point(10, 10, 10), point(0, 0, 1), 0, 0.2);
 	img.out("IMAGE\\RT.bmp");
 }

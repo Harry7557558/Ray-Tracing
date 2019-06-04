@@ -1,7 +1,7 @@
 
 #include "World.h"
 #include "GlassMan.h"
-#include "Test.cpp";
+#include "Test.cpp"
 
 using namespace std;
 
@@ -27,13 +27,13 @@ void CPT_T1() {
 
 	G.construct(); G.push(W);
 
-	parallelogram Pr(point(-6, -4, 8), point(12, 0, 0), point(0, 8, 0)); //Pr.setcolor(White), W.add(&Pr);
+	parallelogram Pr(point(-6, -4, 0.5), point(12, 0, 0), point(0, 8, 0)); //Pr.setcolor(White), W.add(&Pr);
 	VisualizeSDF(G.construct(), Pr, 600 * 400);
 
 	bitmap img(600, 400);
 	//ADD_AXIS(W, 0.1);
 	W.setGlobalLightSource(0, 0, 1);
 	W.Render_Sampling = 1;
-	W.render(img, point(200, -100, 100), point(0, 0, 4), 0, 0.003);
+	W.render(img, point(200, -100, 100), point(0, 1, 0), 0, 0.0001);
 	img.out("IMAGE\\CPT.bmp");
 }

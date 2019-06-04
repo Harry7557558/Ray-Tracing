@@ -28,6 +28,12 @@ public:
 			minc = Min(minc, Objs.at(i)->Min());
 			const_cast<object*>(Objs.at(i))->init();
 		}
+		for (int i = 0; i < Objs.size(); i++) {
+			if (Objs.at(i)->telltype() == XSolid_Sign) {
+				Objs.push_back(Objs.at(i));
+				Objs.erase(Objs.begin() + i);
+			}
+		}
 		for (int i = 0; i < GObjs.size(); i++) GObjs.at(i)->resize();
 		if (Objs.size() == 0 && !GObjs.empty()) {
 			maxc = GObjs.front()->border.Max, minc = GObjs.front()->border.Min;
@@ -84,7 +90,10 @@ public:
 	void RayTracing_EnumObjs(const ray &v, intersect &ni, const object* &no, intersect& nt) const {
 		int NB = Objs.size();
 		for (int k = 0; k < NB; k++) {
-			Objs.at(k)->meet(nt, v);
+			if (Objs.at(k)->telltype() == XSolid_Sign) {
+				((XSolid*)(Objs.at(k)))->meet(nt, v, ni.meet ? ni.dist : ERR_UPSILON);
+			}
+			else Objs.at(k)->meet(nt, v);
 			if (nt.meet) {
 				if (no == 0 || (ni.dist > nt.dist)) {
 					ni = nt, no = Objs.at(k);

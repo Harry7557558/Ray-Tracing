@@ -355,7 +355,28 @@ namespace XObjs {
 		matrix3D_affine M_invert;
 		point P000, P100, P010, P001, P110, P101, P011, P111;
 		vec3 Ex00, Ex01, Ex10, Ex11, Ey00, Ey01, Ey10, Ey11, Ez00, Ez01, Ez10, Ez11;
+		double ex00, ex01, ex10, ex11, ey00, ey01, ey10, ey11, ez00, ez01, ez10, ez11;
 		vec3 Px0, Px1, Py0, Py1, Pz0, Pz1; double px0, px1, py0, py1, pz0, pz1;
+
+		inline bool Point_Vertex_Test(const point &P, const vec3 &n1, const vec3 &n2, const vec3 &n3, double &dist) const {
+			if (dot(P, n1) > 0 && dot(P, n2) > 0 && dot(P, n3) > 0) dist = P.mod();
+			else return false;
+			return true;
+		}
+		inline bool Point_Edge_Test(const point &P, const point &V1, const point &V2, const vec3 &dir, 
+			vec3 n1, vec3 n2, const vec3 &_n1, const vec3 &_n2, double &dist) const {
+			n1 -= dot(n1, dir)*dir; n1 /= n1.mod();
+			n2 -= dot(n2, dir)*dir; n2 /= n2.mod();
+			if (dot(P - V1, n1) > 0 && dot(P - V2, n2) > 0 && dot(P - V1, _n1) < 0 && dot(P - V2, _n2) < 0) dist = cross(P - V1, dir).mod();
+			else return false;
+			return true;
+		}
+		inline bool Point_Plane_Test(const point &P, const point &A, //const point &B, const point &C, const point &D, 
+			const vec3 &N, /*const vec3 &n1, const vec3 &n2, const vec3 &n3, const vec3 &n4, */double &dist) const {
+			dist = dot(P - A, N); return dist > 0;
+			//if (dist > 0 && dot(P - A, n1) < 0 && dot(P - B, n2) < 0 && dot(P - C, n3) < 0 && dot(P - D, n4) < 0) return true;
+			//return false;
+		}
 	public:
 		Box_affine() { M = matrix3D_affine(1, 0, 0, 0, 1, 0, 0, 0, 1); }
 		Box_affine(const matrix3D_affine &M) {
@@ -363,7 +384,7 @@ namespace XObjs {
 		}
 		~Box_affine() {}
 
-		double SDF(const point &P) const {
+		double SDF(const point &P) const {	// debugging
 
 			point S = M_invert * P;
 			bool xi = S.x > 0 && S.x < 1, yi = S.y > 0 && S.y < 1, zi = S.z > 0 && S.z < 1;
@@ -389,7 +410,43 @@ namespace XObjs {
 					min(abs(cross(P - P100, Ez10).mod()), abs(cross(P - P110, Ez11).mod())));
 			}
 
-			return 0;
+
+			point I; double dist; double min_dist = INFINITY;
+
+
+
+			// seems no bug
+			if (Point_Vertex_Test(P - P000/*, Px0, Py0, Pz0*/, -Ex00, -Ey00, -Ez00, dist)) return dist;
+			if (Point_Vertex_Test(P - P001/*, Px0, Py0, Pz1*/, -Ex01, -Ey01,  Ez00, dist)) return dist;
+			if (Point_Vertex_Test(P - P010/*, Px0, Py1, Pz0*/, -Ex10,  Ey00, -Ez01, dist)) return dist;
+			if (Point_Vertex_Test(P - P011/*, Px0, Py1, Pz1*/, -Ex11,  Ey01,  Ez01, dist)) return dist;
+			if (Point_Vertex_Test(P - P100/*, Px1, Py0, Pz0*/,  Ex00, -Ey10, -Ez10, dist)) return dist;
+			if (Point_Vertex_Test(P - P101/*, Px1, Py0, Pz1*/,  Ex01, -Ey11,  Ez10, dist)) return dist;
+			if (Point_Vertex_Test(P - P110/*, Px1, Py1, Pz0*/,  Ex10,  Ey10, -Ez11, dist)) return dist;
+			if (Point_Vertex_Test(P - P111/*, Px1, Py1, Pz1*/,  Ex11,  Ey11,  Ez11, dist)) return dist;
+
+			if (Point_Edge_Test(P, P000, P100, Ex00/*, Py0, Pz0*/, -Ey00, -Ez00/*, Px0, Px1*/, -Ex00, Ex00, dist)) return dist;
+			if (Point_Edge_Test(P, P001, P101, Ex01/*, Py0, Pz1*/, -Ey01, Ez00/*, Px0, Px1*/, -Ex01, Ex01, dist)) return dist;
+			if (Point_Edge_Test(P, P010, P110, Ex10/*, Py1, Pz0*/, Ey00, -Ez01/*, Px0, Px1*/, -Ex10, Ex10, dist)) return dist;
+			if (Point_Edge_Test(P, P011, P111, Ex11/*, Py1, Pz1*/, Ey01, Ez01/*, Px0, Px1*/, -Ex11, Ex11, dist)) return dist;
+			if (Point_Edge_Test(P, P000, P010, Ey00/*, Px0, Pz0*/, -Ex00, -Ez00/*, Py0, Py1*/, -Ey00, Ey00, dist)) return dist;
+			if (Point_Edge_Test(P, P001, P011, Ey01/*, Px0, Pz1*/, -Ex01, Ez00/*, Py0, Py1*/, -Ey01, Ey01, dist)) return dist;
+			if (Point_Edge_Test(P, P100, P110, Ey10/*, Px1, Pz0*/, Ex00, -Ez10/*, Py0, Py1*/, -Ey10, Ey10, dist)) return dist;
+			if (Point_Edge_Test(P, P101, P111, Ey11/*, Px1, Pz1*/, Ex01, Ez10/*, Py0, Py1*/, -Ey11, Ey11, dist)) return dist;
+			if (Point_Edge_Test(P, P000, P001, Ez00/*, Px0, Py0*/, -Ex00, -Ey00/*, Pz0, Pz1*/, -Ez00, Ez00, dist)) return dist;
+			if (Point_Edge_Test(P, P010, P011, Ez01/*, Px0, Py1*/, -Ex10, Ey00/*, Pz0, Pz1*/, -Ez01, Ez01, dist)) return dist;
+			if (Point_Edge_Test(P, P100, P101, Ez10/*, Px1, Py0*/, Ex00, -Ey10/*, Pz0, Pz1*/, -Ez10, Ez10, dist)) return dist;
+			if (Point_Edge_Test(P, P110, P111, Ez11/*, Px1, Py1*/, Ex10, Ey10/*, Pz0, Pz1*/, -Ez11, Ez11, dist)) return dist;
+
+			if (Point_Plane_Test(P, P000/*, P001, P011, P010*/, Px0/*, -Ey00, Ez00, Ey01, -Ez01*/, dist)) min_dist = min(min_dist, dist);
+			if (Point_Plane_Test(P, P100/*, P101, P111, P110*/, Px1/*, -Ey10, Ez10, Ey11, -Ez11*/, dist)) min_dist = min(min_dist, dist);
+			if (Point_Plane_Test(P, P000/*, P100, P101, P001*/, Py0/*, -Ez00, Ex00, Ez10, -Ex01*/, dist)) min_dist = min(min_dist, dist);
+			if (Point_Plane_Test(P, P010/*, P110, P111, P011*/, Py1/*, -Ez01, Ex10, Ez11, -Ex11*/, dist)) min_dist = min(min_dist, dist);
+			if (Point_Plane_Test(P, P000/*, P100, P110, P010*/, Pz0/*, -Ey00, Ex00, Ey10, -Ex10*/, dist)) min_dist = min(min_dist, dist);
+			if (Point_Plane_Test(P, P001/*, P101, P111, P011*/, Pz1/*, -Ey01, Ex01, Ey11, -Ex11*/, dist)) min_dist = min(min_dist, dist);
+			if (min_dist != INFINITY) return min_dist;
+
+			return ERR_UPSILON;
 		}
 
 		borderbox MaxMin() const {
@@ -402,12 +459,15 @@ namespace XObjs {
 			*const_cast<vec3*>(&Ex00) = P100 - P000, *const_cast<vec3*>(&Ex01) = P101 - P001, *const_cast<vec3*>(&Ex10) = P110 - P010, *const_cast<vec3*>(&Ex11) = P111 - P011;
 			*const_cast<vec3*>(&Ey00) = P010 - P000, *const_cast<vec3*>(&Ey01) = P011 - P001, *const_cast<vec3*>(&Ey10) = P110 - P100, *const_cast<vec3*>(&Ey11) = P111 - P101;
 			*const_cast<vec3*>(&Ez00) = P001 - P000, *const_cast<vec3*>(&Ez01) = P011 - P010, *const_cast<vec3*>(&Ez10) = P101 - P100, *const_cast<vec3*>(&Ez11) = P111 - P110;
+			*const_cast<double*>(&ex00) = Ex00.mod(), *const_cast<double*>(&ex01) = Ex01.mod(), *const_cast<double*>(&ex10) = Ex10.mod(), *const_cast<double*>(&ex11) = Ex11.mod();
+			*const_cast<double*>(&ey00) = Ey00.mod(), *const_cast<double*>(&ey01) = Ey01.mod(), *const_cast<double*>(&ey10) = Ey10.mod(), *const_cast<double*>(&ey11) = Ey11.mod();
+			*const_cast<double*>(&ez00) = Ez00.mod(), *const_cast<double*>(&ez01) = Ez01.mod(), *const_cast<double*>(&ez10) = Ez10.mod(), *const_cast<double*>(&ez11) = Ez11.mod();
+			*const_cast<vec3*>(&Ex00) /= ex00, *const_cast<vec3*>(&Ex01) /= ex01, *const_cast<vec3*>(&Ex10) /= ex10, *const_cast<vec3*>(&Ex11) /= ex11;
+			*const_cast<vec3*>(&Ey00) /= ey00, *const_cast<vec3*>(&Ey01) /= ey01, *const_cast<vec3*>(&Ey10) /= ey10, *const_cast<vec3*>(&Ey11) /= ey11;
+			*const_cast<vec3*>(&Ez00) /= ez00, *const_cast<vec3*>(&Ez01) /= ez01, *const_cast<vec3*>(&Ez10) /= ez10, *const_cast<vec3*>(&Ez11) /= ez11;
 			*const_cast<vec3*>(&Px0) = cross(Ez00, Ey00), *const_cast<vec3*>(&Px1) = cross(Ey10, Ez10); *const_cast<vec3*>(&Px0) /= Px0.mod(), *const_cast<vec3*>(&Px1) /= Px1.mod();
-			*const_cast<vec3*>(&Py0) = cross(Ex00, Ez00), *const_cast<vec3*>(&Py1) = cross(Ez11, Ex11); *const_cast<vec3*>(&Py0) /= Py0.mod(), *const_cast<vec3*>(&Py1) /= Py1.mod();
+			*const_cast<vec3*>(&Py0) = cross(Ex00, Ez00), *const_cast<vec3*>(&Py1) = cross(Ez01, Ex10); *const_cast<vec3*>(&Py0) /= Py0.mod(), *const_cast<vec3*>(&Py1) /= Py1.mod();
 			*const_cast<vec3*>(&Pz0) = cross(Ey00, Ex00), *const_cast<vec3*>(&Pz1) = cross(Ex01, Ey01); *const_cast<vec3*>(&Pz0) /= Pz0.mod(), *const_cast<vec3*>(&Pz1) /= Pz1.mod();
-			*const_cast<vec3*>(&Ex00) /= Ex00.mod(), *const_cast<vec3*>(&Ex01) /= Ex01.mod(), *const_cast<vec3*>(&Ex10) /= Ex10.mod(), *const_cast<vec3*>(&Ex11) /= Ex11.mod();
-			*const_cast<vec3*>(&Ey00) /= Ey00.mod(), *const_cast<vec3*>(&Ey01) /= Ey01.mod(), *const_cast<vec3*>(&Ey10) /= Ey10.mod(), *const_cast<vec3*>(&Ey11) /= Ey11.mod();
-			*const_cast<vec3*>(&Ez00) /= Ez00.mod(), *const_cast<vec3*>(&Ez01) /= Ez01.mod(), *const_cast<vec3*>(&Ez10) /= Ez10.mod(), *const_cast<vec3*>(&Ez11) /= Ez11.mod();
 			*const_cast<double*>(&px0) = -dot(Px0, P000), *const_cast<double*>(&px1) = -dot(Px1, P100);
 			*const_cast<double*>(&py0) = -dot(Py0, P000), *const_cast<double*>(&py1) = -dot(Py1, P111);
 			*const_cast<double*>(&pz0) = -dot(Pz0, P000), *const_cast<double*>(&pz1) = -dot(Pz1, P001);
@@ -681,7 +741,7 @@ public:
 	}
 
 	// Note that the reflect vector is not calculated in this function
-	void meet(intersect &R, const ray &a) const {
+	void meet(intersect &R, const ray &a, double Max_Dist) const {
 		unsigned thread_no = 0, k = *((unsigned*)(&this_thread::get_id()));
 #define STACKUSAGE_XSOLID const_cast<unsigned*>(Stack_Usage)
 		TIed ? (k == STACKUSAGE_XSOLID[0] ? thread_no = 0 : (k == STACKUSAGE_XSOLID[1] ? thread_no = 1 :
@@ -697,7 +757,7 @@ public:
 		if (sdf > 0) {
 			do {
 				t += sdf;
-				if (t > ERR_UPSILON) return;
+				if (t > Max_Dist) return;
 				P = a.orig + t * a.dir, sdf = this->SDF(P, thread_no);
 			} while (sdf > ERR_EPSILON);
 			R.dist = t, R.intrs = P;
@@ -707,7 +767,7 @@ public:
 		else {
 			do {
 				t -= sdf;
-				if (t > ERR_UPSILON) return;
+				if (t > Max_Dist) return;
 				P = a.orig + t * a.dir, sdf = this->SDF(P, thread_no);
 			} while (sdf < -ERR_EPSILON);
 			R.dist = t, R.intrs = P;

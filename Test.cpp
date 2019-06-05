@@ -809,22 +809,27 @@ void Render_XTest00() {
 	//X = CSG_IntersectionOp(CSG_IntersectionOp(XSolid(XCSx), XSolid(XCSy)), XSolid(XCSz));
 	//X = CSG_IntersectionOp(XSolid(XS1), XSolid(XCNS1));
 	//X = CSG_IntersectionOp(CSG_OnionOp(XSolid(XS1), 0.1), XSolid(XP2));
+	/*XX1 = XObjs::Box_affine(matrix3D_affine(
+		3.7200328046667286, -0.069652603314699246, 0.044066321302911514, 0.034826301657349623,
+		1.8840032804666724, 0.69652603314699235, 0.0044066321302911526, 0.65173698342650388,
+		-0.10440492070000945, 0.00000000000000000, 0.29671323010627088, 0.29999999999999999,
+		1.5119999999999996, 0.00000000000000000, 0.00000000000000000, 1.0000000000000000));*/
 	X = XX1;
-	//X = CSG_RoundingOp(X, 0.2);
+	X = CSG_RoundingOp(X, 0.2);
 	//X = CSG_OnionOp(X, 0.1);
 	X.setColor(White); W.add(&X);
 
 	X.type = XSolid_Crystal; X.setColor(rgblight(0, 0, 0));
-	X.col = rgblight(0.5, 0.2, 0.1);
+	//X.col = rgblight(0.5, 0.2, 0.1);
 
 	sphere3D S(point(-1.5, 1.5, 1), 1); S.C = point(0, 0, 1);
 	S.setIndex(1.5); S.setAttCof(0.8, 0.4, 0.2);
 	//W.add(&S);
 
-	parallelogram Pr(point(3, 0.5, -1), point(-6, 0, 0), point(0, 0, 4));
-	Pr = parallelogram(point(-2.5, -1.5, 1.2), point(6, 0, 0), point(0, 4, 0));
-	VisualizeSDF(X, Pr, 600 * 400);
-	Pr.setcolor(White); W.add(&Pr);
+	parallelogram Pr(point(3, 0.5, -0.9), point(-6, 0, 0), point(0, 0, 4));
+	Pr = parallelogram(point(-2.5, -1.5, 1), point(6, 0, 0), point(0, 4, 0));
+	VisualizeSDF(X, Pr, 600 * 400, 0.42166666666666669, 0.55000000000000004);
+	//Pr.setcolor(White); W.add(&Pr);
 
 	//X = CSG_RoundingOp(X, 0.2);
 
@@ -833,7 +838,7 @@ void Render_XTest00() {
 	bitmap img(600, 400);
 	W.setGlobalLightSource(0, 0, 1);
 	//W.Render_Sampling = 2;
-	W.render(img, point(10, -10, 10), point(pick_random(-0.001, 0.001), 0, 0), 0, 0.1);
+	W.render(img, point(10, -10, 10), point(pick_random(-0.001, 0.001), 1, 0), 0, 0.1);
 	img.out("IMAGE\\RT.bmp");
 }
 
@@ -905,3 +910,4 @@ void SDF_Transformation_Test() {
 	W.render(img, point(10, 10, 10), point(0, 0, 1), 0, 0.2);
 	img.out("IMAGE\\RT.bmp");
 }
+

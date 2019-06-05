@@ -10,6 +10,7 @@ void CPT_T1() {
 	plane_grid P(0); W.add(&P);
 
 	GlassMan G;
+	//G.top = point(1, 0, 0), G.dir = point(0, -1, 1);
 
 	G.Heel_l = point(0, 1, 0.3), G.Heel_r = point(0, -1, 0.5);
 	G.foot_dir_l = point(2, 0.2, -0.3), G.foot_dir_r = point(2, -0.1, -0.5);
@@ -27,13 +28,15 @@ void CPT_T1() {
 
 	G.construct(); G.push(W);
 
-	parallelogram Pr(point(-6, -4, 0.5), point(12, 0, 0), point(0, 8, 0)); //Pr.setcolor(White), W.add(&Pr);
-	VisualizeSDF(G.construct(), Pr, 600 * 400);
+	parallelogram Pr(point(-6, -4, 1), point(12, 0, 0), point(0, 8, 0)); //Pr.setcolor(White), W.add(&Pr);
+	//VisualizeSDF(G.construct(), Pr, 600 * 400);
+	//ScanXSolid(G.construct(), 10, 10, 10, 240000);
 
 	bitmap img(600, 400);
 	//ADD_AXIS(W, 0.1);
 	W.setGlobalLightSource(0, 0, 1);
 	W.Render_Sampling = 1;
-	W.render(img, point(200, -100, 100), point(0, 1, 0), 0, 0.0001);
+	//W.render(img, point(200, -100, 100), point(0, 1, 0), 0, 0.0001);
+	W.render(img, point(200, -100, 100), point(0, 0, 4), 0, 0.003);
 	img.out("IMAGE\\CPT.bmp");
 }

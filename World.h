@@ -1,535 +1,913 @@
 #pragma once
-
-#include "Object.h"
-#include "CSG.h"
-
-#include <thread>
-#include <mutex>
-#include <Windows.h>
+#include "World.h"
 
 using namespace std;
 
-#ifndef _INC_WORLD_H
-#define _INC_WORLD_H
+#define ADD_AXIS(W, r) { \
+	cylinder xAxis(point(0, 0, 0), point(ERR_UPSILON, 0, 0), r); xAxis.setcolor(Red);    \
+	cylinder yAxis(point(0, 0, 0), point(0, ERR_UPSILON, 0), r); yAxis.setcolor(Green);	 \
+	cylinder zAxis(point(0, 0, 0), point(0, 0, ERR_UPSILON), r); zAxis.setcolor(Blue);	 \
+	W.add({ &xAxis, &yAxis, &zAxis }); }
 
-class World {
-public:
-	vector<const object*> Objs;	// series of objects
-	vector<World*> GObjs;	// series of sub-worlds
-	point N;	// direction of global light source (ideal sky, suppose it's fine, white and cloudness)
-	rgblight background;
-	borderbox border;
-	void resize() {
-		point maxc, minc;
-		if (!Objs.empty()) maxc = Objs.front()->Max(), minc = Objs.front()->Min();
-		const_cast<object*>(Objs.at(0))->init();
-		for (int i = 1; i < Objs.size(); i++) {
-			maxc = Max(maxc, Objs.at(i)->Max());
-			minc = Min(minc, Objs.at(i)->Min());
-			const_cast<object*>(Objs.at(i))->init();
-		}
-		for (int i = 0; i < Objs.size(); i++) {
-			if (Objs.at(i)->telltype() == XSolid_Sign) {
-				Objs.push_back(Objs.at(i));
-				Objs.erase(Objs.begin() + i);
-			}
-		}
-		for (int i = 0; i < GObjs.size(); i++) GObjs.at(i)->resize();
-		if (Objs.size() == 0 && !GObjs.empty()) {
-			maxc = GObjs.front()->border.Max, minc = GObjs.front()->border.Min;
-		}
-		for (int i = ((Objs.size() == 0 && !GObjs.empty()) ? 1 : 0); i < GObjs.size(); i++) {
-			maxc = Max(maxc, GObjs.at(i)->border.Max);
-			minc = Min(minc, GObjs.at(i)->border.Min);
-		}
-		border.Min = minc, border.Max = maxc;
-		border.fix();
-	}
-	bool dynamic_memory;	// indicates whether the destructor should delete elements or not
-	friend int main();
-	friend void Render_GTest01();
-	friend void Render_GTest02();
-	friend void Render_GTest03();
-public:
-	World() :dynamic_memory(false) {
-		background = rgblight(1, 1, 1);
-	}
-	World(const World &W) : dynamic_memory(true) {
-		for (int i = 0; i < W.Objs.size(); i++) {
-			Objs.push_back(W.Objs[i]->copy());
-		}
-		for (int i = 0; i < W.GObjs.size(); i++) {
-			GObjs.push_back(new World(*(W.GObjs.at(i))));
+
+void sizetest() {
+	cout << "point          " << sizeof(point) << endl;
+	cout << "ray            " << sizeof(ray) << endl;
+	cout << "intersect      " << sizeof(intersect) << endl;
+	cout << "rgblight       " << sizeof(rgblight) << endl;
+	cout << endl;
+
+	cout << "object         " << sizeof(object) << endl;
+	cout << "object2D       " << sizeof(objectSF) << endl;
+	cout << "plane          " << sizeof(plane) << endl;
+	cout << "triangle       " << sizeof(triangle) << endl;
+	cout << "parallelogram  " << sizeof(parallelogram) << endl;
+	cout << "circle         " << sizeof(circle) << endl;
+	cout << "cylinder       " << sizeof(cylinder) << endl;
+	cout << "sphere         " << sizeof(sphere) << endl;
+	cout << "object3D       " << sizeof(object3D) << endl;
+	cout << endl;
+
+	cout << "World          " << sizeof(World) << endl;
+	cout << endl;
+}
+
+void MonteCarlo_Test() {
+	const unsigned MaxSamp = 1024;
+	bitmap res(MaxSamp, 100);
+	double sum = 0;
+	for (int j = 0; j < 100; j++) {
+		sum = 0;
+		for (int i = 0; i < MaxSamp; i++) {
+			sum += pick_random(1);
+			res[j][i] = rgb(rgblight(sum / (i + 1)));
 		}
 	}
-	~World() {
-		if (dynamic_memory) {
-			for (int i = 0; i < Objs.size(); i++) delete Objs.at(i);
-			for (int i = 0; i < GObjs.size(); i++) delete GObjs.at(i);
+	for (int i = 0; i < MaxSamp; i++) {
+		for (int j = 0; j < 100; j++) {
+			swap(res[rand() % 100][i], res[rand() % 100][i]);
 		}
-		Objs.clear(); GObjs.clear();
-	}
-	inline void insert(World *a) {
-		GObjs.push_back(a);
-		this->resize();
-	}
-	inline void add(object* a) {
-		Objs.push_back(a);
-	}
-	inline void add(initializer_list<object*> a) {
-		for (int i = 0; i < a.size(); i++) Objs.push_back(a.begin()[i]);
-	}
-	void setGlobalLightSource(double lrx, double lrz) {
-		N = point(cos(lrx), sqrt(1 - cos(lrx)*cos(lrx) - cos(lrz)*cos(lrz)), cos(lrz));
-	}
-	void setGlobalLightSource(double x, double y, double z) {
-		N = point(x, y, z);
-	}
-
-	// Find the closest object
-	void RayTracing_EnumObjs(const ray &v, intersect &ni, const object* &no, intersect& nt) const {
-		int NB = Objs.size();
-		for (int k = 0; k < NB; k++) {
-			if (Objs.at(k)->telltype() == XSolid_Sign) {
-				((XSolid*)(Objs.at(k)))->meet(nt, v, ni.meet ? ni.dist : ERR_UPSILON);
-			}
-			else Objs.at(k)->meet(nt, v);
-			if (nt.meet) {
-				if (no == 0 || (ni.dist > nt.dist)) {
-					ni = nt, no = Objs.at(k);
-				}
-			}
-		}	// Find the nearest object among single objects
-
-		NB = GObjs.size();
-		for (int i = 0; i < NB; i++) {
-			if (GObjs.at(i)->border.meet(v)) {
-				GObjs.at(i)->RayTracing_EnumObjs(v, ni, no, nt);
-			}
+		int s = sqrt(i + 1);
+		if (s * s == i + 1) {
+			res[0][i] = res[99][i] = rgb(255, 0, 0);
+			if (s % 4 == 0) res[1][i] = res[98][i] = rgb(255, 255, 0);
 		}
 	}
+	res.out("IMAGE\\MonteCarlo_Test.bmp");
+}
 
-	// Check if the viewing point is inside a 3D object (eg.under the water). If yes, return its adress; or return 0;
-	object3D* Render_CheckContaining(const point &W) const {
-		int NB = Objs.size();
-		for (int k = 0; k < NB; k++) {
-			if (Objs.at(k)->telltype() >> 16 == 1) {
-				if (((object3D*)(Objs.at(k)))->contain(W)) {
-					return (object3D*)(Objs.at(k));
-				}
-			}
-		}
-		object3D* p;
-		NB = GObjs.size();
-		for (int i = 0; i < NB; i++) {
-			if (GObjs.at(i)->border.contain(W)) {
-				p = GObjs.at(i)->Render_CheckContaining(W);
-				if (p != 0) return p;
-			}
-		}
-		return 0;
-	}
 
-	// Calculate the result rgb color with a giving ray
-	double RayTracing(const ray &v, rgblight &c, const double count, const int n) const {
-		// Note: "object under water" "glass in water" "camera under water" situations are still debugging
+// light-blue sphere and plane
+void Render_Test01() {
+	World W;
+	sphere S(point(0, 0, 1), 1);
+	S.setcolor(White);
+	parallelogram P(point(-2, -2, 0), point(4, 0, 0), point(0, 4, 0));
+	P.setcolor(White);
+	plane Pi(point(-2.4, 0, 0), point(1, 0, 0));
+	Pi.setcolor(LightBlue);
+	W.add({ &S, &P, &Pi });
+	W.setGlobalLightSource(1, 1);
+	bitmap canvas(600, 400);
+	W.render(canvas, point(40, -40, 40), point(0, 0, 0.4), 0, 0.006);
+	canvas.out("IMAGE\\RT1.bmp");
+	W.render(canvas, point(50, 20, 30), point(0, 0, 0.4), 0, 0.004);
+	canvas.out("IMAGE\\RT2.bmp");
+}
 
-		if (count < 0.004 || n > 20) {
-			double ang = dot(N, v.dir) / N.mod()*v.dir.mod();
-			c = ang > 0 ? ang * background : rgblight(0, 0, 0);
-			return INFINITY;
-		}
-		if (isnan(count)) { c = rgblight(NAN, NAN, NAN); return NAN; }
-		//for (int i = 0; i < n; i++) fout << " ";
+void Render_Test02() {
+	World W;
+	sphere S(point(0, 0, 1), 1);
+	S.setcolor(White);
+	parallelogram P(point(-2, -2, 0), point(4, 0, 0), point(0, 4, 0));
+	P.setcolor(White);
+	plane Pi(point(-2.4, 0, 0), point(1, 0, 0));
+	Pi.setcolor(LightBlue);
+	W.add({ &S, &P, &Pi });
+	W.setGlobalLightSource(1, 1);
+	bitmap canvas(600, 400);
+	W.render(canvas, point(50, 20, 30), point(0, 0, 0.5), 0, 0.004);
+	canvas.out("IMAGE\\RT.bmp");
+}
 
-		//for (int i = 0; i < n; i++) fout << "    "; fout << fixed << setprecision(3) << count << "\t" << defaultfloat << v << endl;
-
-		int NB = Objs.size();
-		intersect ni; const object* no = 0;	// keeps the nearest object and its intersect data
-		const World* Wp = this;	// World of the nearest object
-		intersect nt;
-
-		RayTracing_EnumObjs(v, ni, no, nt);
-
-		if (no == 0) {
-			//fout << v << endl;
-			double ang = dot(N, v.dir);
-			if (ang <= 0) {
-				c = rgblight(0, 0, 0); return INFINITY;
-			}
-			ang /= N.mod()*v.dir.mod();
-			c = background * ang; return INFINITY;
-		}
-		else if (isnan(ni.reflect.x)) {
-			// must exit function when nan occur; or may occur endless recursive
-			c = rgblight(NAN, NAN, NAN); return NAN;
-		}
-		else {
-			//fout << ray(v.orig, ni.intrs - v.orig) << endl; fout.flush();
-			// Meet
-			ni.reflect /= ni.reflect.mod();
-			switch (no->telltype() >> 16) {
-			case 0: {	// surface
-				switch ((no->telltype() >> 8) & 0b1111) {
-				case 0: {	// smooth opacity surface
-					RayTracing(ray(ni.intrs, ni.reflect), c, count * ((objectSF*)no)->reflect.vsl(), n + 1);
-					c.r *= ((objectSF*)no)->reflect.r, c.g *= ((objectSF*)no)->reflect.g, c.b *= ((objectSF*)no)->reflect.b;	// should use Fresnel's formula
-					if (isnan(c.r) || isnan(c.b) || isnan(c.g)) {
-						return ni.dist;
-					}
-					break;
-				}
-				case 1: {	// diffuse reflection, opacity
-					point Ni = ni.reflect;
-					double fr = rotate_normal(Ni);
-					RayTracing(ray(ni.intrs, Ni), c, count * ((objectSF_dif*)no)->reflect.vsl() * fr, n + 1);
-					c.r *= ((objectSF_dif*)no)->reflect.r * fr, c.g *= ((objectSF_dif*)no)->reflect.g * fr, c.b *= ((objectSF_dif*)no)->reflect.b * fr;
-					if (isnan(c.r) || isnan(c.b) || isnan(c.g)) {
-						return ni.dist;
-					}
-					break;
-					// I probably found a hidden bug: as the modulus of reflect ray getting larger, the OA effect gets weaker. 
-				}
-				case 2: {	// surface with color
-					rgblight d; ((objectSF_col*)no)->getcol(ni, d);
-					RayTracing(ray(ni.intrs, ni.reflect), c, count * d.vsl(), n + 1);
-					c.r *= d.r, c.g *= d.g, c.b *= d.b;
-					if (isnan(c.r) || isnan(c.b) || isnan(c.g)) {
-						return ni.dist;
-					}
-					break;
-				}
-				}
-				break;
-			}
-			case 1: {	// 3D objects with volumn, debugging
-				point refract; double rlr;
-				((object3D*)no)->refractData(ni, v, 1, refract, rlr);
-				refract /= refract.mod();
-				//fout << count << " " << rlr << " " << (refract.z > 0 ? "U" : "D") << endl;
-
-				double d = RayTracing(ray(ni.intrs, ni.reflect), c, count * rlr, n + 1);
-				if (ni.ut == 0) { // obj -> air
-					if (((object3D*)no)->attcoe.r != 0) c.r *= exp(-((object3D*)no)->attcoe.r * d);
-					if (((object3D*)no)->attcoe.g != 0) c.g *= exp(-((object3D*)no)->attcoe.g * d);
-					if (((object3D*)no)->attcoe.b != 0) c.b *= exp(-((object3D*)no)->attcoe.b * d);
-				}
-				if (!isnan(refract.z)) {
-					rgblight c1; double d1 = RayTracing(ray(ni.intrs, refract), c1, count * (1 - rlr), n + 1);
-					if (ni.ut == 1) {	// air -> obj
-						c1.r *= exp(-((object3D*)no)->attcoe.r * d1), c1.g *= exp(-((object3D*)no)->attcoe.g * d1), c1.b *= exp(-((object3D*)no)->attcoe.b * d1);
-					}
-					if (!isnan(c1.b)) c = c * rlr + c1 * (1 - rlr);
-				}
-				if (isnan(c.r) || isnan(c.b) || isnan(c.g)) {
-					return ni.dist;
-				}
-				break;
-			}
-			case 0x100: {	// light source
-				// Light sources don't look well when global lightsource defined
-
-				RayTracing(ray(ni.intrs, ni.reflect), c, count * (1 - ni.ut), n + 1);
-				c *= ni.ut; c += ((lightsource*)no)->col * ni.ut;
-				//c = ((lightsource*)no)->col * ni.ut;
-				if (isnan(c.r) || isnan(c.b) || isnan(c.g)) {
-					return ni.dist;
-				}
-				break;
-			}
-			case 0x1000: {	// XSolid
-				switch (((XSolid*)no)->type) {
-				case XSolid_Crystal: {
-					// send R.ut as the refractive index of the other media
-					// meet = air->obj ? 1 : 0; intrs = refract; reflect = reflect; vt = rate-of-reflection; 
-					ni.ut = 1;
-					point P = ni.intrs;
-					((XSolid*)no)->reflectData(ni, v);
-					double d = RayTracing(ray(P, ni.reflect), c, count * ni.vt, n + 1);
-					//fout << ni.vt << endl;
-					if (!ni.meet) {
-						// 0*INF => NAN
-						if (((XSolid*)no)->col.r != 0) c.r *= exp(-((XSolid*)no)->col.r * d);
-						if (((XSolid*)no)->col.g != 0) c.g *= exp(-((XSolid*)no)->col.g * d);
-						if (((XSolid*)no)->col.b != 0) c.b *= exp(-((XSolid*)no)->col.b * d);
-					}
-					if (!isnan(ni.intrs.z)) {
-						rgblight c1; double d1 = RayTracing(ray(P, ni.intrs), c1, count * (1 - ni.vt), n + 1);
-						if (ni.meet) {	// air -> obj
-							if (((XSolid*)no)->col.r != 0) c1.r *= exp(-((XSolid*)no)->col.r * d1);
-							if (((XSolid*)no)->col.g != 0) c1.g *= exp(-((XSolid*)no)->col.g * d1);
-							if (((XSolid*)no)->col.b != 0) c1.b *= exp(-((XSolid*)no)->col.b * d1);
-						}
-						if (!isnan(c1.b)) c = c * ni.vt + c1 * (1 - ni.vt);
-					}
-					break;
-				}
-				case XSolid_Diffuse: {
-
-					break;
-				}
-				default: {	// smooth surface
-					((XSolid*)no)->reflectData(ni, v);
-					RayTracing(ray(ni.intrs, ni.reflect), c, count * ((XSolid*)no)->col.vsl(), n + 1);
-					c.r *= ((XSolid*)no)->col.r, c.g *= ((XSolid*)no)->col.g, c.b *= ((XSolid*)no)->col.b;
-					break;
-				}
-				}
-
-			}
-			}
-			return ni.dist;
-		}
-	}
-
-	// oi: object that contains ray end, must match
-	rgblight CalcRGB(ray &v, const object3D* oi) {
-		v.dir /= v.dir.mod();
-		rgblight c;
-		double d = -RayTracing(v, c, 1.0, 0);
-		if (oi != 0) {
-			c.r *= exp(oi->attcoe.r * d), c.g *= exp(oi->attcoe.g * d), c.b *= exp(oi->attcoe.b * d);
-		}
-		return c;
-	}
-
-	// Time Recorder
-	void RenderingProcessCounter(int ps, int &T1, int &T2, int &T3, int &T4) {
-		int m, n = 0;
-		int sum;
-		while (1) {
-			sum = T1 + T2 + T3 + T4;
-			m = (sum * 1000.0) / ps;	// using float operation, sometimes overflow occurs when sum is large enough
-			if (m != n) cout << "\r" << (m / 10) << "." << (m % 10) << "%";
-			n = m;
-			if (sum >= ps) break;
-			this_thread::sleep_for(chrono::milliseconds(50));
-		}
-	}
-
-	// Multithread entrance, note that "old" and "bad" functions are discarded
-	void MultiThread_CC(bitmap &canvas, int begw, int endw, int begh, int endh, const point W, const parallelogram &sc, const object3D* oi, int &RenderingProcess) {
-		ray beg;
-		beg.orig = W;
-		double u, v;
-		rgblight c, s;
-		//*➤*/ auto t0 = NTime::now(); auto t1 = NTime::now(); fsec fs = t1 - t0; pixel* p; double a;
-
-		unsigned NP;
-		for (unsigned i = begw; i < endw; i++) {
-			for (unsigned j = begh; j < endh; j++) {
-				NP = 0;
-				s.r = s.g = s.b = 0;
-				//*➤*/ t0 = NTime::now();
-				for (unsigned m = 0; m < Render_Sampling; m++) {
-					for (unsigned n = 0; n < Render_Sampling; n++) {
-						u = (i + double(m) / Render_Sampling) / canvas.width(), v = (j + double(n) / Render_Sampling) / canvas.height();
-						beg.orig = W;	// necessary
-						beg.dir = sc.O + u * sc.A + v * sc.B - beg.orig;
-						c = CalcRGB(beg, oi);
-						if (!(isnan(c.r) || isnan(c.g) || isnan(c.b))) {
-							s += c;
-							NP++;
+// triangle-based pyramid
+void Render_GTest01() {
+	// This function has serious memory leaks, only for debug purpose
+	World G6, G6_I, G6_IS, G6_IST;
+	parallelogram G6_G(point(-200, -200, 0), point(-200, 200, 0), point(200, -200, 0), 1); G6_G.setcolor(LightBlue);
+	double r = 1;
+	double Cr = r / 2, Ch = 6, Cho2 = Ch / 2;
+	int stair = 3;
+	int substair = 2;	// A bug occurs when this is greater than 2
+	int allstair = stair * substair;
+	const double rt2 = sqrt(2);
+	const double rt3 = sqrt(3);
+	const double rt3o2 = sqrt(3) / 2;
+	const double rt3o3 = sqrt(3) / 3;
+	const double rt3o6 = sqrt(3) / 6;
+	const double rt6o3 = sqrt(6) / 3;
+	const double rt6t2o3 = sqrt(6) * 2 / 3;
+	for (int i = 0; i < stair; i++) {
+		for (int j = 0; j < stair - i; j++) {
+			for (int k = 0; k < stair - i - j; k++) {
+				for (int is = i * substair; (is < (i + 1)*substair && is < allstair) || (i + 1 == stair && is == allstair); is++) {
+					for (int js = j * substair; (js < (j + 1)*substair && is + js < allstair) || (i + j + 1 == stair && is + js == allstair); js++) {
+						for (int ks = k * substair; (ks < (k + 1)*substair && is + js + ks < allstair) || (i + j + k + 1 == stair && is + js + ks == allstair); ks++) {
+							G6_IST.add(new sphere(point(Ch*is + Cho2 * js + Cho2 * ks, rt3o2*Ch*js + rt3o6 * Ch*ks, rt6o3*Ch*ks + r), r));
+							const_cast<object*>(G6_IST.Objs.back())->setcolor(Silver);
+							if (is + js + ks < allstair) {
+								G6_IST.add(new cylinder(point(Ch*is + Cho2 * js + Cho2 * ks, rt3o2*Ch*js + rt3o6 * Ch*ks, rt6o3*Ch*ks + r),
+									point(Ch*(is + 1) + Cho2 * js + Cho2 * ks, rt3o2*Ch*js + rt3o6 * Ch*ks, rt6o3*Ch*ks + r), Cr));
+								const_cast<object*>(G6_IST.Objs.back())->setcolor(LightSkyBlue);
+								G6_IST.add(new cylinder(point(Ch*is + Cho2 * js + Cho2 * ks, rt3o2*Ch*js + rt3o6 * Ch*ks, rt6o3*Ch*ks + r),
+									point(Ch*is + Cho2 * (js + 1) + Cho2 * ks, rt3o2*Ch*(js + 1) + rt3o6 * Ch*ks, rt6o3*Ch*ks + r), Cr));
+								const_cast<object*>(G6_IST.Objs.back())->setcolor(LightSkyBlue);
+								G6_IST.add(new cylinder(point(Ch*is + Cho2 * js + Cho2 * ks, rt3o2*Ch*js + rt3o6 * Ch*ks, rt6o3*Ch*ks + r),
+									point(Ch*is + Cho2 * js + Cho2 * (ks + 1), rt3o2*Ch*js + rt3o6 * Ch*(ks + 1), rt6o3*Ch*(ks + 1) + r), Cr));
+								const_cast<object*>(G6_IST.Objs.back())->setcolor(LightSkyBlue);
+							}
+							if (js != 0) {
+								G6_IST.add(new cylinder(point(Ch*is + Cho2 * js + Cho2 * ks, rt3o2*Ch*js + rt3o6 * Ch*ks, rt6o3*Ch*ks + r),
+									point(Ch*is + Cho2 * (js - 1) + Cho2 * (ks + 1), rt3o2*Ch*(js - 1) + rt3o6 * Ch*(ks + 1), rt6o3*Ch*(ks + 1) + r), Cr));
+								const_cast<object*>(G6_IST.Objs.back())->setcolor(LightGreen);
+								G6_IST.add(new cylinder(point(Ch*is + Cho2 * js + Cho2 * ks, rt3o2*Ch*js + rt3o6 * Ch*ks, rt6o3*Ch*ks + r),
+									point(Ch*(is + 1) + Cho2 * (js - 1) + Cho2 * ks, rt3o2*Ch*(js - 1) + rt3o6 * Ch*ks, rt6o3*Ch*ks + r), Cr));
+								const_cast<object*>(G6_IST.Objs.back())->setcolor(LightGreen);
+							}
+							if (is != 0) {
+								G6_IST.add(new cylinder(point(Ch*is + Cho2 * js + Cho2 * ks, rt3o2*Ch*js + rt3o6 * Ch*ks, rt6o3*Ch*ks + r),
+									point(Ch*(is - 1) + Cho2 * js + Cho2 * (ks + 1), rt3o2*Ch*js + rt3o6 * Ch*(ks + 1), rt6o3*Ch*(ks + 1) + r), Cr));
+								const_cast<object*>(G6_IST.Objs.back())->setcolor(Pink);
+							}
+							G6_IS.insert(new World(G6_IST));
+							while (!G6_IST.Objs.empty()) delete G6_IST.Objs.back(), G6_IST.Objs.pop_back();
 						}
 					}
 				}
-				//*➤*/ t1 = NTime::now(); fs = t1 - t0;
-				if (NP != 0) c = s / NP;
-				else {
-					if (j != begh && i != begw && j + 1 != endh) canvas[j][i] = rgb((rgblight(canvas[j - 1][i]) + rgblight(canvas[j][i - 1])) / 3
-						+ (rgblight(canvas[j - 1][i - 1]) + rgblight(canvas[j + 1][i - 1])) / 6);
-					else if (j == begh && j + 1 != endh) canvas[j][i] = rgb(rgblight(canvas[j][i - 1])*0.666667 + rgblight(canvas[j + 1][i - 1]) / 3);
-					else if (i == begw && j != begh) canvas[j][i] = canvas[j - 1][i];
-					else;
-				}
-
-				if (c.r >= 1) c.r = 0.9999; if (c.g >= 1) c.g = 0.9999; if (c.b >= 1) c.b = 0.9999;
-				//c.r = sqrt(1 - (c.r - 1)*(c.r - 1)), c.g = sqrt(1 - (c.g - 1)*(c.g - 1)), c.b = sqrt(1 - (c.b - 1)*(c.b - 1));	// Make it lighter
-				canvas.dot(i, j, drgb(c.r, c.g, c.b));
-				//c *= 2; canvas.dot(i, j, drgb(1 - exp(-c.r), 1 - exp(-c.g), 1 - exp(-c.b)));
-				//canvas.dot(i, j, drgb(tanh(c.r), tanh(c.g), tanh(c.b)));
-
-				//*➤*/ p = canvas[j] + i; p->r = p->b = 0, p->g /= 2; a = (tanh(log2(fs.count() * 10000)) + 1) / 2; canvas.dot(i, j, drgb(a, 0, 0), 1 - a);
-				//*➤*/ if (i == begw || i == endw - 1 || j == begh || j == begh - 1) canvas.dot(i, j, color(Yellow));
-				RenderingProcess++;
+				G6_I.insert(new World(G6_IS));
+				for (int i = 0; i < G6_IS.GObjs.size(); i++) delete G6_IS.GObjs.at(i);
+				G6_IS.GObjs.clear();
 			}
 		}
 	}
+	G6.insert(&G6_I);
+	G6.add(&G6_G);
+	G6.setGlobalLightSource(1.6, 0.2);
 
 
+	WaterSurface water(20); water.setAttCof(0.54, 0.05, 0.02); water.setIndex(1.2); G6.add(&water);
+	G6.Render_Sampling = 3;
 
-	/* Parameters (all (solid) angles are in radians):
-		canvas      canvas for rendering
-		C           center of camera
-		O           point appears in the center of the canvas
-		rt          rotation of screen of camera
-		sr          solid angle which the camera watches the canvas
+	bitmap canvas(1200, 800);
+	G6.render(canvas, point(500, 200, 300), point(0, 0, 0), 0, 0.01);
+	canvas.out("IMAGE\\RT.bmp");
+}
+
+// ring, memory test
+void Render_GTest02() {
+	/*
+		Note: This object goes through the most wonderful optimization I have ever made.
+		CPU:     44min => 5.4s
+		Memory:  1.26GB => 56MB
+		Although it's just for debug purpose, with some memory leaks.
 	*/
-	static unsigned Render_Sampling;
-	inline double rf_SR(double w, double r, double t) const {
-		// calculate solid angle with given parameters
-		double h = t * w;
-		double aw = acos((2 * r*r - w * w) / (2 * r*r));
-		double ah = acos((2 * r*r - h * h) / (2 * r*r));
-		double ac = acos((2 * r*r - w * w - h * h) / (2 * r*r));
-		double am = (aw + ah + ac) / 2;
-		double SR = 8 * atan(sqrt(tan(am / 2) * tan((am - aw) / 2) * tan((am - ah) / 2) * tan((am - ac) / 2)));
-		return SR;
-	}
-	void render(bitmap &canvas, point C, point O, double rt, double sr) {
 
-#ifndef FoldUp
+#define fx(u,v) (cos(u)*(0.8 + 0.3*sin(v)))
+#define fy(u,v) (sin(u)*(0.8 + 0.3*sin(v)))
+#define fz(u,v) (0.3*cos(v) + 0.3)
 
-		cout << "Initializing...";
-		auto Time_Beg = NTime::now();
-		canvas.clear();
+	bitmap img(600, 400);
+	unsigned NP;
 
-		const point OC = O - C;
-		const double r = OC.mod();
+#define DPS 3
+#define DIF1 8
+#define DIF2 10
+#define DIF3 32
 
-		// numerical solve the width and height of canvas in world coordinate
-		double t = double(canvas.height()) / double(canvas.width());
-		double x = 1, _x, xc, y;
-		if (rf_SR(x, r, t) > sr) {
-			while (rf_SR(x, r, t) > sr) _x = x, x /= 2;
-			swap(_x, x);
-		}
-		else if (rf_SR(x, r, t) < sr) {
-			while (rf_SR(x, r, t) < sr) _x = x, x *= 2;
-		}
-		if (rf_SR(x, r, t) != 0) {
-			for (int i = 0; i < 60; i++) {
-				xc = (x + _x) / 2;
-				y = rf_SR(xc, r, t);
-				if (y == sr) break;
-				else if (y > sr) x = xc;
-				else if (y < sr) _x = xc;
+#if DPS==3
+	vector<vector<vector<World*>>> G4_RS; G4_RS.resize(DIF1);
+	for (int i = 0; i < DIF1; i++) {
+		G4_RS.at(i).resize(DIF2);
+		for (int j = 0; j < DIF2; j++) {
+			G4_RS.at(i).at(j).resize(DIF3);
+			for (int k = 0; k < DIF3; k++) {
+				G4_RS.at(i).at(j).at(k) = new World;
 			}
 		}
-		const double w = x, h = t * x;
-		const double rs = 0.5 * sqrt(4 * r*r - w * w - h * h);
-
-		// calculate rotation
-		double orx = acos(OC.z / r), orz = atan2(OC.x, -OC.y); if (isnan(orz)) orz = 0;
-		const double rx = atan2(sin(orx)*cos(rt), cos(orx)), ry = atan2(-sin(orx)*sin(rt), hypot(sin(orx)*cos(rt), cos(orx))),
-			rz = atan2(sin(orz)*cos(rt) + sin(rt)*cos(orx)*cos(orz), cos(rt)*cos(orz) - sin(rt)*cos(orx)*sin(orz));		// first x, then y, finally z
-		
-		parallelogram CV(point(w / 2, -h / 2, rs), point(-w, 0), point(0, h));
-		CV = matrix3D(Rotation, rx, ry, rz) * CV + C;
-
-
-		this->resize();
-		object3D* oi = Render_CheckContaining(C);
-
-
-		cout << "\nAttempting...";
-
+	}
+#elif DPS==2
+	vector<vector<World*>> G4_RS; G4_RS.resize(DIF1);
+	for (int i = 0; i < DIF1; i++) {
+		G4_RS.at(i).resize(DIF2);
+		for (int j = 0; j < DIF2; j++) {
+			G4_RS.at(i).at(j) = new World;
+		}
+	}
+#elif DPS==1
+	vector<World*> G4_RS; G4_RS.resize(DIF1);
+	for (int i = 0; i < DIF1; i++) {
+		G4_RS.at(i) = new World;
+	}
 #endif
-
-		// calculate pixels allocates to each thread
-		ray beg; beg.orig = C;
-		rgblight c, s;
-		fsec fs;
-#ifndef DEBUG
-		const int STEP = 8;
-		vector<double> attempt; attempt.resize(canvas.width() / STEP + 1);
-		double u, v;
-		auto t0 = NTime::now();
-		auto t1 = NTime::now();
-		fs = t1 - t0;
-		for (int i = 0; i < canvas.width(); i += STEP) {
-			t0 = NTime::now();
-			for (int j = 0; j < canvas.height(); j += STEP) {
-				unsigned NP = 0; s.r = s.g = s.b = 0;
-				for (unsigned m = 0; m < Render_Sampling; m++) {
-					for (unsigned n = 0; n < Render_Sampling; n++) {
-						u = (i + double(m) / Render_Sampling) / canvas.width(), v = (j + double(n) / Render_Sampling) / canvas.height();
-						beg.orig = C;
-						beg.dir = CV.O + u * CV.A + v * CV.B - beg.orig;
-						c = CalcRGB(beg, oi);
-						if (!(isnan(c.r) || isnan(c.g) || isnan(c.b))) {
-							s += c;
-							NP++;
-						}
-					}
+	triangle *W; NP = 409600;
+	World G4, G4_R;
+	W = new triangle[NP];
+	point C00, C01, C10, C11; double u, v, un, vn;
+	for (int i = 0; i < 640; i++) {
+		u = i * PI / 320;
+		un = (i + 1) * PI / 320;
+		for (int j = 0; j < 320; j++) {
+			v = j * PI / 160;
+			vn = (j + 1) * PI / 160;
+			C00 = { fx(u,v),fy(u,v),fz(u,v) }, C01 = { fx(u,vn),fy(u,vn),fz(u,vn) },
+				C10 = { fx(un,v),fy(un,v),fz(un,v) }, C11 = { fx(un,vn),fy(un,vn),fz(un,vn) };
+			/*
+			Parametrics:
+			inline double fx(double u, double v) {
+				return cos(u)*(0.8 + 0.3*sin(v));
+			}
+			inline double fy(double u, double v) {
+				return sin(u)*(0.8 + 0.3*sin(v));
+			}
+			inline double fz(double u, double v) {
+				return 0.3*cos(v) + 0.3;
+			}
+			Result would be a ring.
+			*/
+			*W = { C00, C10, C11 }, W++;
+			*W = { C00, C01, C11 }, W++;
+		}
+	}
+	W -= NP;
+#if DPS==3
+	int DF = NP / (DIF1*DIF2*DIF3);
+	for (int i = 0; i < DIF1; i++) {
+		G4_R.insert(new World);
+		for (int j = 0; j < DIF2; j++) {
+			G4_R.GObjs.back()->insert(new World);
+			for (int k = 0; k < DIF3; k++) {
+				for (int l = 0; l < DF; l++) {
+					G4_RS.at(i).at(j).at(k)->add(W);
+					W++;
 				}
-				canvas.dot(i, j, rgb(c));
-				//cout << "* ";
-			}
-			//cout << endl;
-			t1 = NTime::now();
-			fs = t1 - t0;
-			attempt.at(i / STEP) = fs.count();
-		}
-		double sum = 0, sumt = 0;
-		int B1 = -1, B2 = -1, B3 = -1;
-		for (int i = 0; i < attempt.size(); i++) {
-			sum += attempt.at(i);
-		}
-		sum /= 4;
-		for (int i = 0; i < attempt.size(); i++) {
-			sumt += attempt.at(i);
-			if (sumt > sum) {
-				if (B1 == -1) B1 = i;
-				else if (B2 == -1) B2 = i;
-				else if (B3 == -1) B3 = i;
-				else break;
-				sumt = 0;
+				G4_R.GObjs.back()->GObjs.back()->insert(G4_RS.at(i).at(j).at(k));
 			}
 		}
-		B1 *= STEP, B2 *= STEP, B3 *= STEP;
-		if (B3 == -STEP) B3 = canvas.width();
-		if (B2 == -STEP) B2 = canvas.width();
-		if (B1 == -STEP) B1 = canvas.width();
-		sum = floor(sum * STEP * STEP * 1.2);
+	}
+#elif DPS==2
+	int DF = NP / (DIF1*DIF2);
+	for (int i = 0; i < DIF1; i++) {
+		G4_R.insert(new World);
+		for (int j = 0; j < DIF2; j++) {
+			G4_R.GObjs.back()->insert(new World);
+			for (int l = 0; l < DF; l++) {
+				G4_RS.at(i).at(j)->add(W);
+				W++;
+			}
+			G4_R.GObjs.back()->insert(G4_RS.at(i).at(j));
+		}
+	}
+#elif DPS==1
+	int DF = NP / (DIF1);
+	for (int i = 0; i < DIF1; i++) {
+		G4_R.insert(new World);
+		for (int l = 0; l < DF; l++) {
+			G4_R.GObjs.back()->add(W);
+			W++;
+		}
+	}
+#endif
+	W -= NP;
+	parallelogram G4_LD({ -2,-2,0 }, { 2,-2,0 }, { -2,2,0 }, 1);
+	//G4_LD.reflect = rgblight(0.4, 0.4, 0.7), G4_LD.absorb = rgblight(0.6, 0.6, 0.3);	// gray-blue
+	//G4_LD.reflect = rgb(255, 255, 100);	// bright yellow
+	G4_LD.reflect = rgb(178, 102, 255);
+	for (int i = 0; i < NP; i++) {
+		//W->reflect = rgblight(0.8, 0.8, 0.8), W->absorb = rgblight(0.2, 0.2, 0.2);	// silver
+		//W->reflect = rgblight(rgb(218, 165, 32)), W->absorb = rgb(15, 115, 25);	// gold
+		//W->reflect = rgblight(rgb(50, 255, 153));	// cyan
+		W->reflect = rgblight(rgb(51, 153, 255));	// blue
+		W++;
+	}
+	W -= NP;
+	G4.add(&G4_LD);
+	G4.insert(&G4_R);
+	G4.setGlobalLightSource(PI / 2, 0);
 
-		cout << "\r             \r"; if (sum >= 1) cout << "Estimated Time Required: " << int(sum) << "secs. \n\n";
-		cout << "Rendering...\n";
+	G4.render(img, point(30, 60, 40), point(0, 0, 0), 0, 0.004);
 
-		// multithread rendering
-		int RenderingProcess0 = 0, RenderingProcess1 = 0, RenderingProcess2 = 0, RenderingProcess3 = 0;
-		thread T0([&](World* WC) { WC->MultiThread_CC(canvas, 0, B1, 0, canvas.height(), C, CV, oi, RenderingProcess0); }, this);
-		thread T1([&](World* WC) { WC->MultiThread_CC(canvas, B1, B2, 0, canvas.height(), C, CV, oi, RenderingProcess1); }, this);
-		thread T2([&](World* WC) { WC->MultiThread_CC(canvas, B2, B3, 0, canvas.height(), C, CV, oi, RenderingProcess2); }, this);
-		thread T3([&](World* WC) { WC->MultiThread_CC(canvas, B3, canvas.width(), 0, canvas.height(), C, CV, oi, RenderingProcess3); }, this);
-		thread Proc([&](World* WC) { WC->RenderingProcessCounter(canvas.height()*canvas.width(),
-			RenderingProcess0, RenderingProcess1, RenderingProcess2, RenderingProcess3); }, this);
-		T0.join(); T1.join(); T2.join(); T3.join(); Proc.join();
+
+#if DPS==3
+	for (int i = 0; i < DIF1; i++) {
+		for (int j = 0; j < DIF2; j++) {
+			for (int k = 0; k < DIF3; k++) {
+				delete G4_RS.at(i).at(j).at(k);
+			}
+			//G4_RS.at(j).clear();
+		}
+		G4_RS.at(i).clear();
+	}
+#elif DPS==2
+	for (int i = 0; i < DIF1; i++) {
+		for (int j = 0; j < DIF2; j++) {
+			delete G4_RS.at(i).at(j);
+		}
+		G4_RS.at(i).clear();
+	}
+#elif DPS==1
+	for (int i = 0; i < DIF1; i++) {
+		delete G4_RS.at(i);
+	}
+
+#endif
+	delete[] W;
+
+	img.out("IMAGE\\RT.bmp");
+
+}
+
+// complex Γ function
+#ifdef MY_COMPLEX_INC
+
+#pragma warning(push, 0)
+#include "D:\Coding\AboutMath\SuperCalculator\SuperCalculator\Matrix.h"
+inline bool baddouble(double a) {
+	return isnan(a) || 1 / a == 0;
+}
+void Render_GTest03() {
+	bitmap img(600, 600);
+	unsigned NP;
+
+#define DPS 3
+#define DIF1 8
+#define DIF2 16
+	//#define DIF1 4
+	//#define DIF2 8
+#define DIF3 16
+	World G5, G5_R;
+#if DPS==3
+	vector<vector<vector<World*>>> G5_RS; G5_RS.resize(DIF1);
+	for (int i = 0; i < DIF1; i++) {
+		G5_RS.at(i).resize(DIF2);
+		for (int j = 0; j < DIF2; j++) {
+			G5_RS.at(i).at(j).resize(DIF3);
+			for (int k = 0; k < DIF3; k++) {
+				G5_RS.at(i).at(j).at(k) = new World;
+			}
+		}
+	}
+#elif DPS==2
+	vector<vector<World*>> G5_RS; G5_RS.resize(DIF1);
+	for (int i = 0; i < DIF1; i++) {
+		G5_RS.at(i).resize(DIF2);
+		for (int j = 0; j < DIF2; j++) {
+			G5_RS.at(i).at(j) = new World;
+		}
+	}
+#elif DPS==1
+	vector<World*> G5_RS; G5_RS.resize(DIF1);
+	for (int i = 0; i < DIF1; i++) {
+		G5_RS.at(i) = new World;
+	}
+#endif
+
+#define Min_X -8.125
+#define Max_X 4.375
+#define Min_Y -3.8
+#define Max_Y 3.8
+#define X_Dif 192
+#define Y_Dif 192
+#define XC_Dif 8
+#define YC_Dif 8
+	//#define X_Dif 12
+	//#define Y_Dif 8
+	//#define XC_Dif 1
+	//#define YC_Dif 1
+
+	NP = X_Dif * Y_Dif;
+	if ((DPS == 1 && (NP % (DIF1) != 0)) || (DPS == 2 && (NP % (DIF1 * DIF2) != 0)) || (DPS == 3 && (NP % (DIF1 * DIF2 * DIF3) != 0)))
+		cout << "\aWarning: Number of triangles is not divisible by the number of blocks! \n\n", exit(-1);
+	/*if ((DPS == 1 && (XC_Dif * YC_Dif * DIF1 != NP)) || (DPS == 2 && (XC_Dif * YC_Dif * DIF1 * DIF2 != NP)) || (DPS == 3 && (XC_Dif * YC_Dif * DIF1 * DIF2 * DIF3 != NP)))
+		cout << "\aWarning: Product of Sub-Differentials is not equal to the number of blocks! \n\n", exit(-1);*/
+	NP *= 2 * XC_Dif * YC_Dif;
+
+	triangle *W; W = new triangle[NP];
+	complex C;
+	point C00, C01, C10, C11; double u, v, un, vn;
+
+	cout << "Calculating Gamma Function..." << endl;
+
+	double sx = (Max_X - Min_X) / (X_Dif * XC_Dif), sy = (Max_Y - Min_Y) / (Y_Dif * YC_Dif);
+	for (int i = 0; i < X_Dif; i++) {
+		//u = sx * i + Min_X, un = u + sx;
+		for (int j = 0; j < Y_Dif; j++) {
+			//v = sy * j + Min_Y, vn = v + sy;
+			for (int id = 0; id < XC_Dif; id++) {
+				u = sx * (i*XC_Dif + id) + Min_X, un = u + sx;
+				for (int jd = 0; jd < YC_Dif; jd++) {
+					v = sy * (j*YC_Dif + jd) + Min_Y, vn = v + sy;
+
+					C00 = { u, v, abs(tgamma(complex(u, v))) };
+					C01 = { u, vn, abs(tgamma(complex(u, vn))) };
+					C10 = { un, v, abs(tgamma(complex(un, v))) };
+					C11 = { un, vn, abs(tgamma(complex(un, vn))) };
+					if (baddouble(C00.z) || abs(C00.z) > 100) C00.z = 0;
+					if (baddouble(C01.z) || abs(C01.z) > 100) C01.z = 0;
+					if (baddouble(C10.z) || abs(C10.z) > 100) C10.z = 0;
+					if (baddouble(C11.z) || abs(C11.z) > 100) C11.z = 0;
+					*W = triangle(C00, C01, C10), W++;
+					*W = triangle(C11, C10, C01);
+					C = tgamma(complex(u, v));
+					if (baddouble(C.rel) || abs(C.rel) > 100) C.rel = 0;
+					if (baddouble(C.ima) || abs(C.ima) > 100) C.rel = 0;
+					W->reflect = (W - 1)->reflect = fromHSL(arg(C) / (2 * PI), 1, 1 - pow(0.5, abs(C)));
+					W++;
+
+				}
+			}
+
+		}
+	}
+	W -= NP;
+
+	cout << "Packaging Data for Rendering..." << endl;
+
+#if DPS==3
+	int DF = NP / (DIF1*DIF2*DIF3);
+	for (int i = 0; i < DIF1; i++) {
+		G5_R.insert(new World);
+		for (int j = 0; j < DIF2; j++) {
+			G5_R.GObjs.back()->insert(new World);
+			for (int k = 0; k < DIF3; k++) {
+				for (int l = 0; l < DF; l++) {
+					G5_RS.at(i).at(j).at(k)->add(W);
+					W++;
+				}
+				G5_R.GObjs.back()->GObjs.back()->insert(G5_RS.at(i).at(j).at(k));
+			}
+		}
+	}
+#elif DPS==2
+	int DF = NP / (DIF1*DIF2);
+	for (int i = 0; i < DIF1; i++) {
+		G5_R.insert(new World);
+		for (int j = 0; j < DIF2; j++) {
+			for (int l = 0; l < DF; l++) {
+				G5_RS.at(i).at(j)->add(W);
+				W++;
+			}
+			G5_R.GObjs.back()->insert(G5_RS.at(i).at(j));
+		}
+	}
+#elif DPS==1
+	int DF = NP / (DIF1);
+	for (int i = 0; i < DIF1; i++) {
+		G5_R.insert(new World);
+		for (int l = 0; l < DF; l++) {
+			G5_R.GObjs.back()->add(W);
+			W++;
+		}
+	}
+#endif
+	W -= NP;
+
+
+	G5.insert(&G5_R);
+	img.clear(150, 100, rgb(0, 0, 255));
+	img.clear(600, 600);
+	G5.setGlobalLightSource(-1, -2, 1);
+	G5.render(img, point(-30, 50, 55), point(-0.6, 0, 3.6), 0, 0.04);
+#if DPS==3
+	for (int i = 0; i < DIF1; i++) {
+		for (int j = 0; j < DIF2; j++) {
+			for (int k = 0; k < DIF3; k++) {
+				delete G5_RS.at(i).at(j).at(k);
+			}
+		}
+		G5_RS.at(i).clear();
+	}
+#elif DPS==2
+	for (int i = 0; i < DIF1; i++) {
+		for (int j = 0; j < DIF2; j++) {
+			delete G5_RS.at(i).at(j);
+		}
+		G5_RS.at(i).clear();
+	}
+#elif DPS==1
+	for (int i = 0; i < DIF1; i++) {
+		delete G5_RS.at(i);
+	}
+
+#endif
+	delete[] W;
+
+	img.out("IMAGE\\RT.bmp");
+
+}
+#pragma warning(pop)
 
 #endif
 
-		cout << " Completed. \n\n";
-		auto Time_End = NTime::now();
-		fs = Time_End - Time_Beg;
-		cout << "Elapsed Time: " << defaultfloat << setprecision(3) << fs.count() << "s. \n\n\n";
+void Render_GTest04() {
+	World W;
+	//plane_grid PB(-3); W.add(&PB);
+	plane_dif PB(-3); PB.setcolor(LightBlue); W.add(&PB);
+	//WaterSurface WB(-1); WB.setAttCof(0.54, 0.05, 0.02); WB.setIndex(1.33); W.add(&WB);
 
-		fout << "Elapsed Time: " << defaultfloat << setprecision(3) << fs.count() << "s. \n\n\n";
+	World W1;
+	parallelogram G({ -2,-2,0 }, { 2,-2,0 }, { -2,2,0 }, 1); G.setcolor(Silver); W1.add(&G);
+	cylinder C1(point(+1.5, +1.5, 0.1), point(+1.5, +1.5, -3), 0.3); C1.setcolor(Red); W1.add(&C1);
+	cylinder C2(point(-1.5, +1.5, 0.1), point(-1.5, +1.5, -3), 0.3); C2.setcolor(Red); W1.add(&C2);
+	cylinder C3(point(+1.5, -1.5, 0.1), point(+1.5, -1.5, -3), 0.3); C3.setcolor(Red); W1.add(&C3);
+	cylinder C4(point(-1.5, -1.5, 0.1), point(-1.5, -1.5, -3), 0.3); C4.setcolor(Red); W1.add(&C4);
+	cylinder C0(point(0, 0, 0.2), point(0, 0, -1.2), 0.5); C0.setcolor(Brown); W1.add(&C0);
+	circle CC1(point(0, 0, 0.2), 0.5); CC1.setcolor(Brown); W1.add(&CC1);
+	circle CC2(point(0, 0, -1.2), 0.5); CC2.setcolor(Brown); W1.add(&CC2);
+	sphere B1(point(0, 0, 0.3), 0.1); B1.setcolor(SeaShell); W1.add(&B1);
+	torus Rg(point(0, 0, 0.12), 1.2, 0.12); Rg.setcolor(Gold); W1.add(&Rg);
+	W.insert(&W1);
 
+	World W2;
+	const double Tl = 4, Th = 0.8;
+	parallelogram_ref T1(point(-0.5 * Tl, -0.5 * Tl, 0), point(0, Tl), point(Tl, 0));
+	parallelogram_ref T2(point(-0.5 * Tl, -0.5 * Tl, Th), point(Tl, 0), point(0, Tl));
+	parallelogram_ref T3(point(-0.5 * Tl, -0.5 * Tl, 0), point(Tl, 0), point(0, 0, Th));
+	parallelogram_ref T4(point(-0.5 * Tl, -0.5 * Tl, Th), point(0, Tl), point(0, 0, -Th));
+	parallelogram_ref T5(point(0.5 * Tl, 0.5 * Tl, 0), point(0, 0, Th), point(0, -Tl));
+	parallelogram_ref T6(point(0.5 * Tl, 0.5 * Tl, 0), point(-Tl, 0), point(0, 0, Th));
+	polyhedron T({ &T1, &T2, &T3, &T4, &T5, &T6 }); T.setAttCof(0.5, 0.2, 0.1); T.setIndex(1.5); W2.add(&T);
+	//W.insert(&W2);
 
-		// Debug single pixel
-		int debugx = 320, debugy = 120, RP = 0;
-		this->MultiThread_CC(canvas, debugx, debugx + 1, debugy, debugy + 1, C, CV, oi, RP);
-		//pixel col = Red; canvas.dot(debugx + 1, debugy, col); canvas.dot(debugx - 1, debugy, col); canvas.dot(debugx, debugy + 1, col); canvas.dot(debugx, debugy - 1, col);
+	fout << W << endl;
 
+	bitmap img(3000, 2000);
+	W.setGlobalLightSource(-1, -1, 2);
+	W.background = rgblight(1);
+	W.Render_Sampling = 8;
+	W.render(img, point(30, 60, 40), point(0, 0, -1), 0, 0.01);
+	img.out("IMAGE\\RT.bmp");
+}
+
+// water and two "pillars"
+void Render_CTest01() {
+	World W;
+	plane B(-200); B.setcolor(rgb(255, 153, 0)); B.setcolor(Gray); W.add(&B);
+	//plane_dif B(-80); B.setcolor(rgb(255, 153, 0)); B.setcolor(Gray); W.add(&B); W.Render_Sampling = 4;
+	parallelogram P1(point(0, -2, -1), point(3, -2, -1), point(0, 0, -1), 1);
+	P1.setcolor(LightGreen);
+	parallelogram P2(point(0, -2, -200), point(3, -2, -200), point(0, -2, -1), 1);
+	P2.setcolor(Gray);
+	parallelogram P3 = P2 + point(0, 2, 0);
+	parallelogram P4(point(0, -2, -200), point(0, -2, -1), point(0, 0, -200), 1);
+	P4.setcolor(Gray);
+	parallelogram P5 = P4 + point(3, 0, 0);
+	W.add({ &P1, &P2, &P3, &P4, &P5 });
+	parallelogram L1(point(-18, 8, 0.4), point(8, 8, 0.4), point(-18, 14, 0.4), 1);
+	L1.setcolor(White);
+	parallelogram L2(point(-18, 8, 0.4), point(8, 8, 0.4), point(-18, 8, -200), 1);
+	L2.setcolor(Gray);
+	parallelogram L3 = L2 + point(0, 6, 0);
+	W.add({ &L1, &L2, &L3 });
+	WaterSurface water(0); water.setAttCof(0.054, 0.005, 0.002); water.setIndex(1.33); W.add(&water);
+	//for (int i = 0; i < W.Objs.size(); i++) cout << *W.Objs.at(i) << endl;
+
+	sphere SO(point(0, 0, 0), 1); SO.setcolor(Silver);
+	sphere SX(point(10, 0, 0), 1); SX.setcolor(Red);
+	sphere SY(point(0, 10, 0), 1); SY.setcolor(Green);
+	sphere SZ(point(0, 0, 10), 1); SZ.setcolor(Blue);
+	//W.add({ &SO, &SX, &SY, &SZ });
+
+	bitmap canvas(600, 400);
+	//W.setGlobalLightSource(0, 0, 1); W.render(canvas, point(200, -200, -40), point(0, 0, 0), 0, 0.06);
+	W.setGlobalLightSource(0, 2, 1); W.render(canvas, point(200, -200, 100), point(0, 0, 0), 0, 0.006);
+	canvas.out("IMAGE\\RT.bmp");
+
+	return;
+	for (string name = "000"; name[0] < '2'; name[2]++) {
+		if (name[2] > '9') name[1]++, name[2] = '0';
+		if (name[1] > '9') name[0]++, name[1] = '0';
+		W.render(canvas, point(200, -200, (name[0] - '0') * 100 + (name[1] - '0') * 10 + name[2] - '0'), point(0, 0, 0), 0, 0.006);
+		canvas.out("IMAGE\\T\\RT_z." + name + ".bmp");
+	}
+}
+
+// sphere-water test
+void Render_CTest02() {
+	World W;
+	plane P(-1); P.setcolor(LightSkyBlue); W.add(&P);
+	WaterSurface PW(-ERR_ZETA); PW.setAttCof(0.54, 0.05, 0.02); PW.setIndex(1.33); W.add(&PW);
+	//sphere A(point(0, 0, 1), 1); A.setcolor(Red); W.add(&A);
+
+	sphere3D A3(point(0, 0, 2), 2); A3.setAttCof(0.5, 0.1, 0.2); A3.setIndex(1.5); W.add(&A3);
+
+	vector<parallelogram> Pr;
+	parallelogram Pr0(point(-4, -4, 0), point(1, 0, 0), point(0, 1, 0));
+	for (int i = 0; i < 8; i++) {
+		for (int j = 0; j < 8; j++) {
+			Pr0.setcolor((i + j) & 1 ? LightBlue : Gray);
+			Pr.push_back(Pr0);
+			Pr0 += point(0, 1, 0);
+		}
+		Pr0 += point(1, -8, 0);
+	}
+	World W1;
+	for (int i = 0; i < Pr.size(); i++) W1.add(&Pr.at(i));
+	W.insert(&W1);
+
+	bitmap img(600, 400);
+	W.Render_Sampling = 2;
+	W.setGlobalLightSource(0, 0, 1);
+	W.render(img, point(100, 30, 50), point(0, 0, 0), 0, 0.02);
+	img.out("IMAGE\\RT.bmp");
+}
+
+// sphere-word test and Moana scene
+void Render_CTest03() {
+	World W1, W2;
+	plane_grid P1(0); W1.add(&P1);
+
+	bitmap_inc WT(bitmap("D:\\Coding\\AboutPhysics\\RayTracing\\RayTracing\\IMAGE\\WT.bmp"), point(0, 0, ERR_ZETA), point(4, 0), point(0, 1), insertType::center | insertType::proportion);
+	W1.add(&WT);
+	// screenshot: <i style="margin:50px;font-family:impact;font-size:128px;color:black;">Ray-Tracing</i>
+
+	sphere3D S1(point(0, 0, 20), 2); S1.setAttCof(0.5, 0.1, 0.2); S1.setIndex(1.1); W1.add(&S1);
+
+	bitmap img(600, 400);
+	W1.setGlobalLightSource(0, 0, 1);
+	for (string i = "00"; i[0] < '3'; i[1]++) {
+		S1.C.z = (i[0] - '0') * 10 + i[1] - '0';
+		//W1.render(img, point(0, 0, 100), point(0, 0, 0), 0, 0.01);
+		//img.out("IMAGE\\T\\RT" + i + ".bmp");
+		if (i[1] == '9') i[0]++, i[1] = '0' - 1;
+	}
+	//return;
+
+	bitmap_inc BM(bitmap("D:\\Coding\\AboutImage\\ColorAnalysisTest\\2DFitting\\Origin\\SK01.bmp"), point(0, 0, 0), point(19.1, 0, 0), point(0, 0, 8)); W2.add(&BM);
+	// capture from 3D animation film Moana, 16:20, a girl standing on the rock and staring at the sea
+
+	S1.C = point(0, 0, 0), S1.r = 2; S1.setIndex(1.5); W2.add(&S1);
+	sphere3D S2(point(8, -5, 4), 2); S2.setAttCof(0.5, 0.1, 0.2); S2.setIndex(1.5); W2.add(&S2);
+	plane_grid P2(-2, 2); W2.add(&P2);
+	WaterSurface PW(0, 1.33); PW.setAttCof(0.54, 0.05, 0.02); W2.add(&PW);
+	img = bitmap(8000, 3500);
+	W2.setGlobalLightSource(0, -1, 1);
+	W2.render(img, point(0, -100, 40), point(8, 0, 2.4), 0, 0.04); img.out("IMAGE\\RT.bmp");	// it would be a very wonderful picture
+
+	return;
+
+	img = bitmap(600, 400);
+	S1.setIndex(1.1);
+	for (string name = "000"; name[1] < '2'; name[2]++) {
+		if (name[2] > '9') name[1]++, name[2] = '0';
+		if (name[1] > '9') name[0]++, name[1] = '0';
+		W1.render(img, point(0, 0, 100), point(0, 0, 0), 0, 0.02);
+		img.out("IMAGE\\T\\RT_z." + name + ".bmp");
+		S1.C.z++;
+	}
+}
+
+// triangular prism
+void Render_CTest04() {
+	World W;
+	triangle_ref T1(point(0, 0, 0), point(0, 1, 0), point(1, 0, 0));
+	parallelogram_ref T2(point(0, 0, 0), point(1, 0, 0), point(0, 0, 1), 1);
+	parallelogram_ref T3(point(0, 0, 0), point(0, 0, 1), point(0, 1, 0), 1);
+	parallelogram_ref T4(point(1, 0, 0), point(0, 1, 0), point(1, 0, 1), 1);
+	triangle_ref T5(point(0, 0, 1), point(1, 0, 1), point(0, 1, 1));
+	double cn = 1.3; T1.setIndex(cn), T2.setIndex(cn), T3.setIndex(cn), T4.setIndex(cn), T5.setIndex(cn);
+	point P(0, 0, ERR_ZETA); T1 += P, T2 += P, T3 += P, T4 += P, T5 += P;
+	polyhedron T({ &T1, &T2, &T3, &T4, &T5 }); sphere3D S(point(0.5, 0.2, 0.5), 0.3);
+	rgblight cf(1.08, 0.10, 0.04); T.attcoe = S.attcoe = cf;
+	W.add(&T); W.add(&S);
+	plane_grid G(0.0); W.add(&G);
+	//plane_dif G(0.0); G.setcolor(DarkSeaGreen); W.add(&G);
+	parallelogram G1(point(-1, 0, ERR_ZETA), point(cos(2.8), sin(2.8)), 2 * point(cos(2.8 - PI / 2), sin(2.8 - PI / 2))); G1.setcolor(Brown); W.add(&G1);
+	fout << W << endl;
+
+	W.Render_Sampling = 2;
+	W.setGlobalLightSource(0, 0, 1);
+	bitmap img(600, 400);
+	W.render(img, point(10, -6, 5), point(0, 0, 0), 0, 0.06);
+	img.out("IMAGE\\RT.bmp");
+}
+
+// "chessboard"
+void Render_LTest01() {
+	World W;
+	spherebulb L(point(0, 0, 3), 0.8, rgblight(1, 1, 2)); W.add(&L);
+	//sphere L(point(0, 0, 3), 0.8); L.setcolor(rgblight(1, 1, 2)); W.add(&L);
+	sphere B(point(1, 1.2, 1), 1); B.setcolor(Red); W.add(&B);
+	plane_dif Pb(point(-2, 0, 0), point(1, -0.8, 0)); Pb.setcolor(LightYellow); Pb.setvar(0.1); W.add(&Pb);
+	plane_dif P(-1); P.setcolor(LightBlue); P.setvar(0.1); W.add(&P);
+	rectbulb Pr0(point(-4, -4, 0), point(1, 0, 0), point(0, 1, 0)); Pr0.setcolor(LightBlue); //W.add(&Pr0);
+	vector<rectbulb> Pr;
+	W.Render_Sampling = 8;
+	for (int i = 0; i < 8; i++) {
+		for (int j = 0; j < 8; j++) {
+			Pr0.setcolor((i + j) & 1 ? LightBlue : Gray);
+			Pr.push_back(Pr0);
+			Pr0 += point(0, 1, 0);
+		}
+		Pr0 += point(1, -8, 0);
+	}
+	for (int i = 0; i < Pr.size(); i++) W.add(&Pr.at(i));
+	//for (int i = 0; i < 2; i++) W.add(&Pr.at(i));
+	//W.setGlobalLightSource(PI / 2, 0);
+
+	bitmap canvas(600, 400);
+	W.render(canvas, point(200, -200, 200), point(0, 0, 0), 0, 0.001);
+	canvas.out("IMAGE\\RT.bmp");
+
+}
+
+// two spheres inside a room
+void Render_LTest02() {
+	World W;
+	plane_dif B(0.0); B.setcolor(Gray); B.setvar(0.1);
+	plane_dif T(4.0); T.setcolor(Gray); T.setvar(0.1);
+	plane_dif L(point(0, -2, 0), point(0, 1, 0)); L.setcolor(Orange); L.setvar(0.1);
+	plane_dif R(point(0, 2, 0), point(0, -1, 0)); R.setcolor(SkyBlue); R.setvar(0.1);
+	plane_dif Bk(point(-6, 0, 0), point(1, 0, 0)); Bk.setcolor(LightGray); Bk.setvar(0.1);
+	sphere S1(point(0, 2, 1), 1); S1.setcolor(Gray);
+	sphere S2(point(4, -1, 0.6), 0.6); S2.setcolor(Gray);
+	spherebulb Lb(point(0, 0, 4.2), 1); Lb.setcolor(White); Lb.setcolor(rgblight(10));
+	W.add({ &B, &T, &L, &R, &Bk, &S1, &S2, &Lb });
+	//W.setGlobalLightSource(PI / 2, 0);
+
+	bitmap canvas(600, 400);
+	W.Render_Sampling = 12;
+	W.render(canvas, point(12, 0, 1), point(0, 0, 1), 0, 0.6);
+	canvas.out("IMAGE\\RT.bmp");
+}
+
+// a house on the grassland near a pool
+void Render_LTest03() {
+	World W;
+
+	point P1[7] = { point(0,0), point(0,4), point(1.2,4), point(2,3.2), point(2,0), point(0,0), point(0,4) };
+	parallelogram_dif P[5], B[5];
+	for (int i = 0; i < 5; i++) {
+		P[i] = parallelogram(P1[i], P1[i + 1] - P1[i], point(0, 0, -1));
+		B[i] = parallelogram(P1[i + 1], ERR_UPSILON*(P1[i + 2] - P1[i + 1]), ERR_UPSILON*(P1[i + 1] - P1[i]));
+		P[i].setcolor(SeaShell), B[i].setcolor(SeaGreen);
+		W.add(&P[i]); W.add(&B[i]);
 	}
 
-	void print(ostream &os, unsigned n) {
-		string space; for (unsigned i = 0; i < n; i++) space += " ";
-		os << space << border << endl; space += " ";
-		for (unsigned i = 0; i < Objs.size(); i++) os << space << *(Objs.at(i)) << endl;
-		for (unsigned i = 0; i < GObjs.size(); i++) GObjs.at(i)->print(os, n + 1);
+	point KP[5] = { point(2.8,1), point(2.8,2.8), point(3.2,2.8), point(3.2,1), point(2.8,1) };
+	parallelogram_dif K[4], K1, K2;
+	for (int i = 0; i < 4; i++) {
+		K[i] = parallelogram(KP[i], KP[i + 1] - KP[i], point(0, 0, 0.24));
+		K[i].setcolor(Brown);
+		W.add(&K[i]);
 	}
-	friend ostream& operator << (ostream& os, const World &W) {
-		os << W.border << endl;
-		for (unsigned i = 0; i < W.Objs.size(); i++) os << " " << *(W.Objs.at(i)) << endl;
-		for (unsigned i = 0; i < W.GObjs.size(); i++) W.GObjs.at(i)->print(os, 1);
-		os << defaultfloat;
-		return os;
-	}
-};
+	K1 = parallelogram(KP[0], KP[1], 0.5*(KP[0] + KP[3]) + point(0, 0, 0.08), 1) + point(0, 0, 0.24); K1.setcolor(Brown); W.add(&K1);
+	K2 = parallelogram(KP[3], KP[2], 0.5*(KP[0] + KP[3]) + point(0, 0, 0.08), 1) + point(0, 0, 0.24); K2.setcolor(Brown); W.add(&K2);
+	triangle_dif T1(0.5*(KP[0] + KP[3]) + point(0, 0, 0.08), KP[0], KP[3]); T1 += point(0, 0, 0.24); T1.setcolor(Brown); W.add(&T1);
+	triangle_dif T2(0.5*(KP[1] + KP[2]) + point(0, 0, 0.08), KP[1], KP[2]); T2 += point(0, 0, 0.24); T2.setcolor(Brown); W.add(&T2);
 
-unsigned World::Render_Sampling = 1;
+	plane_dif F(-1); F.setcolor(LightGray); W.add(&F);
+	WaterSurface WF(-0.1); WF.setAttCof(0.54, 0.05, 0.02); WF.setIndex(1.33); W.add(&WF);
 
-// https://zhuanlan.zhihu.com/p/41269520
+	//sphere S1(0.5*(P1[2] + P1[3]) + point(0, 0, -1), 0.08); S1.setcolor(Red); W.add(&S1);
 
-#endif
+	W.setGlobalLightSource(0.2, 0.2, 1);
+	W.Render_Sampling = 16;
+
+
+	bitmap canvas(600, 400);
+	W.render(canvas, point(-1, -3, 4), point(1.8, 1.8, 0), 0, 0.6);
+	canvas.out("IMAGE\\RT.bmp");
+}
+
+
+#include "CSG.h"
+
+void Render_XTest00() {
+	World W;
+	plane_grid P(0); W.add(&P);
+	XObjs::Sphere XS1(point(0, 0, 1), 1);
+	XObjs::Sphere XS2(point(0, 1, 1), 1);
+	XObjs::Plane XP1(point(0, 0.5, 1), point(-0.4, 1, 1));
+	XObjs::Plane XP2(point(0, 0, 1.2), point(0, 0, 1));
+	XObjs::Cylinder_std XCSx(point(0, 0, 1), 1, point(1, 0, 0));
+	XObjs::Cylinder_std XCSy(point(0, 0, 1), 1, point(0, 1, 0));
+	XObjs::Cylinder_std XCSz(point(0, 0, 1), 1, point(0, 0, 1));
+	XObjs::Cylinder XC1(point(0, 0, 0.5), point(0, 1, 1.5), 0.5);
+	XObjs::Cone_std XCNS1(point(0, 0, 0), point(0, 0, 1), 0.5);
+	XObjs::Cone_std XCNS2(point(0, 0, 1), point(0, 0, 0), 0.5);
+	XObjs::Cone XCN1(point(1, 0, 0.1), point(-4, 0, 1), 2, atan(0.25));
+	XObjs::Cone_trunc XCC1(point(0, 0, 0.1001), point(0, 0, 1), 0.6, 0.2);
+	XObjs::Torus_xOy XT1(point(0, 0, 1), 3, 1);
+	XObjs::Box_xOy XB1(point(1, 1, 1.2), point(-2, 0, 0.5));
+	XObjs::Box_affine XX1(matrix3D_affine(
+		2, 1, 0, 0,
+		-1, 1, 0, 0,
+		0, 0, 1, 1,
+		0.6, 0, 0, 1));
+	XSolid X;
+	//X = CSG_SubtractionOp(CSG_IntersectionOp(XSolid(XS1), XSolid(XS2)), XSolid(XP1));
+	//X = CSG_IntersectionOp(CSG_IntersectionOp(XSolid(XCSx), XSolid(XCSy)), XSolid(XCSz));
+	//X = CSG_IntersectionOp(XSolid(XS1), XSolid(XCNS1));
+	//X = CSG_IntersectionOp(CSG_OnionOp(XSolid(XS1), 0.1), XSolid(XP2));
+	/*XX1 = XObjs::Box_affine(matrix3D_affine(
+		3.7200328046667286, -0.069652603314699246, 0.044066321302911514, 0.034826301657349623,
+		1.8840032804666724, 0.69652603314699235, 0.0044066321302911526, 0.65173698342650388,
+		-0.10440492070000945, 0.00000000000000000, 0.29671323010627088, 0.29999999999999999,
+		1.5119999999999996, 0.00000000000000000, 0.00000000000000000, 1.0000000000000000));*/
+	X = XX1;
+	X = CSG_RoundingOp(X, 0.2);
+	//X = CSG_OnionOp(X, 0.1);
+	X.setColor(White); W.add(&X);
+
+	X.type = XSolid_Crystal; X.setColor(rgblight(0, 0, 0));
+	//X.col = rgblight(0.5, 0.2, 0.1);
+
+	sphere3D S(point(-1.5, 1.5, 1), 1); S.C = point(0, 0, 1);
+	S.setIndex(1.5); S.setAttCof(0.8, 0.4, 0.2);
+	//W.add(&S);
+
+	parallelogram Pr(point(3, 0.5, -0.9), point(-6, 0, 0), point(0, 0, 4));
+	Pr = parallelogram(point(-2.5, -1.5, 1), point(6, 0, 0), point(0, 4, 0));
+	VisualizeSDF(X, Pr, 600 * 400, 0.42166666666666669, 0.55000000000000004);
+	//Pr.setcolor(White); W.add(&Pr);
+
+	//X = CSG_RoundingOp(X, 0.2);
+
+	//ADD_AXIS(W, 0.05);
+
+	bitmap img(600, 400);
+	W.setGlobalLightSource(0, 0, 1);
+	//W.Render_Sampling = 2;
+	W.render(img, point(10, -10, 10), point(pick_random(-0.001, 0.001), 1, 0), 0, 0.1);
+	img.out("IMAGE\\RT.bmp");
+}
+
+void Affine_SDF_test() {
+	World W;
+	plane_grid P(0); W.add(&P);
+	XObjs::Box_affine XX1(matrix3D_affine(
+		1, 0, 0, 0,
+		0, 1, 0, 0,
+		0, 0, 1, 0,
+		0, 0, 0, 1));
+	XX1 += point(0, 0, 0.01);
+
+
+	//XX1.scale(2, 1, 1);
+	//XX1.rotate(0, -0.3);
+	//XX1.scale(point(-1, 1, 0), 1.5);
+	//XX1.rotate(point(2, 0), 2);
+
+	XX1.scale(2);
+	XX1.translate(-1, -1, -1);
+	XX1.perspective(0, 0, 0.2);
+	XX1.translate(1, 1, 1);
+
+	XSolid X = XX1;
+	//X.setColor(White);
+	X.type = XSolid_Crystal; X.col = rgblight(0.5, 0.2, 0.1);
+
+	//XX1 += point(0, 0, 1.5);
+	//X = CSG_RoundingOp(XSolid(XX1), 1);
+	//X = CSG_OnionOp(X, 0.5);
+
+	parallelogram Pr(point(-6, -4, 1), point(12, 0, 0), point(0, 8, 0));
+	VisualizeSDF(X, Pr, 600 * 400);
+	//Pr.setcolor(White); W.add(&Pr);
+
+	//ADD_AXIS(W, 0.05);
+
+	W.add(&X);
+	bitmap img(600, 400);
+	W.setGlobalLightSource(0, 0, 1);
+	W.Render_Sampling = 1;
+	W.render(img, point(10, -10, 10), point(pick_random(-0.001, 0.001), 0, 0), 0, 0.2);
+	img.out("IMAGE\\RT.bmp");
+}
+
+void SDF_Transformation_Test() {
+	XObjs::Cylinder C(point(0, 0, 0.001), point(0, 0, 2), 0.5);
+	XObjs::Sphere S(point(0, 0, 1), 1);
+	XSolid X = C;
+
+	X = CSG_Translation(X, point(-1, -1, 0.5));
+	X = CSG_RoundingOp(X, 0.5);
+	//X = CSG_IntersectionOp(X, XSolid(S));
+	X = CSG_Rotation(X, -0.3, 0, -PI / 2);
+
+	X.type = XSolid_Smooth; X.setColor(Gray);
+	//X.type = XSolid_Crystal; //X.col = rgblight(0.5, 0.2, 0.1);
+
+	parallelogram Pr(point(-6, -4, 1), point(12, 0, 0), point(0, 8, 0)); //Pr.setcolor(White), W.add(&Pr);
+	VisualizeSDF(X, Pr, 600 * 400);
+
+	World W; W.add(&X);
+	plane_grid P(0); W.add(&P);
+	bitmap img(600, 400);
+	//W.Render_Sampling = 2;
+	W.setGlobalLightSource(0, 0, 1);
+	ADD_AXIS(W, 0.05);
+	W.render(img, point(10, 10, 10), point(0, 0, 1), 0, 0.2);
+	img.out("IMAGE\\RT.bmp");
+}
+

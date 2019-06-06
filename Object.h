@@ -623,7 +623,7 @@ public:
 	unsigned telltype() const { return Sphere_Sign; }
 };
 
-/* ring class */
+/* ring class, building */
 #define Torus_Sign 0x00000006
 class torus :public objectSF {
 public:

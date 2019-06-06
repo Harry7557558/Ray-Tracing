@@ -9,9 +9,10 @@
 #pragma warning(disable: 4244)	// conversion from 'type1' to 'type2', possible loss of data
 #pragma warning(disable: 4018)	// signed/unsigned mismatch, sometimes cause problems
 
-#include "D:\Explore\Math\Graph\GraphFun\GraphFun\BitMap.h"
+#include "BitMap.h"
 #include <queue>
 #include <stack>
+#include <initializer_list>
 
 using namespace std;
 
@@ -38,7 +39,8 @@ void WARN(string s) {
 }
 
 
-class matrix3D;
+
+
 
 /*
 	Spacial point class.
@@ -268,7 +270,6 @@ public:
 };
 class matrix3D_affine {
 	double p[4][4];
-	double _det; bool det_calced;
 public:
 	matrix3D_affine() {
 		for (int i = 0; i < 4; i++) {
@@ -276,13 +277,11 @@ public:
 				p[i][j] = i == j ? 1 : 0;
 			}
 		}
-		det_calced = true, _det = 1;
 	}
 	matrix3D_affine(const double& _00, const double& _01, const double& _02,
 		const double& _10, const double& _11, const double& _12, const double& _20, const double& _21, const double& _22) {
 		p[0][0] = _00, p[0][1] = _01, p[0][2] = _02, p[1][0] = _10, p[1][1] = _11, p[1][2] = _12, p[2][0] = _20, p[2][1] = _21, p[2][2] = _22;
 		p[0][3] = p[1][3] = p[2][3] = 0, p[3][0] = p[3][1] = p[3][2] = 0, p[3][3] = 1;
-		det_calced = false;
 	}
 	matrix3D_affine(const double& _00, const double& _01, const double& _02, const double& _03, const double& _10, const double& _11, const double& _12, const double &_13,
 		const double& _20, const double& _21, const double& _22, const double& _23, const double& _30, const double& _31, const double& _32, const double& _33) {
@@ -290,7 +289,6 @@ public:
 		p[1][0] = _10, p[1][1] = _11, p[1][2] = _12, p[1][3] = _13;
 		p[2][0] = _20, p[2][1] = _21, p[2][2] = _22, p[2][3] = _23;
 		p[3][0] = _30, p[3][1] = _31, p[3][2] = _32, p[3][3] = _33;
-		det_calced = false;
 	}
 	matrix3D_affine(const matrix3D &other) {
 		for (int i = 0; i < 3; i++) {
@@ -300,7 +298,6 @@ public:
 			this->p[i][3] = this->p[3][i] = 0;
 		}
 		this->p[3][3] = 1;
-		det_calced = false;
 	}
 	matrix3D_affine(const matrix3D_affine &other) {
 		for (int i = 0; i < 4; i++) {
@@ -308,7 +305,6 @@ public:
 				this->p[i][j] = other.p[i][j];
 			}
 		}
-		if (this->det_calced = other.det_calced) this->_det = other._det;
 	}
 	matrix3D_affine& operator = (const matrix3D_affine& other) {
 		for (int i = 0; i < 4; i++) {
@@ -316,13 +312,11 @@ public:
 				this->p[i][j] = other.p[i][j];
 			}
 		}
-		if (this->det_calced = other.det_calced) this->_det = other._det;
 		return *this;
 	}
 	~matrix3D_affine() {}
 
 	inline double* operator [] (const unsigned &n) {
-		det_calced = false;
 		return &p[n][0];
 	}
 	inline point operator * (const point &P) const {
@@ -338,13 +332,9 @@ public:
 				for (int i = 0; i < 4; i++) R.p[m][n] += p[m][i] * A.p[i][n];
 			}
 		}
-		if (this->det_calced && A.det_calced) R.det_calced = true, R._det = this->_det * A._det;
 		return R;
 	}
 	double det() const {
-		fout << "Catch: " << endl << *this << endl << endl;
-
-		if (det_calced) return _det;
 		bool sign = false;
 		double P[4][4];
 		for (int i = 0; i < 4; i++) for (int j = 0; j < 4; j++) P[i][j] = p[i][j];
@@ -354,11 +344,6 @@ public:
 				for (int j = i + 1; j < 4; j++) {
 					if (abs(P[i][j]) > ERR_EPSILON) {
 						for (int k = 0; k < 4; k++) swap(P[k][j], P[k][i]);
-
-						fout << "Swap: " << endl;
-						for (int i = 0; i < 4; i++) { for (int j = 0; j < 4; j++) { fout << P[i][j] << "\t"; } fout << endl; }
-						fout << endl << endl;
-
 						sign ^= 1;
 						break;
 					}
@@ -377,7 +362,6 @@ public:
 
 		double c = sign ? -1 : 1;
 		for (int i = 0; i < 4; i++) c *= P[i][i];
-		*const_cast<double*>(&_det) = c; *const_cast<bool*>(&det_calced) = true;
 		return c;
 	}
 	matrix3D_affine invert() const {
@@ -421,7 +405,6 @@ public:
 			}
 		}
 
-		if (this->det_calced) R.det_calced = true, R._det = 1.0 / this->_det;
 		return R;
 	}
 
@@ -615,6 +598,9 @@ public:
 	borderbox(const point &Min, const point &Max) {
 		this->Min = Min, this->Max = Max;
 		fix();
+	}
+	borderbox(const borderbox &other) {
+		this->Min = other.Min, this->Max = other.Max;
 	}
 	bool meet(const ray &a) const {
 		// http://www.cs.utah.edu/~awilliam/box/box.pdf
@@ -893,3 +879,27 @@ double rotate_normal(point &N) {
 	N.z = sin(x)*ny + cos(x)*nz;
 	return cos(rx);
 }
+
+// Output data of a spacial quadrilateral ABCD with given points, for debug
+void print_quadrilateral(ostream& os, point A, point B, point C, point D) {
+	os << "Surface(" << "(" << "(1-u)*" << A << "+u*" << B << ")*(1-v)+(" << "(1-u)*" << D << "+u*" << C << ")*v,u,0,1,v,0,1)";
+}
+
+// correct unit vector t, make it perpendicular to unit vector s (their plane don't change)
+inline void correct_vector(const vec3 &s, vec3 &t) {
+	t -= dot(s, t)*s; t /= t.mod();
+}
+// Get rotation angles, two vectors must be perpendicular unit vector
+inline void getRotationAngle_ik(const vec3 &i, const vec3 &k, double &rx, double &ry, double &rz) {
+	vec3 j = cross(k, i);
+	rx = atan2(j.z, k.z), rz = atan2(i.y, i.x), ry = atan2(-i.z, hypot(i.x, i.y));
+}
+inline void getRotationAngle_ij(const vec3 &i, const vec3 &j, double &rx, double &ry, double &rz) {
+	vec3 k = cross(i, j);
+	rx = atan2(j.z, k.z), rz = atan2(i.y, i.x), ry = atan2(-i.z, hypot(i.x, i.y));
+}
+inline void getRotationAngle_jk(const vec3 &j, const vec3 &k, double &rx, double &ry, double &rz) {
+	vec3 i = cross(j, k);
+	rx = atan2(j.z, k.z), rz = atan2(i.y, i.x), ry = atan2(-i.z, hypot(j.z, k.z));
+}
+

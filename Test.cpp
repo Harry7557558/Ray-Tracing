@@ -796,7 +796,7 @@ void Render_XTest00() {
 	XObjs::Cone_std XCNS1(point(0, 0, 0), point(0, 0, 1), 0.5);
 	XObjs::Cone_std XCNS2(point(0, 0, 1), point(0, 0, 0), 0.5);
 	XObjs::Cone XCN1(point(1, 0, 0.1), point(-4, 0, 1), 2, atan(0.25));
-	XObjs::Cone_capped XCC1(point(0, 0, 0.1001), point(0, 0, 1), 0.6, 0.2);
+	XObjs::Cone_trunc XCC1(point(0, 0, 0.1001), point(0, 0, 1), 0.6, 0.2);
 	XObjs::Torus_xOy XT1(point(0, 0, 1), 3, 1);
 	XObjs::Box_xOy XB1(point(1, 1, 1.2), point(-2, 0, 0.5));
 	XObjs::Box_affine XX1(matrix3D_affine(

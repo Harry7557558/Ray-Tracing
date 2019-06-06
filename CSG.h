@@ -10,8 +10,25 @@
 // object exact: legal shape (not an approximation);  SDF exact: legal distance field (issues won't occur when applying operations); 
 // "not exact" operations/transformations may affect farther operations/transformations
 
+template<typename T> inline T clamp(const T &x, const T &min, const T &max) {
+	return x < min ? min : x>max ? max : x;
+}
+template<typename T> inline T mix(const T &x, const T &y, const T &a) {
+	return (1 - a)*x + a * y;
+}
 
 namespace XObjs {
+#define XObjs_Sphere_Sign 0x00000001
+#define XObjs_Plane_Sign 0x00000002
+#define XObjs_CylinderSTD_Sign 0x00000003
+#define XObjs_ConeSTD_Sign 0x00000004
+#define XObjs_TorusXOY_Sign 0x00000005
+#define XObjs_BoxXOY_Sign 0x00000006
+#define XObjs_Cylinder_Sign 0x00000007
+#define XObjs_Cone_Sign 0x00000008
+#define XObjs_ConeTrunc_Sign 0x00000009
+#define XObjs_BoxAffine_Sign 0x00000101
+
 	class XObjs_Comp {
 	public:
 		XObjs_Comp() {}
@@ -25,6 +42,7 @@ namespace XObjs {
 			WARN("XObjs::XObjs_Comp.SDF() called!");
 			return borderbox(point(NAN, NAN, NAN), point(NAN, NAN, NAN));
 		}
+		virtual unsigned telltype() { return 0; }
 	};
 
 
@@ -47,6 +65,7 @@ namespace XObjs {
 		borderbox MaxMin() const {
 			return borderbox(C - point(r, r, r), C + point(r, r, r));
 		}
+		virtual unsigned telltype() { return XObjs_Sphere_Sign; }
 	};
 
 	class Plane : public XObjs_Comp {	// exact
@@ -75,6 +94,7 @@ namespace XObjs {
 		borderbox MaxMin() const {
 			return borderbox(point(-INFINITY, -INFINITY, -INFINITY), point(INFINITY, INFINITY, INFINITY));
 		}
+		virtual unsigned telltype() { return XObjs_Plane_Sign; }
 	};
 
 	class Cylinder_std : public XObjs_Comp {	// exact
@@ -106,6 +126,7 @@ namespace XObjs {
 			A.Min = -A.Max + C; A.Max += C;
 			return A;
 		}
+		virtual unsigned telltype() { return XObjs_CylinderSTD_Sign; }
 	};
 
 	class Cone_std : public XObjs_Comp {	// exact
@@ -137,6 +158,7 @@ namespace XObjs {
 			B.Max = point(INFINITY, INFINITY, INFINITY); B.Min = -B.Max;	// Optimize
 			return B;
 		}
+		virtual unsigned telltype() { return XObjs_ConeSTD_Sign; }
 	};
 
 	class Torus_xOy : public XObjs_Comp {	// exact
@@ -165,6 +187,7 @@ namespace XObjs {
 			B.Max += C, B.Min += C;
 			return B;
 		}
+		virtual unsigned telltype() { return XObjs_TorusXOY_Sign; }
 	};
 
 	class Box_xOy : public XObjs_Comp {		// exact
@@ -217,6 +240,7 @@ namespace XObjs {
 		borderbox MaxMin() const {
 			return borderbox(Max, Min);
 		}
+		virtual unsigned telltype() { return XObjs_BoxXOY_Sign; }
 	};
 
 	class Cylinder : public XObjs_Comp {	// exact
@@ -259,13 +283,13 @@ namespace XObjs {
 			return max(max(-n, n - h), d);
 		}
 		borderbox MaxMin() const {
-			point U(abs(P1.x - P2.x), abs(P1.y - P2.y), abs(P1.z - P2.z));
-			U *= r / h;
-			U.x = sqrt(r*r - U.x*U.x), U.y = sqrt(r*r - U.y*U.y), U.z = sqrt(r*r - U.z*U.z);
+			vec3 u = P2 - P1; u /= u.mod();
+			u.x = sqrt(1 - u.x*u.x), u.y = sqrt(1 - u.y*u.y), u.z = sqrt(1 - u.z*u.z); u *= r;
 			borderbox B(P1, P2); B.fix();
-			B.Max += U, B.Min -= U;
+			B.Max += u, B.Min -= u;
 			return B;
 		}
+		virtual unsigned telltype() { return XObjs_Cylinder_Sign; }
 	};
 
 	class Cone : public XObjs_Comp {	// exact
@@ -316,28 +340,29 @@ namespace XObjs {
 			ad *= r;
 			return borderbox(PMax(PMax(O + ad, O - ad), C), PMin(PMin(O + ad, O - ad), C));
 		}
+		virtual unsigned telltype() { return XObjs_Cone_Sign; }
 	};
 
-	class Cone_capped : public XObjs_Comp {		// exact
+	class Cone_trunc : public XObjs_Comp {		// exact
 		point C, P1, P2; double r1, r2, h1, h2, l1, l2, alpha; vec3 dir;
 	public:
-		Cone_capped() { r1 = r2 = h1 = h2 = l1 = l2 = alpha = 0; }
-		Cone_capped(const point &P_1, const point &P_2, const double &r_1, const double &r_2) {
+		Cone_trunc() { r1 = r2 = h1 = h2 = l1 = l2 = alpha = 0; }
+		Cone_trunc(const point &P_1, const point &P_2, const double &r_1, const double &r_2) {
 			P1 = P_1, P2 = P_2; r1 = r_1, r2 = r_2; if (r1 > r2) swap(r1, r2), swap(P1, P2);
 			dir = P2 - P1; double h = dir.mod(); dir /= h; alpha = atan((r2 - r1) / h);
 			l1 = r1 / sin(alpha), l2 = r2 / sin(alpha); h1 = r1 / tan(alpha), h2 = r2 / tan(alpha);
 			C = P1 - h1 * dir;
 		}
-		Cone_capped(const point &C, const vec3 &dir, const double &h_1, const double &h_2, const double &alpha) {
+		Cone_trunc(const point &C, const vec3 &dir, const double &h_1, const double &h_2, const double &alpha) {
 			this->C = C, this->dir = dir / dir.mod(); h1 = h_1, h2 = h_2, this->alpha = alpha;
 			P1 = C + h1 * dir, P2 = C + h2 * dir; r1 = h1 * tan(alpha), r2 = h2 * tan(alpha), l1 = h1 / cos(alpha), l2 = h2 / cos(alpha);
 		}
-		Cone_capped(const Cone_capped &other) {
+		Cone_trunc(const Cone_trunc &other) {
 			C = other.C, P1 = other.P1, P2 = other.P2; dir = other.dir;
 			r1 = other.r1, r2 = other.r2, h1 = other.h1, h2 = other.h2, l1 = other.l1, l2 = other.l2, alpha = other.alpha;
 		}
-		Cone_capped* clone() const { return new Cone_capped(*this); }
-		~Cone_capped() {}
+		Cone_trunc* clone() const { return new Cone_trunc(*this); }
+		~Cone_trunc() {}
 
 		double SDF(const point &P) const {	// exact
 			point s = P - C; double m = s.mod(), u = dot(s, dir), theta = acos(u / m), d = m * sin(theta); theta -= alpha;
@@ -358,6 +383,7 @@ namespace XObjs {
 			ad2 = ad1 * r2, ad1 *= r1;
 			return borderbox(PMax(PMax(P1 + ad1, P1 - ad1), PMax(P2 + ad2, P2 - ad2)), PMin(PMin(P1 + ad1, P1 - ad1), PMin(P2 + ad2, P2 - ad2)));
 		}
+		virtual unsigned telltype() { return XObjs_ConeTrunc_Sign; }
 	};
 
 	class Box_affine : public XObjs_Comp {
@@ -373,6 +399,7 @@ namespace XObjs {
 			PET_Ey00_n1, PET_Ey00_n2, PET_Ey01_n1, PET_Ey01_n2, PET_Ey10_n1, PET_Ey10_n2, PET_Ey11_n1, PET_Ey11_n2,
 			PET_Ez00_n1, PET_Ez00_n2, PET_Ez01_n1, PET_Ez01_n2, PET_Ez10_n1, PET_Ez10_n2, PET_Ez11_n1, PET_Ez11_n2;		// Point-Edge Test
 
+		borderbox border;
 
 		inline bool Point_Vertex_Test(const point &P, const vec3 &n1, const vec3 &n2, const vec3 &n3, double &dist) const {
 			if (dot(P, n1) > -ERR_EPSILON && dot(P, n2) > -ERR_EPSILON && dot(P, n3) > -ERR_EPSILON) dist = P.mod();
@@ -409,8 +436,11 @@ namespace XObjs {
 		Box_affine* clone() const { return new Box_affine(*this); }
 		~Box_affine() {}
 
-		double SDF(const point &P) const {	// debugging
+		inline bool meet_box(const ray &a) {
+			return this->border.meet(a);
+		}
 
+		double SDF(const point &P) const {	// debugging
 			point S = M_invert * P;
 			if (S.x > 0 && S.x < 1 && S.y > 0 && S.y < 1 && S.z > 0 && S.z < 1) return -min(min(min(abs(dot(P, Px0) + px0), abs(dot(P, Px1) + px1)),
 				min(abs(dot(P, Py0) + py0), abs(dot(P, Py1) + py1))), min(abs(dot(P, Pz0) + pz0), abs(dot(P, Pz1) + pz1)));
@@ -464,7 +494,8 @@ namespace XObjs {
 			*const_cast<vec3*>(&PET_Ex00_n1) /= PET_Ex00_n1.mod(), *const_cast<vec3*>(&PET_Ex01_n1) /= PET_Ex01_n1.mod(), *const_cast<vec3*>(&PET_Ex10_n1) /= PET_Ex10_n1.mod(), *const_cast<vec3*>(&PET_Ex11_n1) /= PET_Ex11_n1.mod(), *const_cast<vec3*>(&PET_Ey00_n1) /= PET_Ey00_n1.mod(), *const_cast<vec3*>(&PET_Ey01_n1) /= PET_Ey01_n1.mod(), *const_cast<vec3*>(&PET_Ey10_n1) /= PET_Ey10_n1.mod(), *const_cast<vec3*>(&PET_Ey11_n1) /= PET_Ey11_n1.mod(), *const_cast<vec3*>(&PET_Ez00_n1) /= PET_Ez00_n1.mod(), *const_cast<vec3*>(&PET_Ez01_n1) /= PET_Ez01_n1.mod(), *const_cast<vec3*>(&PET_Ez10_n1) /= PET_Ez10_n1.mod(), *const_cast<vec3*>(&PET_Ez11_n1) /= PET_Ez11_n1.mod();
 			*const_cast<vec3*>(&PET_Ex00_n2) = _Ez00 - dot(Ex00, _Ez00) * Ex00, *const_cast<vec3*>(&PET_Ex01_n2) = Ez00 - dot(Ex01, Ez00) * Ex01, *const_cast<vec3*>(&PET_Ex10_n2) = _Ez01 - dot(Ex10, _Ez01) * Ex10, *const_cast<vec3*>(&PET_Ex11_n2) = Ez01 - dot(Ex11, Ez01) * Ex11, *const_cast<vec3*>(&PET_Ey00_n2) = _Ez00 - dot(Ey00, _Ez00) * Ey00, *const_cast<vec3*>(&PET_Ey01_n2) = Ez00 - dot(Ey01, Ez00) * Ey01, *const_cast<vec3*>(&PET_Ey10_n2) = _Ez10 - dot(Ey10, _Ez10) * Ey10, *const_cast<vec3*>(&PET_Ey11_n2) = Ez10 - dot(Ey11, Ez10) * Ey11, *const_cast<vec3*>(&PET_Ez00_n2) = _Ey00 - dot(Ez00, _Ey00) * Ez00, *const_cast<vec3*>(&PET_Ez01_n2) = Ey00 - dot(Ez01, Ey00) * Ez01, *const_cast<vec3*>(&PET_Ez10_n2) = _Ey10 - dot(Ez10, _Ey10) * Ez10, *const_cast<vec3*>(&PET_Ez11_n2) = Ey10 - dot(Ez11, Ey10) * Ez11;
 			*const_cast<vec3*>(&PET_Ex00_n2) /= PET_Ex00_n2.mod(), *const_cast<vec3*>(&PET_Ex01_n2) /= PET_Ex01_n2.mod(), *const_cast<vec3*>(&PET_Ex10_n2) /= PET_Ex10_n2.mod(), *const_cast<vec3*>(&PET_Ex11_n2) /= PET_Ex11_n2.mod(), *const_cast<vec3*>(&PET_Ey00_n2) /= PET_Ey00_n2.mod(), *const_cast<vec3*>(&PET_Ey01_n2) /= PET_Ey01_n2.mod(), *const_cast<vec3*>(&PET_Ey10_n2) /= PET_Ey10_n2.mod(), *const_cast<vec3*>(&PET_Ey11_n2) /= PET_Ey11_n2.mod(), *const_cast<vec3*>(&PET_Ez00_n2) /= PET_Ez00_n2.mod(), *const_cast<vec3*>(&PET_Ez01_n2) /= PET_Ez01_n2.mod(), *const_cast<vec3*>(&PET_Ez10_n2) /= PET_Ez10_n2.mod(), *const_cast<vec3*>(&PET_Ez11_n2) /= PET_Ez11_n2.mod();
-			return borderbox(PMin(PMin(PMin(P000, P001), PMin(P010, P011)), PMin(PMin(P100, P101), PMin(P110, P111))), PMax(PMax(PMax(P000, P001), PMax(P010, P011)), PMax(PMax(P100, P101), PMax(P110, P111))));
+			*const_cast<point*>(&border.Min) = PMin(PMin(PMin(P000, P001), PMin(P010, P011)), PMin(PMin(P100, P101), PMin(P110, P111))), *const_cast<point*>(&border.Max) = PMax(PMax(PMax(P000, P001), PMax(P010, P011)), PMax(PMax(P100, P101), PMax(P110, P111)));
+			return border;
 		}
 
 		friend ostream& operator << (ostream& os, const Box_affine &B) {
@@ -479,6 +510,7 @@ namespace XObjs {
 			os << "P_{z1}: "; print_quadrilateral(os, B.P001, B.P011, B.P111, B.P101); os << endl;
 			return os;
 		}
+		virtual unsigned telltype() { return XObjs_BoxAffine_Sign; }
 
 		/* This part doesn't require high efficiency */
 		point center() {
@@ -557,6 +589,7 @@ namespace XObjs {
 #define CSG_OnionOp_Sign 0x1106
 #define CSG_Translation_Sign 0x0107
 #define CSG_Rotation_Sign 0x0108
+#define CSG_SmoothUnionOp_Sign 0x2109
 
 #define CSG_UnionOperator ((const XObjs::XObjs_Comp*)CSG_UnionOp_Sign)
 #define CSG_IntersectionOperator ((const XObjs::XObjs_Comp*)CSG_IntersectionOp_Sign)
@@ -566,6 +599,7 @@ namespace XObjs {
 #define CSG_OnionOperator ((const XObjs::XObjs_Comp*)CSG_OnionOp_Sign)
 #define CSG_TranslationOperator ((const XObjs::XObjs_Comp*)CSG_Translation_Sign)
 #define CSG_RotationOperator ((const XObjs::XObjs_Comp*)CSG_Rotation_Sign)
+#define CSG_SmoothUnionOperator ((const XObjs::XObjs_Comp*)CSG_SmoothUnionOp_Sign)
 
 
 #include <thread>
@@ -576,7 +610,7 @@ namespace XObjs {
 #define XSolid_Diffuse 0x10000100
 #define XSolid_Crystal 0x10001000
 class XSolid : public object {
-	vector<const XObjs::XObjs_Comp*> objs;	// postfix expression
+	vector<const XObjs::XObjs_Comp*> objs;
 	vector<void**> objs_tp;
 #define XSolid_Max_Parameter 4
 	inline void objs_tp_push() {
@@ -592,7 +626,8 @@ class XSolid : public object {
 				for (unsigned m = 0; m < XSolid_Max_Parameter; m++) this->objs_tp.back()[m] = 0;
 				switch (unsigned(other.objs.at(i))) {
 				case CSG_RoundingOp_Sign:;
-				case CSG_OnionOp_Sign: {
+				case CSG_OnionOp_Sign:;
+				case CSG_SmoothUnionOp_Sign: {
 					this->objs_tp.back()[0] = new double(*((double*)(other.objs_tp.at(i)[0])));
 					break;
 				}
@@ -739,6 +774,13 @@ public:
 			}
 			case CSG_Rotation_Sign: {
 				P *= *((matrix3D*)objs_tp.at(i)[0]);
+				break;
+			}
+			case CSG_SmoothUnionOp_Sign: {
+				dir--;
+				//S[dir - 1] = -*((double*)objs_tp.at(i)[0]) * log(exp(-S[dir] / *((double*)objs_tp.at(i)[0])) + exp(-S[dir - 1] / *((double*)objs_tp.at(i)[0])));
+				double h = clamp(0.5 + 0.5*(S[dir] - S[dir - 1]) / *((double*)objs_tp.at(i)[0]), 0.0, 1.0);
+				S[dir - 1] = mix(S[dir], S[dir - 1], h) - *((double*)objs_tp.at(i)[0]) * h*(1.0 - h);
 				break;
 			}
 			default: {
@@ -898,6 +940,63 @@ public:
 		//cout << A.border << endl << X.border << endl;
 		return X;
 	}
+	friend XSolid CSG_UnionOp_Smooth(const XSolid &A, const XSolid &B, double r) {
+		XSolid X;
+		for (int i = 0; i < A.objs.size(); i++) X.objs.push_back(unsigned(A.objs.at(i)) >> 16 ? A.objs.at(i)->clone() : A.objs.at(i));
+		for (int i = 0; i < B.objs.size(); i++) X.objs.push_back(unsigned(B.objs.at(i)) >> 16 ? B.objs.at(i)->clone() : B.objs.at(i));
+		X.deep_copy(A), X.deep_copy(B);
+		X.objs.push_back(CSG_SmoothUnionOperator), X.objs_tp_push();
+		X.objs_tp.back()[0] = new double(r);
+		X.border.Max = PMax(A.border.Max, B.border.Max), X.border.Min = PMin(A.border.Min, B.border.Min);
+		X.border.Max += point(r, r, r), X.border.Min -= point(r, r, r);
+		return X;
+	}
+};
+
+
+
+#define GXSolid_Sign 0x10000002
+class GXSolid : public object {
+	vector<XSolid*> V;
+	borderbox border;
+public:
+	GXSolid() {}
+	GXSolid(initializer_list<XSolid> A) {
+		for (int i = 0; i < A.size(); i++) V.push_back(new XSolid(*(A.begin() + i)));
+	}
+	GXSolid(const GXSolid &other) {
+		for (int i = 0; i < other.V.size(); i++) V.push_back(new XSolid(*other.V.at(i)));
+	}
+	~GXSolid() {
+		for (int i = 0; i < V.size(); i++) delete V.at(i);
+		V.clear();
+	}
+
+	void clear() {
+		for (int i = 0; i < V.size(); i++) delete V.at(i);
+		V.clear();
+	}
+	void push(XSolid A) {
+		V.push_back(new XSolid(A));
+	}
+	void init() {
+		if (V.empty()) {
+			border.Min = border.Max = point(0, 0, 0); return;
+		}
+		V.at(0)->init(); border = V.at(0)->border;
+		for (int i = 0; i < V.size(); i++) {
+			V.at(i)->init();
+			border.Min = PMin(border.Min, V.at(i)->border.Min);
+			border.Max = PMin(border.Max, V.at(i)->border.Max);
+		}
+	}
+
+	void meet(intersect &R, const ray &a, double Max_Dist) const {
+		for (int i = 0; i < V.size(); i++) {
+
+		}
+	}
+
 };
 
 
@@ -992,7 +1091,7 @@ void ScanXSolid(XSolid X, unsigned Nx, unsigned Ny, unsigned Nz, double S) {
 	parallelogram P(X.border.Min, point(Dx, 0, 0), point(0, Dy, 0));
 	bitmap canvas(2 * ceil(w), 2 * ceil(h));
 	unsigned digits = log10(Nz) + 1;
-	for (unsigned i = 0; i < Nz; i++) {
+	for (unsigned i = 1; i <= Nz; i++) {
 		VisualizeSDF_core(X, P, canvas);
 		canvas.out(&(("IMAGE\\SDF\\Z" + uint2str(i, digits) + ".bmp")[0]));
 		P.O.z += Dz / (Nz - 1);
@@ -1002,7 +1101,7 @@ void ScanXSolid(XSolid X, unsigned Nx, unsigned Ny, unsigned Nz, double S) {
 	P = parallelogram(X.border.Min, point(Dx, 0, 0), point(0, 0, Dz));
 	canvas = bitmap(2 * ceil(w), 2 * ceil(h));
 	digits = log10(Ny) + 1;
-	for (unsigned i = 0; i < Ny; i++) {
+	for (unsigned i = 1; i <= Ny; i++) {
 		VisualizeSDF_core(X, P, canvas);
 		canvas.out(&(("IMAGE\\SDF\\Y" + uint2str(i, digits) + ".bmp")[0]));
 		P.O.y += Dy / (Ny - 1);
@@ -1012,7 +1111,7 @@ void ScanXSolid(XSolid X, unsigned Nx, unsigned Ny, unsigned Nz, double S) {
 	P = parallelogram(X.border.Min, point(0, Dy, 0), point(0, 0, Dz));
 	canvas = bitmap(2 * ceil(w), 2 * ceil(h));
 	digits = log10(Nx) + 1;
-	for (unsigned i = 0; i < Nx; i++) {
+	for (unsigned i = 1; i <= Nx; i++) {
 		VisualizeSDF_core(X, P, canvas);
 		canvas.out(&(("IMAGE\\SDF\\X" + uint2str(i, digits) + ".bmp")[0]));
 		P.O.x += Dx / (Nx - 1);

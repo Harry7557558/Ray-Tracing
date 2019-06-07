@@ -15,18 +15,20 @@ class GlassMan {
 	XObjs::Cone_trunc _SHANK_L, _SHANK_R;
 	XObjs::Box_affine _FOOT_L, _FOOT_R;
 
+	friend class GlassMan_std;
+
 public:
 	double damping_r, damping_g, damping_b;
 	double refractive_index;
 
 	/* Fill all of these parameters legally before constructing */
 	point Pos; 	// position the glass man standing/sitting at
-	//vec3 top;	// direction the glass man's body towards (up)
-	//vec3 dir;	// direction the glass man facing
+	vec3 top;	// direction the glass man's body towards (up)
+	vec3 dir;	// direction the glass man facing
 
 	// The following points/vectors are relative to Pos (default 0,0,0), top (default 0,0,1) and dir (default 1,0,0)
 	point Heel_l, Heel_r;		// position of heel/ankle
-	vec3 foot_dir_l, foot_dir_r;	// direction the foot pointing
+	vec3 foot_dir_l, foot_dir_r, foot_side_l, foot_side_r;	// direction the foot pointing and a vector to side of foot
 	double width_of_heel, height_of_heel, width_of_tiptoe, length_of_foot, foot_rounding;	// width and height of heels and tiptoes; length of feet; rounding radius
 	point Knee_l, Knee_r;	// position of knees
 	double upper_radius_of_shank, lower_radius_of_shank, shank_rounding;		// thickness of upper and lower end of shanks; rounding radius
@@ -39,7 +41,7 @@ public:
 	point Elbow_l, Elbow_r;
 	double upper_radius_of_upperarm, lower_radius_of_upperarm, upperarm_rounding;
 	point Hand_l, Hand_r;
-	double upper_radius_of_forearm, lower_radius_of_forearm, forearm_rounding, hand_radius;
+	double upper_radius_of_forearm, lower_radius_of_forearm, forearm_rounding;
 	point Head_lower, Head_top; vec3 Head_side;		// extreme low and top of head (not chin and forehead); any vector to the side of head
 	double width_of_forehead, width_of_chin, depth_of_forehead, head_rounding; double neck_radius, neck_rounding;
 
@@ -47,7 +49,7 @@ public:
 	GlassMan() {
 		damping_r = damping_g = damping_b = 0;
 		refractive_index = 1.5;
-		Pos = point(0, 0, 0)/*, top = point(0, 0, 1), dir = point(1, 0, 0)*/;
+		Pos = point(0, 0, 0), top = point(0, 0, 1), dir = point(1, 0, 0);
 	}
 	GlassMan(const GlassMan &other) {
 		const unsigned n = sizeof(GlassMan);
@@ -61,22 +63,17 @@ public:
 	~GlassMan() {}
 
 	XSolid construct() {
-		//top /= top.mod(), dir /= dir.mod();
-		//dir -= dot(dir, top) * top; dir /= dir.mod();	// now dir is perpendicular to top
-		//vec3 js = cross(dir, top); js /= js.mod();
-		//double rz = atan2(dir.y, dir.x), ry = atan2(-dir.z, hypot(dir.x, dir.y)), rx = atan2(js.z, top.z);
-		/*if (dir.y == 0 && dir.x == 0) {
-			double a = cos(rx)*sin(ry), b = sin(rx)*sin(ry), c = top.x;
-			rz = 2 * atan((b + sqrt(a*a + b * b - c * c)) / (a - c));
-		}*/
+		top /= top.mod(), dir /= dir.mod();
+		correct_vector(top, dir);
+		double rx, ry, rz; getRotationAngle_ik(dir, top, rx, ry, rz);
 
 		Body = XSolid();
 
 		// constructing feet
 		XSolid tmp_FEET; {
 			_FOOT_L = XObjs::Box_affine();
-			foot_dir_l /= foot_dir_l.mod(), foot_dir_r /= foot_dir_r.mod();
-			vec3 foot_b = Heel_l - Heel_r; foot_b /= foot_b.mod();
+			foot_dir_l /= foot_dir_l.mod(), foot_dir_r /= foot_dir_r.mod(),
+				foot_side_l /= foot_side_l.mod(), foot_side_r /= foot_side_r.mod();
 			_FOOT_L.translate(0, -0.5, 0);
 			double foot_h_w = width_of_heel - 2 * foot_rounding, foot_h_h = height_of_heel - 2 * foot_rounding,
 				foot_t_w = width_of_tiptoe - 2 * foot_rounding, foot_l = length_of_foot - 2 * foot_rounding;
@@ -84,9 +81,9 @@ public:
 			_FOOT_L.perspective(foot_h_w / foot_t_w - 1, 0, 0);
 			_FOOT_R = _FOOT_L;
 			double foot_rx, foot_ry, foot_rz;
-			correct_vector(foot_dir_l, foot_b); getRotationAngle_ij(foot_dir_l, foot_b, foot_rx, foot_ry, foot_rz);
+			correct_vector(foot_dir_l, foot_side_l); getRotationAngle_ij(foot_dir_l, foot_side_l, foot_rx, foot_ry, foot_rz);
 			_FOOT_L.rotate(foot_rx, foot_ry, foot_rz);
-			correct_vector(foot_dir_r, foot_b); getRotationAngle_ij(foot_dir_r, foot_b, foot_rx, foot_ry, foot_rz);
+			correct_vector(foot_dir_r, foot_side_r); getRotationAngle_ij(foot_dir_r, -foot_side_r, foot_rx, foot_ry, foot_rz);
 			_FOOT_R.rotate(foot_rx, foot_ry, foot_rz);
 			_FOOT_L += Heel_l, _FOOT_R += Heel_r;
 			XSolid tmp_FOOT_L = _FOOT_L, tmp_FOOT_R = _FOOT_R;
@@ -215,13 +212,12 @@ public:
 		XObjs::Cone Arrow(point(0, 0, 1), point(2, 0, 1), 0.5);
 		//Body = Arrow;
 
-		//Body = CSG_Rotation(Body, rx, ry, rz);
+		Body = CSG_Rotation(Body, rx, ry, rz);
 		Body = CSG_Translation(Body, Pos);
 
 		Body.col = rgb(damping_r, damping_g, damping_b);
 		Body.type = XSolid_Crystal;
 		Body.refractive_index = this->refractive_index;
-		Body.refractive_index = 2;
 
 		//Body.col = rgblight(White); Body.type = XSolid_Smooth;
 
@@ -236,3 +232,70 @@ public:
 };
 
 
+class GlassMan_std {
+	GlassMan G;
+	const double length_of_shanks = 0.45, length_of_thighs = 0.50, length_of_upperarms = 0.30, length_of_forearms = 0.35,
+		length_of_head = 0.30, length_of_chest = 0.33, length_of_waist = 0.20, distance_between_buttocks = 0.30, distance_between_shoulders = 0.45;
+	const double width_of_forehead = 0.2, width_of_chin = 0.16, depth_of_forehead = 0.16, height_of_head = 0.30, radius_of_neck = 0.055, length_of_neck = 0.08,
+		depth_of_chest = 0.2, height_of_chest = 0.33, width_of_waist = 0.25, lower_width_of_waist = 0.32, lower_depth_of_waist = 0.25, height_of_waist = 0.20;
+	const double upper_radius_of_shanks = 0.05, lower_radius_of_shanks = 0.04, upper_radius_of_thighs = 0.08, lower_radius_of_thighs = 0.06,
+		upper_radius_of_upperarms = 0.046, lower_radius_of_upperarms = 0.038, upper_radius_of_forearms = 0.038, lower_radius_of_forearms = 0.028;
+	const double width_of_heels = 0.08, height_of_heels = 0.06, width_of_tiptoes = 0.06, length_of_feet = 0.16;
+	const double head_rounding = 0.1, neck_rounding = 0.1, chest_rounding = 0.1, waist_rounding = 0.1,
+		upperarms_rounding = 0.1, forearms_rounding = 0.1, thighs_rounding = 0.1, shanks_rounding = 0.1, feet_rounding = 0.1;
+
+public:
+	point Pos; vec3 top, dir;
+	vec3 v_head, v_neck, v_chest;	// fore vectors
+	vec3 v_waist, v_upperarm_l, v_upperarm_r, v_forearm_l, v_forearm_r,
+		v_thigh_l, v_thigh_r, v_shank_l, v_shank_r, v_foot_l, v_foot_r;
+	vec3 v_head_side, v_chest_side, v_waist_side, v_foot_l_side, v_foot_r_side;		// to left side, beside foot
+
+	bool auto_fit;
+
+	XSolid construct() {
+		top /= top.mod(), dir /= dir.mod();
+		G.Pos = Pos, G.top = top, G.dir = dir;
+		v_head /= v_head.mod(), v_neck /= v_neck.mod(), v_chest /= v_chest.mod(),
+			v_waist /= v_waist.mod(), v_upperarm_l /= v_upperarm_l.mod(), v_upperarm_r /= v_upperarm_r.mod(), v_forearm_l /= v_forearm_l.mod(), v_forearm_r /= v_forearm_r.mod(),
+			v_thigh_l /= v_thigh_l.mod(), v_thigh_r /= v_thigh_r.mod(), v_shank_l /= v_shank_l.mod(), v_shank_r /= v_shank_r.mod(), v_foot_l /= v_foot_l.mod(), v_foot_r /= v_foot_r.mod(),
+			v_head_side /= v_head_side.mod(), v_chest_side /= v_chest_side.mod(), v_waist_side /= v_waist_side.mod(), v_foot_l_side /= v_foot_l_side.mod(), v_foot_r_side /= v_foot_r_side.mod();
+		correct_vector(v_head, v_head_side), correct_vector(v_chest, v_chest_side), correct_vector(v_waist, v_waist_side), correct_vector(v_foot_l, v_foot_l_side), correct_vector(v_foot_r, v_foot_r_side);
+
+		G.width_of_waist = width_of_waist, G.lower_width_of_waist = lower_width_of_waist, G.lower_depth_of_waist = lower_depth_of_waist, G.waist_rounding = waist_rounding;
+		G.Waist = point(0, 0, 0);
+		point P = G.Waist + height_of_waist * v_waist;
+		G.Buttock_l = P + 0.5*distance_between_buttocks * v_waist_side, G.Buttock_r = G.Buttock_l - distance_between_buttocks * v_waist_side;
+		G.Knee_l = G.Buttock_l + length_of_thighs * v_thigh_l, G.Knee_r = G.Buttock_r + length_of_thighs * v_thigh_r;
+		G.Heel_l = G.Knee_l + length_of_shanks * v_shank_l, G.Heel_r = G.Knee_r + length_of_shanks * v_shank_r;
+		G.upper_radius_of_thigh = upper_radius_of_thighs, G.lower_radius_of_thigh = lower_radius_of_thighs, G.thigh_rounding = thighs_rounding;
+		G.upper_radius_of_shank = upper_radius_of_shanks, G.lower_radius_of_shank = lower_radius_of_shanks, G.shank_rounding = shanks_rounding;
+		G.foot_dir_l = v_foot_l, G.foot_dir_r = v_foot_r, G.foot_side_l = v_foot_l_side, G.foot_side_r = v_foot_r_side, G.length_of_foot = length_of_feet, G.foot_rounding = feet_rounding;
+		G.width_of_heel = width_of_heels, G.height_of_heel = height_of_heels, G.width_of_tiptoe = width_of_tiptoes;
+		point tiptoe_l = G.Heel_l + (length_of_feet * feet_rounding) * v_foot_l, tiptoe_r = G.Heel_r + (length_of_feet * feet_rounding) * v_foot_r;
+
+		G.depth_of_chest = depth_of_chest, G.chest_rounding = chest_rounding;
+		P = G.Waist + height_of_chest * v_chest;
+		G.Shoulder_l = P + 0.5*distance_between_shoulders * v_chest_side, G.Shoulder_r = G.Shoulder_l - distance_between_shoulders * v_chest_side;
+		G.Elbow_l = G.Shoulder_l + length_of_upperarms * v_upperarm_l, G.Elbow_r = G.Shoulder_r + length_of_upperarms * v_upperarm_r;
+		G.Hand_l = G.Elbow_l + length_of_forearms * v_forearm_l, G.Hand_r = G.Elbow_r + length_of_forearms * v_forearm_r;
+		G.upper_radius_of_upperarm = upper_radius_of_upperarms, G.lower_radius_of_upperarm = lower_radius_of_upperarms, G.upperarm_rounding = upperarms_rounding;
+		G.upper_radius_of_forearm = upper_radius_of_forearms, G.lower_radius_of_forearm = lower_radius_of_forearms, G.forearm_rounding = forearms_rounding;
+
+		G.Head_lower = P + (length_of_neck + chest_rounding) * v_chest, G.Head_top = G.Head_lower + height_of_head * v_head; G.Head_side = v_head_side;
+		G.width_of_forehead = width_of_forehead, G.width_of_chin = width_of_chin, G.depth_of_forehead = depth_of_forehead, G.head_rounding = head_rounding;
+		G.neck_radius = radius_of_neck, G.neck_rounding = neck_rounding;
+
+		if (auto_fit) {
+			P = 0.5*(G.Heel_l + G.Heel_r);
+			P.z = min(tiptoe_l.z, tiptoe_r.z);
+			P = Pos - P;
+		}
+		else P = Pos;
+		G.Heel_l += P, G.Heel_r += P, G.foot_dir_l += P, G.foot_dir_r += P, G.foot_side_l += P, G.foot_side_r += P, G.Knee_l += P, G.Knee_r += P, G.Buttock_l += P, G.Buttock_r += P,
+			G.Waist += P, G.Shoulder_l += P, G.Shoulder_r += P, G.Elbow_l += P, G.Elbow_r += P, G.Hand_l += P, G.Hand_r += P, G.Head_lower += P, G.Head_top += P, G.Head_side += P;
+		
+		return G.construct();
+	}
+
+};

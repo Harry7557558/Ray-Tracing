@@ -432,6 +432,7 @@ namespace XObjs {
 		Box_affine(const Box_affine& other) {
 			this->M = other.M;
 			this->MaxMin();
+			//fout << M << endl;
 		}
 		Box_affine* clone() const { return new Box_affine(*this); }
 		~Box_affine() {}
@@ -643,7 +644,6 @@ class XSolid : public object {
 			}
 		}
 	}
-
 	unsigned Max_StackLength; unsigned Stack_Usage[4]; double* *Stack; bool TIed; 	// 4 rendering threads + 1 attempting thread
 public:
 	borderbox border;
@@ -668,7 +668,8 @@ public:
 		}
 		this->deep_copy(other);
 		this->border = other.border;
-		Stack = 0;
+		this->type = other.type, this->col = other.col;
+		this->TIed = false, Stack = 0;
 	}
 	XSolid& operator = (const XSolid &other) {
 		this->destruct();
@@ -687,6 +688,9 @@ public:
 		border = other.MaxMin();
 		Stack = 0;
 		return *this;
+	}
+	object* clone() const {
+		return new XSolid(*this);
 	}
 	void destruct() {
 		for (unsigned i = 0, l = objs.size(); i < l; i++) if (unsigned(objs.at(i)) >> 16) delete objs.at(i);
@@ -793,6 +797,7 @@ public:
 
 	// Note that the reflect vector is not calculated in this function
 	void meet(intersect &R, const ray &a, double Max_Dist) const {
+#ifdef _4_Threads_Rendering
 		unsigned thread_no = 0, k = *((unsigned*)(&this_thread::get_id()));
 #define STACKUSAGE_XSOLID const_cast<unsigned*>(Stack_Usage)
 		TIed ? (k == STACKUSAGE_XSOLID[0] ? thread_no = 0 : (k == STACKUSAGE_XSOLID[1] ? thread_no = 1 :
@@ -801,6 +806,10 @@ public:
 				STACKUSAGE_XSOLID[2] ? (k == STACKUSAGE_XSOLID[2] ? thread_no = 0 : (STACKUSAGE_XSOLID[3] = k) && (thread_no = 3) && (*const_cast<bool*>(&TIed) = true))
 				: (STACKUSAGE_XSOLID[2] = k) && (thread_no = 2)) : (STACKUSAGE_XSOLID[1] = k) && (thread_no = 1)) : (STACKUSAGE_XSOLID[0] = k) && (thread_no = 0));
 		R.wt = thread_no;
+#else
+		const unsigned thread_no = 0;	// optimized by compiler
+		R.wt = 0;
+#endif
 		R.meet = 0;
 		if (!border.meet(a)) return;
 		double t = ERR_ZETA, sdf; point P;
@@ -967,6 +976,9 @@ public:
 	GXSolid(const GXSolid &other) {
 		for (int i = 0; i < other.V.size(); i++) V.push_back(new XSolid(*other.V.at(i)));
 	}
+	object* clone() const {
+		return new GXSolid(*this);
+	}
 	~GXSolid() {
 		for (int i = 0; i < V.size(); i++) delete V.at(i);
 		V.clear();
@@ -1013,6 +1025,7 @@ void VisualizeSDF_core(XSolid &X, parallelogram &p, bitmap &canvas) {
 			x = X.SDF(p.O + (u + ERR_ZETA) * p.A + v * p.B, 0) - sdf;
 			y = X.SDF(p.O + u * p.A + (v + ERR_ZETA) * p.B, 0) - sdf;
 			x /= ERR_ZETA, y /= ERR_ZETA;
+			sdf *= 10, x *= 10, y *= 10;
 			mag = abs(x) + abs(y);
 			arg = atan2(y, x - y);
 			if (isnan(arg)) mag = arg = 0;
@@ -1071,13 +1084,6 @@ void VisualizeSDF(XSolid X, parallelogram p, double S, double u, double v) {
 	canvas.out("IMAGE\\SDF.bmp");
 }
 
-string uint2str(unsigned n, unsigned digits) {
-	string s;
-	for (unsigned i = 0; i < digits; i++) {
-		s = "0" + s; s[0] += n % 10; n /= 10;
-	}
-	return s;
-}
 void ScanXSolid(XSolid X, unsigned Nx, unsigned Ny, unsigned Nz, double S) {
 	X.init();
 	point C = 0.5*(X.border.Max + X.border.Min);

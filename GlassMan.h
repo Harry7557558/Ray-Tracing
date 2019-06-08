@@ -209,9 +209,6 @@ public:
 		Body = CSG_UnionOp(Body, tmp_HEAD);
 		Body = CSG_UnionOp(Body, tmp_NECK);
 
-		XObjs::Cone Arrow(point(0, 0, 1), point(2, 0, 1), 0.5);
-		//Body = Arrow;
-
 		Body = CSG_Rotation(Body, rx, ry, rz);
 		Body = CSG_Translation(Body, Pos);
 
@@ -234,15 +231,15 @@ public:
 
 class GlassMan_std {
 	GlassMan G;
-	const double length_of_shanks = 0.45, length_of_thighs = 0.50, length_of_upperarms = 0.30, length_of_forearms = 0.35,
-		length_of_head = 0.30, length_of_chest = 0.33, length_of_waist = 0.20, distance_between_buttocks = 0.30, distance_between_shoulders = 0.45;
-	const double width_of_forehead = 0.2, width_of_chin = 0.16, depth_of_forehead = 0.16, height_of_head = 0.30, radius_of_neck = 0.055, length_of_neck = 0.08,
-		depth_of_chest = 0.2, height_of_chest = 0.33, width_of_waist = 0.25, lower_width_of_waist = 0.32, lower_depth_of_waist = 0.25, height_of_waist = 0.20;
-	const double upper_radius_of_shanks = 0.05, lower_radius_of_shanks = 0.04, upper_radius_of_thighs = 0.08, lower_radius_of_thighs = 0.06,
-		upper_radius_of_upperarms = 0.046, lower_radius_of_upperarms = 0.038, upper_radius_of_forearms = 0.038, lower_radius_of_forearms = 0.028;
-	const double width_of_heels = 0.08, height_of_heels = 0.06, width_of_tiptoes = 0.06, length_of_feet = 0.16;
-	const double head_rounding = 0.1, neck_rounding = 0.1, chest_rounding = 0.1, waist_rounding = 0.1,
-		upperarms_rounding = 0.1, forearms_rounding = 0.1, thighs_rounding = 0.1, shanks_rounding = 0.1, feet_rounding = 0.1;
+	const double length_of_shanks = 0.45, length_of_thighs = 0.30, length_of_upperarms = 0.28, length_of_forearms = 0.28,
+		length_of_head = 0.33, length_of_chest = 0.33, length_of_waist = 0.22, distance_between_buttocks = 0.13, distance_between_shoulders = 0.34;
+	const double width_of_forehead = 0.24, width_of_chin = 0.18, depth_of_forehead = 0.14, radius_of_neck = 0.024, length_of_neck = 0.03,
+		depth_of_chest = 0.14, width_of_waist = 0.22, lower_width_of_waist = 0.28, lower_depth_of_waist = 0.14, height_of_waist = 0.20;
+	const double upper_radius_of_shanks = 0.04, lower_radius_of_shanks = 0.024, upper_radius_of_thighs = 0.06, lower_radius_of_thighs = 0.04,
+		upper_radius_of_upperarms = 0.04, lower_radius_of_upperarms = 0.03, upper_radius_of_forearms = 0.03, lower_radius_of_forearms = 0.025;
+	const double width_of_heels = 0.1, height_of_heels = 0.06, width_of_tiptoes = 0.06, length_of_feet = 0.13;
+	const double head_rounding = 0.0699, neck_rounding = 0.01, chest_rounding = 0.05, waist_rounding = 0.06,
+		upperarms_rounding = 0.03, forearms_rounding = 0.025, thighs_rounding = 0.035, shanks_rounding = 0.02, feet_rounding = 0.015;
 
 public:
 	point Pos; vec3 top, dir;
@@ -275,14 +272,14 @@ public:
 		point tiptoe_l = G.Heel_l + (length_of_feet * feet_rounding) * v_foot_l, tiptoe_r = G.Heel_r + (length_of_feet * feet_rounding) * v_foot_r;
 
 		G.depth_of_chest = depth_of_chest, G.chest_rounding = chest_rounding;
-		P = G.Waist + height_of_chest * v_chest;
+		P = G.Waist + length_of_chest * v_chest;
 		G.Shoulder_l = P + 0.5*distance_between_shoulders * v_chest_side, G.Shoulder_r = G.Shoulder_l - distance_between_shoulders * v_chest_side;
 		G.Elbow_l = G.Shoulder_l + length_of_upperarms * v_upperarm_l, G.Elbow_r = G.Shoulder_r + length_of_upperarms * v_upperarm_r;
 		G.Hand_l = G.Elbow_l + length_of_forearms * v_forearm_l, G.Hand_r = G.Elbow_r + length_of_forearms * v_forearm_r;
 		G.upper_radius_of_upperarm = upper_radius_of_upperarms, G.lower_radius_of_upperarm = lower_radius_of_upperarms, G.upperarm_rounding = upperarms_rounding;
 		G.upper_radius_of_forearm = upper_radius_of_forearms, G.lower_radius_of_forearm = lower_radius_of_forearms, G.forearm_rounding = forearms_rounding;
 
-		G.Head_lower = P + (length_of_neck + chest_rounding) * v_chest, G.Head_top = G.Head_lower + height_of_head * v_head; G.Head_side = v_head_side;
+		G.Head_lower = P + (length_of_neck + chest_rounding) * v_chest, G.Head_top = G.Head_lower + length_of_head * v_head; G.Head_side = v_head_side;
 		G.width_of_forehead = width_of_forehead, G.width_of_chin = width_of_chin, G.depth_of_forehead = depth_of_forehead, G.head_rounding = head_rounding;
 		G.neck_radius = radius_of_neck, G.neck_rounding = neck_rounding;
 
@@ -292,10 +289,14 @@ public:
 			P = Pos - P;
 		}
 		else P = Pos;
-		G.Heel_l += P, G.Heel_r += P, G.foot_dir_l += P, G.foot_dir_r += P, G.foot_side_l += P, G.foot_side_r += P, G.Knee_l += P, G.Knee_r += P, G.Buttock_l += P, G.Buttock_r += P,
+		G.Heel_l += P, G.Heel_r += P, G.Knee_l += P, G.Knee_r += P, G.Buttock_l += P, G.Buttock_r += P,
 			G.Waist += P, G.Shoulder_l += P, G.Shoulder_r += P, G.Elbow_l += P, G.Elbow_r += P, G.Hand_l += P, G.Hand_r += P, G.Head_lower += P, G.Head_top += P, G.Head_side += P;
 		
 		return G.construct();
 	}
 
+	void push(World &W) {
+		this->construct();
+		G.push(W);
+	}
 };

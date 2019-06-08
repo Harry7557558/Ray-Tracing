@@ -18,7 +18,7 @@ public:
 	}
 	~object() {}
 
-	virtual object* copy() const {
+	virtual object* clone() const {
 		return new object;
 	}
 	virtual void init() {}	// some objects need to be initialized before rendering
@@ -58,7 +58,7 @@ public:
 	}
 	~objectSF() {}
 
-	object* copy() const {
+	object* clone() const {
 		return new objectSF;
 	}
 
@@ -107,7 +107,7 @@ public:
 		reflect = p.reflect;
 	}
 	~plane() {}
-	object* copy() const {
+	object* clone() const {
 		return new plane(*this);
 	}
 
@@ -175,7 +175,7 @@ public:
 		A = *V.begin(), B = *(V.begin() + 1), C = *(V.begin() + 2);
 	}
 	~triangle() {}
-	object* copy() const {
+	object* clone() const {
 		return new triangle(*this);
 	}
 
@@ -249,7 +249,7 @@ public:
 		this->O = O, this->A = A, this->B = B;
 	}
 	~parallelogram() {}
-	object* copy() const {
+	object* clone() const {
 		return new parallelogram(*this);
 	}
 
@@ -326,7 +326,7 @@ public:
 		this->C = C, this->r = r, this->rx = rx, this->ry = ry, this->rz = rz;
 	}
 	~circle() {}
-	object* copy() const {
+	object* clone() const {
 		return new circle(*this);
 	}
 
@@ -458,7 +458,7 @@ public:
 		ry = 0;
 	}
 	~cylinder() {}
-	object* copy() const {
+	object* clone() const {
 		return new cylinder(*this);
 	}
 
@@ -580,7 +580,7 @@ public:
 		this->C = point(C), this->r = r;
 	}
 	~sphere() {}
-	object* copy() const {
+	object* clone() const {
 		return new sphere(*this);
 	}
 
@@ -642,7 +642,7 @@ public:
 		this->C = C, this->R = R, this->r = r, this->rx = rx, this->ry = ry, this->rz = rz;
 	}
 	~torus() {}
-	object* copy() const {
+	object* clone() const {
 		return new torus(*this);
 	}
 
@@ -690,7 +690,7 @@ public:
 	objectSF_dif() {}
 	objectSF_dif(const objectSF_dif &a) { this->reflect = a.reflect; }
 	~objectSF_dif() {}
-	object* copy() const {
+	object* clone() const {
 		return new objectSF_dif(*this);
 	}
 
@@ -729,7 +729,7 @@ public:
 		reflect = p.reflect;
 	}
 	~plane_dif() {}
-	object* copy() const {
+	object* clone() const {
 		return new plane_dif(*this);
 	}
 
@@ -784,7 +784,7 @@ public:
 		if (absolute) this->A -= O, this->B -= O;
 	}
 	~parallelogram_dif() {}
-	object* copy() const {
+	object* clone() const {
 		return new parallelogram_dif(*this);
 	}
 	void meet(intersect &R, const ray &a) const {
@@ -847,7 +847,7 @@ public:
 		this->A = A, this->B = B, this->C = C;
 	}
 	~triangle_dif() {}
-	object* copy() const {
+	object* clone() const {
 		return new triangle_dif(*this);
 	}
 	void meet(intersect &R, const ray &a) const {
@@ -895,7 +895,7 @@ public:
 	objectSF_col() {}
 	objectSF_col(const objectSF_col &a) {}
 	~objectSF_col() {}
-	object* copy() const {
+	object* clone() const {
 		return new objectSF_col(*this);
 	}
 
@@ -928,7 +928,7 @@ public:
 	plane_grid(const double &z_int, const double &side_length, const rgblight &c1, const rgblight &c2) { this->z_int = z_int, wx = hy = side_length, this->c1 = c1, this->c2 = c2; }
 	plane_grid(const double &z_int, const double &side_length_x, const double &side_length_y, const rgblight &c1, const rgblight &c2) { this->z_int = z_int, wx = side_length_x, hy = side_length_y, this->c1 = c1, this->c2 = c2; }
 	~plane_grid() {}
-	object* copy() const {
+	object* clone() const {
 		return new plane_grid(*this);
 	}
 
@@ -1007,7 +1007,7 @@ public:
 		bitmap_inc(M, O, X, Y, t);
 	}
 	~bitmap_inc() {}
-	object* copy() const {
+	object* clone() const {
 		return new bitmap_inc(*this);
 	}
 
@@ -1072,7 +1072,7 @@ public:
 		ri = a.ri;
 	}
 	~object3D() {}
-	object* copy() const {
+	object* clone() const {
 		return new object3D(*this);
 	}
 
@@ -1124,7 +1124,7 @@ public:
 	point Min() const {
 		return point(-INFINITY, -INFINITY, z_int);
 	}
-	object* copy() const {
+	object* clone() const {
 		return new WaterSurface(*this);
 	}
 	~WaterSurface() {}
@@ -1206,7 +1206,7 @@ public:
 	sphere3D(const initializer_list<double> &C, const double &r) {
 		this->C = point(C), this->r = r, this->ri = 1.5;
 	}
-	object* copy() const {
+	object* clone() const {
 		return new sphere3D(*this);
 	}
 	~sphere3D() {}
@@ -1310,7 +1310,7 @@ public:
 		N /= N.mod();
 	}
 	~triangle_ref() {}
-	object* copy() const {
+	object* clone() const {
 		return new triangle_ref(*this);
 	}
 	point Max() const { return point(max({ A.x, B.x, C.x }), max({ A.y, B.y, C.y }), max({ A.z, B.z, C.z })); }
@@ -1395,7 +1395,7 @@ public:
 		N /= N.mod();
 	}
 	~parallelogram_ref() {}
-	object* copy() const {
+	object* clone() const {
 		return new parallelogram_ref(*this);
 	}
 	point Max() const {
@@ -1471,7 +1471,7 @@ public:
 	polyhedron() : dynamic_memory(false) {}
 	polyhedron(const polyhedron &a) : dynamic_memory(true) {
 		for (int i = 0; i < a.tp.size(); i++) {
-			tp.push_back(dynamic_cast<object3D*>(a.tp[i]->copy()));
+			tp.push_back(dynamic_cast<object3D*>(a.tp[i]->clone()));
 		}
 	}
 	polyhedron(const initializer_list<object3D*> objs) : dynamic_memory(false) {
@@ -1493,7 +1493,7 @@ public:
 			S.Min = PMin(S.Min, tp.back()->Min());
 		}
 	}
-	object* copy() const {
+	object* clone() const {
 		return new polyhedron(*this);
 	}
 	~polyhedron() {
@@ -1595,7 +1595,7 @@ public:
 	lightsource() { col.r = col.g = col.b = 1; }
 	lightsource(const lightsource &a) { col = a.col; }
 	~lightsource() {}
-	object* copy() const {
+	object* clone() const {
 		return new lightsource(*this);
 	}
 
@@ -1621,7 +1621,7 @@ public:
 		this->C = C, this->r = r, this->col = col;
 	}
 	spherebulb(const spherebulb &a) { C = a.C, r = a.r, col = a.col; }
-	object* copy() const {
+	object* clone() const {
 		return new spherebulb(*this);
 	}
 	~spherebulb() {}
@@ -1681,7 +1681,7 @@ public:
 		O = *V.begin(), A = *(V.begin() + 1), B = *(V.begin() + 2);
 	}
 	~rectbulb() {}
-	object* copy() const {
+	object* clone() const {
 		return new rectbulb(*this);
 	}
 	void meet(intersect &R, const ray &a) const {

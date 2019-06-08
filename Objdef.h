@@ -38,6 +38,16 @@ void WARN(string s) {
 	cout << s << "\a\n"; fout << s << endl;
 }
 
+#define TeX_space "\\quad"
+#define TeX_endl "\\\\[3pt]"
+
+string uint2str(unsigned n, unsigned digits) {
+	string s;
+	for (unsigned i = 0; i < digits; i++) {
+		s = "0" + s; s[0] += n % 10; n /= 10;
+	}
+	return s;
+}
 
 
 
@@ -290,6 +300,9 @@ public:
 		p[2][0] = _20, p[2][1] = _21, p[2][2] = _22, p[2][3] = _23;
 		p[3][0] = _30, p[3][1] = _31, p[3][2] = _32, p[3][3] = _33;
 	}
+	matrix3D_affine(const double *P) {
+		for (int i = 0; i < 16; i++) *((&p[0][0]) + i) = *(P + i);
+	}
 	matrix3D_affine(const matrix3D &other) {
 		for (int i = 0; i < 3; i++) {
 			for (int j = 0; j < 3; j++) {
@@ -318,6 +331,19 @@ public:
 
 	inline double* operator [] (const unsigned &n) {
 		return &p[n][0];
+	}
+	bool operator == (const matrix3D_affine &other) {
+		double c = p[3][3] / other.p[3][3], dif;
+		for (int i = 0; i < 4; i++) {
+			for (int j = 0; j < 4; j++) {
+				dif = other.p[i][j] * c - this->p[i][j];
+				if (abs(dif) > ERR_EPSILON) {
+					//cout << *this << TeX_space << other << TeX_endl;
+					return false;
+				}
+			}
+		}
+		return true;
 	}
 	inline point operator * (const point &P) const {
 		double m = p[3][0] * P.x + p[3][1] * P.y + p[3][2] * P.z + p[3][3];
@@ -365,46 +391,26 @@ public:
 		return c;
 	}
 	matrix3D_affine invert() const {
-		matrix3D_affine R(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);
-		double P[4][4]; for (int i = 0; i < 4; i++) for (int j = 0; j < 4; j++) P[i][j] = p[i][j];
-
-		for (int i = 0; i < 4; i++) {
-			if (abs(P[i][i]) < ERR_EPSILON) {
-				P[i][i] = 0;
-				for (int j = i + 1; j < 4; j++) {
-					if (abs(P[i][j]) > ERR_EPSILON) {
-						for (int k = 0; k < 4; k++) swap(P[k][j], P[k][i]), swap(R.p[k][j], R.p[k][i]);
-
-						break;
-					}
-					if (j == 3) {
-						for (int m = 0; m < 4; m++) for (int n = 0; n < 4; n++) R.p[m][n] = NAN;
-						return R;
-					}
-				}
-			}
-			for (int j = 0; j < 4; j++) {
-				if (j != i && abs(P[j][i]) > ERR_EPSILON) {
-					double c = P[j][i] / P[i][i];
-					for (int k = 0; k < 4; k++) {
-						P[j][k] -= c * P[i][k], R[j][k] -= c * R.p[i][k];
-					}
-
-				}
-			}
-		}
-
-		for (int j = 0; j < 4; j++) {
-			if (abs(P[j][j]) < ERR_EPSILON) {
-				for (int m = 0; m < 4; m++) for (int n = 0; n < 4; n++) R.p[m][n] = NAN;
-				return R;
-			}
-			for (int k = 0; k < 4; k++) {
-				R.p[j][k] /= P[j][j];
-				if (abs(R.p[j][k]) < ERR_EPSILON) R.p[j][k] = 0;
-			}
-		}
-
+		matrix3D_affine R;
+		R.p[0][0] = p[1][1] * p[2][2] * p[3][3] - p[1][1] * p[2][3] * p[3][2] - p[2][1] * p[1][2] * p[3][3] + p[2][1] * p[1][3] * p[3][2] + p[3][1] * p[1][2] * p[2][3] - p[3][1] * p[1][3] * p[2][2];
+		R.p[1][0] = -p[1][0] * p[2][2] * p[3][3] + p[1][0] * p[2][3] * p[3][2] + p[2][0] * p[1][2] * p[3][3] - p[2][0] * p[1][3] * p[3][2] - p[3][0] * p[1][2] * p[2][3] + p[3][0] * p[1][3] * p[2][2];
+		R.p[2][0] = p[1][0] * p[2][1] * p[3][3] - p[1][0] * p[2][3] * p[3][1] - p[2][0] * p[1][1] * p[3][3] + p[2][0] * p[1][3] * p[3][1] + p[3][0] * p[1][1] * p[2][3] - p[3][0] * p[1][3] * p[2][1];
+		R.p[3][0] = -p[1][0] * p[2][1] * p[3][2] + p[1][0] * p[2][2] * p[3][1] + p[2][0] * p[1][1] * p[3][2] - p[2][0] * p[1][2] * p[3][1] - p[3][0] * p[1][1] * p[2][2] + p[3][0] * p[1][2] * p[2][1];
+		R.p[0][1] = -p[0][1] * p[2][2] * p[3][3] + p[0][1] * p[2][3] * p[3][2] + p[2][1] * p[0][2] * p[3][3] - p[2][1] * p[0][3] * p[3][2] - p[3][1] * p[0][2] * p[2][3] + p[3][1] * p[0][3] * p[2][2];
+		R.p[1][1] = p[0][0] * p[2][2] * p[3][3] - p[0][0] * p[2][3] * p[3][2] - p[2][0] * p[0][2] * p[3][3] + p[2][0] * p[0][3] * p[3][2] + p[3][0] * p[0][2] * p[2][3] - p[3][0] * p[0][3] * p[2][2];
+		R.p[2][1] = -p[0][0] * p[2][1] * p[3][3] + p[0][0] * p[2][3] * p[3][1] + p[2][0] * p[0][1] * p[3][3] - p[2][0] * p[0][3] * p[3][1] - p[3][0] * p[0][1] * p[2][3] + p[3][0] * p[0][3] * p[2][1];
+		R.p[3][1] = p[0][0] * p[2][1] * p[3][2] - p[0][0] * p[2][2] * p[3][1] - p[2][0] * p[0][1] * p[3][2] + p[2][0] * p[0][2] * p[3][1] + p[3][0] * p[0][1] * p[2][2] - p[3][0] * p[0][2] * p[2][1];
+		R.p[0][2] = p[0][1] * p[1][2] * p[3][3] - p[0][1] * p[1][3] * p[3][2] - p[1][1] * p[0][2] * p[3][3] + p[1][1] * p[0][3] * p[3][2] + p[3][1] * p[0][2] * p[1][3] - p[3][1] * p[0][3] * p[1][2];
+		R.p[1][2] = -p[0][0] * p[1][2] * p[3][3] + p[0][0] * p[1][3] * p[3][2] + p[1][0] * p[0][2] * p[3][3] - p[1][0] * p[0][3] * p[3][2] - p[3][0] * p[0][2] * p[1][3] + p[3][0] * p[0][3] * p[1][2];
+		R.p[2][2] = p[0][0] * p[1][1] * p[3][3] - p[0][0] * p[1][3] * p[3][1] - p[1][0] * p[0][1] * p[3][3] + p[1][0] * p[0][3] * p[3][1] + p[3][0] * p[0][1] * p[1][3] - p[3][0] * p[0][3] * p[1][1];
+		R.p[3][2] = -p[0][0] * p[1][1] * p[3][2] + p[0][0] * p[1][2] * p[3][1] + p[1][0] * p[0][1] * p[3][2] - p[1][0] * p[0][2] * p[3][1] - p[3][0] * p[0][1] * p[1][2] + p[3][0] * p[0][2] * p[1][1];
+		R.p[0][3] = -p[0][1] * p[1][2] * p[2][3] + p[0][1] * p[1][3] * p[2][2] + p[1][1] * p[0][2] * p[2][3] - p[1][1] * p[0][3] * p[2][2] - p[2][1] * p[0][2] * p[1][3] + p[2][1] * p[0][3] * p[1][2];
+		R.p[1][3] = p[0][0] * p[1][2] * p[2][3] - p[0][0] * p[1][3] * p[2][2] - p[1][0] * p[0][2] * p[2][3] + p[1][0] * p[0][3] * p[2][2] + p[2][0] * p[0][2] * p[1][3] - p[2][0] * p[0][3] * p[1][2];
+		R.p[2][3] = -p[0][0] * p[1][1] * p[2][3] + p[0][0] * p[1][3] * p[2][1] + p[1][0] * p[0][1] * p[2][3] - p[1][0] * p[0][3] * p[2][1] - p[2][0] * p[0][1] * p[1][3] + p[2][0] * p[0][3] * p[1][1];
+		R.p[3][3] = p[0][0] * p[1][1] * p[2][2] - p[0][0] * p[1][2] * p[2][1] - p[1][0] * p[0][1] * p[2][2] + p[1][0] * p[0][2] * p[2][1] + p[2][0] * p[0][1] * p[1][2] - p[2][0] * p[0][2] * p[1][1];
+		double det = p[0][0] * R.p[0][0] + p[0][1] * R.p[1][0] + p[0][2] * R.p[2][0] + p[0][3] * R.p[3][0];
+		if (det == 0) return false;
+		for (int i = 0; i < 4; i++) for (int j = 0; j < 4; j++) R.p[i][j] /= det;
 		return R;
 	}
 
@@ -436,12 +442,15 @@ public:
 	}
 
 	friend ostream& operator << (ostream& os, const matrix3D_affine &A) {
+		os << "\\begin{bmatrix}";
 		for (int i = 0; i < 4; i++) {
 			for (int j = 0; j < 4; j++) {
-				os << A.p[i][j] << "\t";
+				os << A.p[i][j];
+				if (j != 3) os << "&";
 			}
-			os << endl;
+			os << TeX_endl;
 		}
+		os << "\\end{bmatrix}";
 		return os;
 	}
 };

@@ -29,10 +29,10 @@ public:
 			const_cast<object*>(Objs.at(i))->init();
 		}
 		for (int i = 0; i < Objs.size(); i++) {
-			if (Objs.at(i)->telltype() == XSolid_Sign) {
+			/*if (Objs.at(i)->telltype() == XSolid_Sign) {
 				Objs.push_back(Objs.at(i));
 				Objs.erase(Objs.begin() + i);
-			}
+			}*/
 		}
 		for (int i = 0; i < GObjs.size(); i++) GObjs.at(i)->resize();
 		if (Objs.size() == 0 && !GObjs.empty()) {
@@ -46,23 +46,32 @@ public:
 		border.fix();
 	}
 	bool dynamic_memory;	// indicates whether the destructor should delete elements or not
+#ifndef _4_Threads_Rendering
+	mutex ML;
+#endif
 	friend int main();
-	friend void Render_GTest01();
-	friend void Render_GTest02();
-	friend void Render_GTest03();
 public:
 	World() :dynamic_memory(false) {
 		background = rgblight(1, 1, 1);
 	}
 	World(const World &W) : dynamic_memory(true) {
 		for (int i = 0; i < W.Objs.size(); i++) {
-			Objs.push_back(W.Objs[i]->copy());
+			Objs.push_back(W.Objs[i]->clone());
 		}
 		for (int i = 0; i < W.GObjs.size(); i++) {
 			GObjs.push_back(new World(*(W.GObjs.at(i))));
 		}
+		dynamic_memory = true;
+		N = W.N, background = W.background, border = W.border;
 	}
 	~World() {
+		if (dynamic_memory) {
+			for (int i = 0; i < Objs.size(); i++) delete Objs.at(i);
+			for (int i = 0; i < GObjs.size(); i++) delete GObjs.at(i);
+		}
+		Objs.clear(); GObjs.clear();
+	}
+	inline void clear() {
 		if (dynamic_memory) {
 			for (int i = 0; i < Objs.size(); i++) delete Objs.at(i);
 			for (int i = 0; i < GObjs.size(); i++) delete GObjs.at(i);
@@ -294,6 +303,7 @@ public:
 	}
 
 	// Time Recorder
+#ifdef _4_Threads_Rendering
 	void RenderingProcessCounter(int ps, int &T1, int &T2, int &T3, int &T4) {
 		int m, n = 0;
 		int sum;
@@ -306,6 +316,7 @@ public:
 			this_thread::sleep_for(chrono::milliseconds(50));
 		}
 	}
+#endif
 
 	// Multithread entrance, note that "old" and "bad" functions are discarded
 	void MultiThread_CC(bitmap &canvas, int begw, int endw, int begh, int endh, const point W, const parallelogram &sc, const object3D* oi, int &RenderingProcess) {
@@ -366,21 +377,16 @@ public:
 		sr          solid angle which the camera watches the canvas
 	*/
 	static unsigned Render_Sampling;
-	inline double rf_SR(double w, double r, double t) const {
-		// calculate solid angle with given parameters
-		double h = t * w;
-		double aw = acos((2 * r*r - w * w) / (2 * r*r));
-		double ah = acos((2 * r*r - h * h) / (2 * r*r));
-		double ac = acos((2 * r*r - w * w - h * h) / (2 * r*r));
-		double am = (aw + ah + ac) / 2;
-		double SR = 8 * atan(sqrt(tan(am / 2) * tan((am - aw) / 2) * tan((am - ah) / 2) * tan((am - ac) / 2)));
-		return SR;
-	}
 	void render(bitmap &canvas, point C, point O, double rt, double sr) {
 
 #ifndef FoldUp
 
+
+#ifdef _4_Threads_Rendering
 		cout << "Initializing...";
+#else
+		//ML.lock();
+#endif
 		auto Time_Beg = NTime::now();
 		canvas.clear();
 
@@ -388,6 +394,16 @@ public:
 		const double r = OC.mod();
 
 		// numerical solve the width and height of canvas in world coordinate
+		auto rf_SR = [](double w, double r, double t) -> double {
+			// calculate solid angle with given parameters
+			double h = t * w;
+			double aw = acos((2 * r*r - w * w) / (2 * r*r));
+			double ah = acos((2 * r*r - h * h) / (2 * r*r));
+			double ac = acos((2 * r*r - w * w - h * h) / (2 * r*r));
+			double am = (aw + ah + ac) / 2;
+			double SR = 8 * atan(sqrt(tan(am / 2) * tan((am - aw) / 2) * tan((am - ah) / 2) * tan((am - ac) / 2)));
+			return SR;
+		};
 		double t = double(canvas.height()) / double(canvas.width());
 		double x = 1, _x, xc, y;
 		if (rf_SR(x, r, t) > sr) {
@@ -421,8 +437,9 @@ public:
 		this->resize();
 		object3D* oi = Render_CheckContaining(C);
 
-
+#ifdef _4_Threads_Rendering
 		cout << "\nAttempting...";
+#endif
 
 #endif
 
@@ -431,6 +448,7 @@ public:
 		rgblight c, s;
 		fsec fs;
 #ifndef DEBUG
+#ifdef _4_Threads_Rendering
 		const int STEP = 8;
 		vector<double> attempt; attempt.resize(canvas.width() / STEP + 1);
 		double u, v;
@@ -495,6 +513,12 @@ public:
 		thread Proc([&](World* WC) { WC->RenderingProcessCounter(canvas.height()*canvas.width(),
 			RenderingProcess0, RenderingProcess1, RenderingProcess2, RenderingProcess3); }, this);
 		T0.join(); T1.join(); T2.join(); T3.join(); Proc.join();
+#else
+		int NONE;
+		this->MultiThread_CC(canvas, 0, canvas.width(), 0, canvas.height(), C, CV, oi, NONE);
+		//ML.unlock();
+#endif
+
 
 #endif
 

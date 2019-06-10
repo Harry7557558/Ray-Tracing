@@ -16,7 +16,7 @@ public:
 	object(object* a) {
 		//cout << "\aobject::CpyConstructor is called. This function should never be called. \n";
 	}
-	~object() {}
+	virtual ~object() {}
 
 	virtual object* clone() const {
 		return new object;
@@ -900,7 +900,7 @@ public:
 	}
 
 	// get color with calculated intersection data
-	virtual void getcol(const intersect &R, rgblight &c) { WARN("objectSF_col::getcol is called. This function should never be called."); }
+	virtual void getcol(const intersect &R, rgblight &c) const { WARN("objectSF_col::getcol is called. This function should never be called."); }
 
 	void print(ostream& os) const { os << "objectSF_col class"; }
 };
@@ -953,13 +953,80 @@ public:
 		return;
 	}
 
-	void getcol(const intersect &R, rgblight &c) {
+	void getcol(const intersect &R, rgblight &c) const  {
 		c = (int(floor(R.intrs.x / wx)) ^ int(floor(R.intrs.y / hy))) & 1 ? c2 : c1;
 	}
 
 	unsigned telltype() const { return Plane_Grid_Sign; }
 };
 
+#define Parallelogram_Grid_Sign 0x00000202
+class parallelogram_grid :public objectSF_col {
+	double wx, hy;
+	rgblight c1, c2;
+public:
+	point O, A, B;
+	parallelogram_grid() : wx(1), hy(1), c1(LightBlue), c2(Gray) {}
+	parallelogram_grid(const parallelogram& a) : wx(1), hy(1), c1(LightBlue), c2(Gray) {
+		reflect = a.reflect;
+		A = a.A, B = a.B, O = a.O;
+	}
+	parallelogram_grid(const parallelogram_grid& a) : wx(a.wx), hy(a.hy) {
+		reflect = a.reflect;
+		A = a.A, B = a.B, O = a.O;
+		c1 = a.c1, c2 = a.c2;
+	}
+	parallelogram_grid(const point &O, const point &A, const point &B) {
+		this->O = O, this->A = A, this->B = B;
+	}
+	parallelogram_grid(const point &O, const point &A, const point &B, bool absolute) {
+		this->O = O, this->A = A, this->B = B;
+		if (absolute) this->A -= O, this->B -= O;
+	}
+	parallelogram_grid(const initializer_list<double> &O, const initializer_list<double> &A, const initializer_list<double> &B) {
+		this->O = O, this->A = A, this->B = B;
+	}
+	~parallelogram_grid() {}
+	object* clone() const {
+		return new parallelogram_grid(*this);
+	}
+
+	void meet(intersect &R, const ray &a) const {
+		R.meet = 0;
+		point T, P = cross(a.dir, B), Q;
+		double det = dot(A, P);
+		if (abs(det) < ERR_EPSILON) return;
+		T = a.orig - O;
+		double t, u, v;
+		u = dot(T, P) / det;
+		if (u < 0.0 || u > 1.0) return;
+		Q = cross(T, A);
+		v = dot(a.dir, Q) / det;
+		if (v < 0.0 || v > 1.0) return;	// For triangles: v < 0.0 || u + v > 1.0
+		t = dot(B, Q) / det;
+		if (t < ERR_EPSILON) return;
+		R.meet = 1;
+		R.dist = t;
+		R.intrs = O + u * A + v * B;
+		point ON = cross(A, B);
+		ON *= dot(a.dir, ON) / dot(ON, ON);
+		R.reflect = a.dir - 2 * ON;
+		R.ut = u, R.vt = v, R.wt = t;
+		return;
+	}
+	point Max() const {
+		return point(max({ O.x, O.x + A.x, O.x + B.x, O.x + A.x + B.x }),
+			max({ O.y, O.y + A.y, O.y + B.y, O.y + A.y + B.y }), max({ O.z, O.z + A.z, O.z + B.z, O.z + A.z + B.z }));
+	}
+	point Min() const {
+		return point(min({ O.x, O.x + A.x, O.x + B.x, O.x + A.x + B.x }),
+			min({ O.y, O.y + A.y, O.y + B.y, O.y + A.y + B.y }), min({ O.z, O.z + A.z, O.z + B.z, O.z + A.z + B.z }));
+	}
+	void getcol(const intersect &R, rgblight &c) const {
+		c = (int(floor(R.ut * A.mod() / wx)) ^ int(floor(R.vt * B.mod() / hy))) & 1 ? c2 : c1;
+	}
+	unsigned telltype() const { return Parallelogram_Grid_Sign; }
+};
 
 #define Bitmap_Inc_Sign 0x00000201
 namespace insertType {
@@ -1045,9 +1112,9 @@ public:
 		return;
 	}
 
-	void getcol(const intersect &R, rgblight &c) {
+	void getcol(const intersect &R, rgblight &c) const  {
 		unsigned x = R.ut * M.width(), y = R.vt * M.height();
-		c = M[y][x];
+		c = *(const_cast<bitmap*>(&M))[y][x];
 	}
 
 	unsigned telltype() const { return Bitmap_Inc_Sign; }

@@ -912,3 +912,10 @@ inline void getRotationAngle_jk(const vec3 &j, const vec3 &k, double &rx, double
 	rx = atan2(j.z, k.z), rz = atan2(i.y, i.x), ry = atan2(-i.z, hypot(j.z, k.z));
 }
 
+
+template<typename T> inline T clamp(const T &x, const T &min, const T &max) {
+	return x < min ? min : x > max ? max : x;
+}
+template<typename T> inline T mix(const T &x, const T &y, const double &a) {
+	return (1 - a)*x + a * y;
+}

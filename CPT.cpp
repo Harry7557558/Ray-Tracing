@@ -5,6 +5,11 @@
 
 using namespace std;
 
+#define CANVAS_WIDTH 200
+#define CANVAS_HEIGHT 300
+#define RENDER_SAMPLING 1
+
+
 void CPT_T1() {
 	World W;
 	plane_grid P(0); W.add(&P);
@@ -81,10 +86,11 @@ void CPT_T2() {
 
 	//ScanXSolid(G.construct(), 10, 10, 10, 240000);
 
-	G.push(W);
+	World W_ = W;
+	G.push(W_);
 	W.setGlobalLightSource(0, 0, 1);
-	W.Render_Sampling = 1;
-	bitmap img(400, 600);
+	W.Render_Sampling = RENDER_SAMPLING;
+	bitmap img(CANVAS_WIDTH, CANVAS_HEIGHT);
 	W.render(img, point(200, -100, 100), point(0, 0, 0.8), 0, 0.00005);
 	img.out("IMAGE\\CPT.bmp");
 
@@ -92,49 +98,152 @@ void CPT_T2() {
 
 void CPT_Animation_T1() {
 	const string HEADER = "Animation\\CPTAT1_";
-	const unsigned N = 3;
-	const unsigned FRAMES = 32;
+	const unsigned N = 2;
+	const int FRAMES = 25;
+	const int THREADS = thread::hardware_concurrency();
 
 	World W;
 	plane_grid P(0); W.add(&P);
 	GlassMan_std G;
 
 	W.setGlobalLightSource(0, 0, 1);
-	W.Render_Sampling = 2;
-
+	W.Render_Sampling = RENDER_SAMPLING;
 
 	double t = 0;
-	vector<World> Ws; vector<point> Cs, Vs; vector<double> Va;
-	vector<thread> Ts; vector<byte> Rs;
-	for (unsigned i = 0; i < FRAMES; i++) {
-		t = 0.1*i;
+	vector<World*> Ws; vector<point> Cs, Vs; vector<double> Va;
+	vector<thread*> Ts; vector<char> Rs;	// Rs: 1 finished  0 not finished  -1 finished
 
-		G.Pos = point(0, 0, 0), G.top = vec3(0, 0, 1), G.dir = vec3(1, 0, 0);
-		G.v_head = vec3(0, 0, 1), G.v_head_side = vec3(-sin(0.2), cos(0.2), 0), G.v_neck = vec3(0, 0, 1);
-		G.v_chest = vec3(0, 0, 1), G.v_chest_side = vec3(-sin(0.1), cos(0.1), 0), G.v_waist = vec3(0, 0, -1), G.v_waist_side = vec3(0, 1, 0);
-		G.v_upperarm_l = vec3(0, 0.1, -1), G.v_forearm_l = vec3(0.2, -0.2, -1); G.v_upperarm_r = vec3(-0.05, -0.15, -1), G.v_forearm_r = vec3(0.3, 0.2, -1);
-		G.v_thigh_l = vec3(0.05, 0, -1), G.v_shank_l = vec3(0, 0, -1); G.v_thigh_r = vec3(0.15, -0.15, -1), G.v_shank_r = vec3(0.1, -0.1, -1);
-		G.v_foot_l = vec3(cos(0.1), sin(0.1), -0.1), G.v_foot_l_side = vec3(0, 1, 0); G.v_foot_r = vec3(cos(0.7), -sin(0.7), 0), G.v_foot_r_side = vec3(-sin(0.7), -cos(0.7), 0);
-		G.auto_fit = true;
-
-		W.clear(); W.add(&P); G.push(W);
-		Ws.push_back(W); Cs.push_back(point(200, -100, 15*(0.25*i+2))), Vs.push_back(point(0, 0, 0.8)), Va.push_back(0.00005);
-		
-		Rs.push_back(0);
-		Ts.push_back(thread([&](World _W, unsigned no, unsigned N) {
-			bitmap img(800, 1200);
-			_W.render(img, Cs.at(no), Vs.at(no), 0, Va.at(no));
-			img.out(&(HEADER + uint2str(no, N) + ".bmp")[0]);
-			Rs.at(no) = 1;
-		}, Ws.at(i), i, N));
-		Ts.at(i).detach();
+	for (unsigned i = 0; i < THREADS; i++) {
+		Ws.push_back(0), Cs.push_back(point()), Vs.push_back(point()), Va.push_back(0);
+		Ts.push_back(0), Rs.push_back(1);
 	}
 
+	int finished = 0;
 	while (1) {
-		for (int i = 0; i < FRAMES; i++) {
-			if (Rs.at(i) == 0) break;
-			if (i + 1 == FRAMES) return;
+		for (int i = 0; i < THREADS; i++) {
+			if (Rs.at(i) == 1) {
+				if (Ws.at(i) != 0) delete Ws.at(i), Ws.at(i) = 0;
+				if (Ts.at(i) != 0) delete Ts.at(i), Ts.at(i) = 0; Rs.at(i) = 0;
+
+				if (finished == -1) Rs.at(i) = -1;
+				else if (++finished > FRAMES) Rs.at(i) = -1, finished = -1;	// all finished
+				else {
+					t = double(finished) / FRAMES;
+
+					G.Pos = point(0, 0, 0), G.top = vec3(0, 0, 1), G.dir = vec3(cos(t), -sin(t), 0);
+					G.v_head = vec3(0, 0, 1), G.v_head_side = vec3(-sin(0.2), cos(0.2), 0), G.v_neck = vec3(0, 0, 1);
+					G.v_chest = vec3(0, 0, 1), G.v_chest_side = vec3(-sin(0.1), cos(0.1), 0), G.v_waist = vec3(0, 0, -1), G.v_waist_side = vec3(0, 1, 0);
+					G.v_upperarm_l = vec3(0, 0.1, -1), G.v_forearm_l = vec3(0.2, -0.2, -1); G.v_upperarm_r = vec3(-0.05, -0.15, -1), G.v_forearm_r = vec3(0.3, 0.2, -1);
+					G.v_thigh_l = vec3(0.05, 0, -1), G.v_shank_l = vec3(0, 0, -1); G.v_thigh_r = vec3(0.15, -0.15, -1), G.v_shank_r = vec3(0.1, -0.1, -1);
+					G.v_foot_l = vec3(cos(0.1), sin(0.1), -0.1), G.v_foot_l_side = vec3(0, 1, 0); G.v_foot_r = vec3(cos(0.7), -sin(0.7), 0), G.v_foot_r_side = vec3(-sin(0.7), -cos(0.7), 0);
+					G.auto_fit = true;
+
+					W.clear(); W.add(&P); G.push(W);
+
+					Ws.at(i) = new World(W);
+					Cs.at(i) = point(200, -100, 120 * t + 30), Vs.at(i) = point(0, 0, 0.8), Va.at(i) = 0.00005;
+
+					Ts.at(i) = new thread([&](World *_W, unsigned th, unsigned no, unsigned N) {
+						bitmap img(CANVAS_WIDTH, CANVAS_HEIGHT);
+						_W->render(img, Cs.at(th), Vs.at(th), 0, Va.at(th));
+						img.out(&(HEADER + uint2str(no, N) + ".bmp")[0]);
+						Sleep(50); Rs.at(th) = 1;
+					}, Ws.at(i), i, finished, N);
+					Ts.at(i)->detach();
+				}
+			}
+		}
+		if (finished == -1) {
+			for (int i = 0; i < THREADS; i++) {
+				if (Rs.at(i) != -1) break;
+				if (i + 1 == THREADS) goto Finish;
+			}
 		}
 		Sleep(50);
+	}
+
+Finish:;
+
+	for (int i = 0; i < THREADS; i++) {
+		if (Ws.at(i) != 0) delete Ws.at(i), Ws.at(i) = 0;
+		if (Ts.at(i) != 0) {
+			delete Ts.at(i), Ts.at(i) = 0;
+		}
+	}
+}
+
+void CPT_Animation_T2() {
+	const string HEADER = "Animation\\CPTAT2_";
+	const unsigned N = 2;
+	const int FRAMES = 25;
+	const int THREADS = thread::hardware_concurrency();
+
+	World W;
+	parallelogram_grid P(parallelogram(point(-2, -2, 0), point(4, 0), point(0, 4))); W.add(P);
+	GlassMan_std G;
+
+	W.setGlobalLightSource(0, 0, 1);
+	W.Render_Sampling = RENDER_SAMPLING;
+
+	double t = 0;
+	vector<World*> Ws; vector<point> Cs, Vs; vector<double> Va;
+	vector<thread*> Ts; vector<char> Rs;	// Rs: 1 finished  0 not finished  -1 finished
+
+	for (unsigned i = 0; i < THREADS; i++) {
+		Ws.push_back(0), Cs.push_back(point()), Vs.push_back(point()), Va.push_back(0);
+		Ts.push_back(0), Rs.push_back(1);
+	}
+
+	int finished = 0;
+	while (1) {
+		for (int i = 0; i < THREADS; i++) {
+			if (Rs.at(i) == 1) {
+				if (Ws.at(i) != 0) delete Ws.at(i), Ws.at(i) = 0;
+				if (Ts.at(i) != 0) delete Ts.at(i), Ts.at(i) = 0; Rs.at(i) = 0;
+
+				if (finished == -1) Rs.at(i) = -1;
+				else if (++finished > FRAMES) Rs.at(i) = -1, finished = -1;	// all finished
+				else {
+					t = double(finished) / FRAMES;
+
+					G.Pos = point(0, 0, 0), G.top = vec3(0, 0, 1), G.dir = vec3(cos(t), -sin(t), 0);
+					G.v_head = vec3(0, 0, 1), G.v_head_side = vec3(-sin(0.2), cos(0.2), 0), G.v_neck = vec3(0, 0, 1);
+					G.v_chest = vec3(0, 0, 1), G.v_chest_side = vec3(-sin(0.1), cos(0.1), 0), G.v_waist = vec3(0, 0, -1), G.v_waist_side = vec3(0, 1, 0);
+					G.v_upperarm_l = vec3(0, 0.1, -1), G.v_forearm_l = vec3(0.2, -0.2, -1); G.v_upperarm_r = vec3(-0.05, -0.15, -1), G.v_forearm_r = vec3(0.3, 0.2, -1);
+					G.v_thigh_l = vec3(0.05, 0, -1), G.v_shank_l = vec3(0, 0, -1); G.v_thigh_r = vec3(0.15, -0.15, -1), G.v_shank_r = vec3(0.1, -0.1, -1);
+					G.v_foot_l = vec3(cos(0.1), sin(0.1), -0.1), G.v_foot_l_side = vec3(0, 1, 0); G.v_foot_r = vec3(cos(0.7), -sin(0.7), 0), G.v_foot_r_side = vec3(-sin(0.7), -cos(0.7), 0);
+					G.auto_fit = true;
+
+					W.clear(); W.add(&P); G.push(W);
+
+					Ws.at(i) = new World(W);
+					Cs.at(i) = point(200, -100, 120 * t + 30), Vs.at(i) = point(0, 0, 0.8), Va.at(i) = 0.00005;
+
+					Ts.at(i) = new thread([&](World *_W, unsigned th, unsigned no, unsigned N) {
+						bitmap img(CANVAS_WIDTH, CANVAS_HEIGHT);
+						_W->render(img, Cs.at(th), Vs.at(th), 0, Va.at(th));
+						img.out(&(HEADER + uint2str(no, N) + ".bmp")[0]);
+						Sleep(50); Rs.at(th) = 1;
+					}, Ws.at(i), i, finished, N);
+					Ts.at(i)->detach();
+				}
+			}
+		}
+		if (finished == -1) {
+			for (int i = 0; i < THREADS; i++) {
+				if (Rs.at(i) != -1) break;
+				if (i + 1 == THREADS) goto Finish;
+			}
+		}
+		Sleep(50);
+	}
+
+Finish:;
+
+	for (int i = 0; i < THREADS; i++) {
+		if (Ws.at(i) != 0) delete Ws.at(i), Ws.at(i) = 0;
+		if (Ts.at(i) != 0) {
+			delete Ts.at(i), Ts.at(i) = 0;
+		}
 	}
 }

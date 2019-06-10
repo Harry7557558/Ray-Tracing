@@ -45,48 +45,49 @@ public:
 		border.Min = minc, border.Max = maxc;
 		border.fix();
 	}
-	bool dynamic_memory;	// indicates whether the destructor should delete elements or not
 #ifndef _4_Threads_Rendering
 	mutex ML;
 #endif
 	friend int main();
 public:
-	World() :dynamic_memory(false) {
+	World() {
 		background = rgblight(1, 1, 1);
 	}
-	World(const World &W) : dynamic_memory(true) {
+	World(const World &W) {
 		for (int i = 0; i < W.Objs.size(); i++) {
 			Objs.push_back(W.Objs[i]->clone());
 		}
 		for (int i = 0; i < W.GObjs.size(); i++) {
 			GObjs.push_back(new World(*(W.GObjs.at(i))));
 		}
-		dynamic_memory = true;
 		N = W.N, background = W.background, border = W.border;
 	}
 	~World() {
-		if (dynamic_memory) {
-			for (int i = 0; i < Objs.size(); i++) delete Objs.at(i);
-			for (int i = 0; i < GObjs.size(); i++) delete GObjs.at(i);
-		}
+		for (int i = 0; i < Objs.size(); i++) delete Objs.at(i);
+		for (int i = 0; i < GObjs.size(); i++) delete GObjs.at(i);
 		Objs.clear(); GObjs.clear();
 	}
 	inline void clear() {
-		if (dynamic_memory) {
-			for (int i = 0; i < Objs.size(); i++) delete Objs.at(i);
-			for (int i = 0; i < GObjs.size(); i++) delete GObjs.at(i);
-		}
+		for (int i = 0; i < Objs.size(); i++) delete Objs.at(i);
+		for (int i = 0; i < GObjs.size(); i++) delete GObjs.at(i);
 		Objs.clear(); GObjs.clear();
 	}
-	inline void insert(World *a) {
-		GObjs.push_back(a);
+	inline void insert(const World &a) {
+		GObjs.push_back(new World(a));
 		this->resize();
 	}
-	inline void add(object* a) {
-		Objs.push_back(a);
+	inline void insert(const World *a) {
+		GObjs.push_back(new World(*a));
+		this->resize();
 	}
-	inline void add(initializer_list<object*> a) {
-		for (int i = 0; i < a.size(); i++) Objs.push_back(a.begin()[i]);
+	inline void add(const object &a) {
+		Objs.push_back(a.clone());
+	}
+	inline void add(const object *a) {
+		Objs.push_back(a->clone());
+	}
+	inline void add(initializer_list<object> a) {
+		for (int i = 0; i < a.size(); i++) Objs.push_back((a.begin()[i]).clone());
 	}
 	void setGlobalLightSource(double lrx, double lrz) {
 		N = point(cos(lrx), sqrt(1 - cos(lrx)*cos(lrx) - cos(lrz)*cos(lrz)), cos(lrz));
@@ -200,7 +201,8 @@ public:
 					// I probably found a hidden bug: as the modulus of reflect ray getting larger, the OA effect gets weaker. 
 				}
 				case 2: {	// surface with color
-					rgblight d; ((objectSF_col*)no)->getcol(ni, d);
+					rgblight d; 
+					((objectSF_col*)no)->getcol(ni, d);
 					RayTracing(ray(ni.intrs, ni.reflect), c, count * d.vsl(), n + 1);
 					c.r *= d.r, c.g *= d.g, c.b *= d.b;
 					if (isnan(c.r) || isnan(c.b) || isnan(c.g)) {
@@ -429,7 +431,7 @@ public:
 		double orx = acos(OC.z / r), orz = atan2(OC.x, -OC.y); if (isnan(orz)) orz = 0;
 		const double rx = atan2(sin(orx)*cos(rt), cos(orx)), ry = atan2(-sin(orx)*sin(rt), hypot(sin(orx)*cos(rt), cos(orx))),
 			rz = atan2(sin(orz)*cos(rt) + sin(rt)*cos(orx)*cos(orz), cos(rt)*cos(orz) - sin(rt)*cos(orx)*sin(orz));		// first x, then y, finally z
-		
+
 		parallelogram CV(point(w / 2, -h / 2, rs), point(-w, 0), point(0, h));
 		CV = matrix3D(Rotation, rx, ry, rz) * CV + C;
 
@@ -522,6 +524,8 @@ public:
 
 #endif
 
+#ifdef _4_Threads_Rendering
+
 		cout << " Completed. \n\n";
 		auto Time_End = NTime::now();
 		fs = Time_End - Time_Beg;
@@ -534,6 +538,75 @@ public:
 		int debugx = 320, debugy = 120, RP = 0;
 		this->MultiThread_CC(canvas, debugx, debugx + 1, debugy, debugy + 1, C, CV, oi, RP);
 		//pixel col = Red; canvas.dot(debugx + 1, debugy, col); canvas.dot(debugx - 1, debugy, col); canvas.dot(debugx, debugy + 1, col); canvas.dot(debugx, debugy - 1, col);
+
+#endif
+	}
+
+#ifndef _4_Threads_Rendering
+	void render(bitmap &canvas, point C, point O, double rt, double sr, unsigned &process) {
+
+#ifndef FoldUp
+		auto Time_Beg = NTime::now();
+		canvas.clear();
+
+		const point OC = O - C;
+		const double r = OC.mod();
+
+		// numerical solve the width and height of canvas in world coordinate
+		auto rf_SR = [](double w, double r, double t) -> double {
+			// calculate solid angle with given parameters
+			double h = t * w;
+			double aw = acos((2 * r*r - w * w) / (2 * r*r));
+			double ah = acos((2 * r*r - h * h) / (2 * r*r));
+			double ac = acos((2 * r*r - w * w - h * h) / (2 * r*r));
+			double am = (aw + ah + ac) / 2;
+			double SR = 8 * atan(sqrt(tan(am / 2) * tan((am - aw) / 2) * tan((am - ah) / 2) * tan((am - ac) / 2)));
+			return SR;
+		};
+		double t = double(canvas.height()) / double(canvas.width());
+		double x = 1, _x, xc, y;
+		if (rf_SR(x, r, t) > sr) {
+			while (rf_SR(x, r, t) > sr) _x = x, x /= 2;
+			swap(_x, x);
+		}
+		else if (rf_SR(x, r, t) < sr) {
+			while (rf_SR(x, r, t) < sr) _x = x, x *= 2;
+		}
+		if (rf_SR(x, r, t) != 0) {
+			for (int i = 0; i < 60; i++) {
+				xc = (x + _x) / 2;
+				y = rf_SR(xc, r, t);
+				if (y == sr) break;
+				else if (y > sr) x = xc;
+				else if (y < sr) _x = xc;
+			}
+		}
+		const double w = x, h = t * x;
+		const double rs = 0.5 * sqrt(4 * r*r - w * w - h * h);
+
+		// calculate rotation
+		double orx = acos(OC.z / r), orz = atan2(OC.x, -OC.y); if (isnan(orz)) orz = 0;
+		const double rx = atan2(sin(orx)*cos(rt), cos(orx)), ry = atan2(-sin(orx)*sin(rt), hypot(sin(orx)*cos(rt), cos(orx))),
+			rz = atan2(sin(orz)*cos(rt) + sin(rt)*cos(orx)*cos(orz), cos(rt)*cos(orz) - sin(rt)*cos(orx)*sin(orz));		// first x, then y, finally z
+
+		parallelogram CV(point(w / 2, -h / 2, rs), point(-w, 0), point(0, h));
+		CV = matrix3D(Rotation, rx, ry, rz) * CV + C;
+
+
+		this->resize();
+		object3D* oi = Render_CheckContaining(C);
+
+#endif
+
+		// calculate pixels allocates to each thread
+		ray beg; beg.orig = C;
+		rgblight c, s;
+
+		int Process;
+		this->MultiThread_CC(canvas, 0, canvas.width(), 0, canvas.height(), C, CV, oi, Process);
+
+
+#endif
 
 	}
 

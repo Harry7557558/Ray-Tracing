@@ -89,6 +89,9 @@ public:
 	inline void add(initializer_list<object> a) {
 		for (int i = 0; i < a.size(); i++) Objs.push_back((a.begin()[i]).clone());
 	}
+	inline void add(initializer_list<object*> a) {
+		for (int i = 0; i < a.size(); i++) Objs.push_back((a.begin()[i])->clone());
+	}
 	void setGlobalLightSource(double lrx, double lrz) {
 		N = point(cos(lrx), sqrt(1 - cos(lrx)*cos(lrx) - cos(lrz)*cos(lrz)), cos(lrz));
 	}
@@ -381,8 +384,7 @@ public:
 	static unsigned Render_Sampling;
 	void render(bitmap &canvas, point C, point O, double rt, double sr) {
 
-#ifndef FoldUp
-
+#pragma region Initialize
 
 #ifdef _4_Threads_Rendering
 		cout << "Initializing...";
@@ -443,7 +445,7 @@ public:
 		cout << "\nAttempting...";
 #endif
 
-#endif
+#pragma endregion
 
 		// calculate pixels allocates to each thread
 		ray beg; beg.orig = C;

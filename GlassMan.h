@@ -242,6 +242,12 @@ class GlassMan_std {
 		upperarms_rounding, forearms_rounding, thighs_rounding, shanks_rounding, feet_rounding;
 
 public:
+	GlassMan_std() {}
+	GlassMan_std(const GlassMan_std &other) {
+		this->Pos = other.Pos, this->top = other.top, this->dir = other.dir, this->v_head = other.v_head, this->v_neck = other.v_neck, this->v_chest = other.v_chest, this->v_waist = other.v_waist, this->v_upperarm_l = other.v_upperarm_l, this->v_upperarm_r = other.v_upperarm_r, this->v_forearm_l = other.v_forearm_l, this->v_forearm_r = other.v_forearm_r, this->v_thigh_l = other.v_thigh_l, this->v_thigh_r = other.v_thigh_r, this->v_shank_l = other.v_shank_l, this->v_shank_r = other.v_shank_r, this->v_foot_l = other.v_foot_l, this->v_foot_r = other.v_foot_r, this->v_head_side = other.v_head_side, this->v_chest_side = other.v_chest_side, this->v_waist_side = other.v_waist_side, this->v_foot_l_side = other.v_foot_l_side, this->v_foot_r_side = other.v_foot_r_side, this->auto_fit = other.auto_fit;
+	}
+	~GlassMan_std() {}
+
 	point Pos; vec3 top, dir;
 	vec3 v_head, v_neck, v_chest;	// fore vectors
 	vec3 v_waist, v_upperarm_l, v_upperarm_r, v_forearm_l, v_forearm_r,
@@ -254,7 +260,7 @@ public:
 		return height_of_heels + length_of_shanks + length_of_thighs + length_of_waist + length_of_chest + length_of_neck + length_of_neck;
 	}
 
-	XSolid construct(); 
+	point construct();
 
 	void push(World &W) {
 		this->construct();
@@ -306,7 +312,7 @@ const double GlassMan_std::feet_rounding = 0.015;
 #pragma endregion
 
 
-XSolid GlassMan_std::construct() {
+point GlassMan_std::construct() {
 	top /= top.mod(), dir /= dir.mod();
 	G.Pos = Pos, G.top = top, G.dir = dir;
 	v_head /= v_head.mod(), v_neck /= v_neck.mod(), v_chest /= v_chest.mod(),
@@ -342,6 +348,9 @@ XSolid GlassMan_std::construct() {
 	if (auto_fit) {
 		P = 0.5*(G.Buttock_l + G.Buttock_r);
 		P.z = min(tiptoe_l.z, tiptoe_r.z);
+		double ht = width_of_tiptoes / width_of_heels * height_of_heels;
+		ht *= 0.5*(tiptoe_l.z < tiptoe_r.z ? sqrt(1 - v_foot_l.z*v_foot_l.z) : sqrt(1 - v_foot_r.z*v_foot_r.z));
+		//P.z += ht;	// bug
 		P = Pos - P;
 	}
 	else P = Pos;
@@ -349,5 +358,6 @@ XSolid GlassMan_std::construct() {
 	//	G.Waist += P, G.Shoulder_l += P, G.Shoulder_r += P, G.Elbow_l += P, G.Elbow_r += P, G.Hand_l += P, G.Hand_r += P, G.Head_lower += P, G.Head_top += P, G.Head_side += P;
 	G.Pos = P;
 
-	return G.construct();
+	//return G.construct();
+	G.construct(); return G.Waist + P;
 }

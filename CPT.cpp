@@ -373,9 +373,9 @@ void CPT_Animation_T4() {
 		G.v_waist = FourierEval(t, waist_a, waist_b, N), G.v_waist_side = vec3(0, 1, 0);
 		G.v_upperarm_l = FourierEval(t + 0.6, upperarm_r_a, upperarm_r_b, N), G.v_forearm_l = FourierEval(t + 0.6, forearm_r_a, forearm_r_b, N);
 		G.v_upperarm_r = FourierEval(t, upperarm_r_a, upperarm_r_b, N), G.v_forearm_r = FourierEval(t, forearm_r_a, forearm_r_b, N);
-		G.v_thigh_l = FourierEval(t, thigh_l_a, thigh_l_b, N), G.v_shank_l = FourierEval(t, shank_l_a, shank_l_b, N); 
+		G.v_thigh_l = FourierEval(t, thigh_l_a, thigh_l_b, N), G.v_shank_l = FourierEval(t, shank_l_a, shank_l_b, N);
 		G.v_thigh_r = FourierEval(t, thigh_r_a, thigh_r_b, N), G.v_shank_r = FourierEval(t, shank_r_a, shank_r_b, N);
-		G.v_foot_l = FourierEval(t, foot_l_a, foot_l_b, N), G.v_foot_l_side = vec3(0, 1, 0); 
+		G.v_foot_l = FourierEval(t, foot_l_a, foot_l_b, N), G.v_foot_l_side = vec3(0, 1, 0);
 		G.v_foot_r = FourierEval(t, foot_r_a, foot_r_b, N), G.v_foot_r_side = vec3(0, -1, 0);
 		G.auto_fit = true;
 		G.push(*W);
@@ -388,4 +388,75 @@ void CPT_Animation_T4() {
 	}, [](double t) -> double {		// solid angle
 		return 0.05;
 	}, -10, 10, 600, 400, 25, 2, "Animation\\CPTAT4_", 3);
+}
+
+
+// The glass man walks on a path with several identical glass mans. 
+void SetWalkingAttitudes(double t, GlassMan_std &G) {
+	double Pos_m, Pos_b; WalkingMan::LinearRegression(WalkingMan::waist, 0, Pos_m, Pos_b);
+	const unsigned N = 6;
+	vec3 thigh_l_a[N], thigh_l_b[N]; WalkingMan::FourierSeries(WalkingMan::v_thigh_l, N, thigh_l_a, thigh_l_b);
+	vec3 thigh_r_a[N], thigh_r_b[N]; WalkingMan::FourierSeries(WalkingMan::v_thigh_r, N, thigh_r_a, thigh_r_b);
+	vec3 shank_l_a[N], shank_l_b[N]; WalkingMan::FourierSeries(WalkingMan::v_shank_l, N, shank_l_a, shank_l_b);
+	vec3 shank_r_a[N], shank_r_b[N]; WalkingMan::FourierSeries(WalkingMan::v_shank_r, N, shank_r_a, shank_r_b);
+	vec3 foot_l_a[N], foot_l_b[N]; WalkingMan::FourierSeries(WalkingMan::v_foot_l, N, foot_l_a, foot_l_b);
+	vec3 foot_r_a[N], foot_r_b[N]; WalkingMan::FourierSeries(WalkingMan::v_foot_r, N, foot_r_a, foot_r_b);
+	vec3 upperarm_r_a[N], upperarm_r_b[N]; WalkingMan::FourierSeries(WalkingMan::v_upperarm_r, N, upperarm_r_a, upperarm_r_b);
+	vec3 forearm_r_a[N], forearm_r_b[N]; WalkingMan::FourierSeries(WalkingMan::v_forearm_r, N, forearm_r_a, forearm_r_b);
+	vec3 chest_a[N], chest_b[N]; WalkingMan::FourierSeries(WalkingMan::v_chest, N, chest_a, chest_b);
+	vec3 waist_a[N], waist_b[N]; WalkingMan::FourierSeries(WalkingMan::v_waist, N, waist_a, waist_b);
+	vec3 head_a[N], head_b[N]; WalkingMan::FourierSeries(WalkingMan::v_head, N, head_a, head_b);
+	vec3 neck_a[N], neck_b[N]; WalkingMan::FourierSeries(WalkingMan::v_neck, N, neck_a, neck_b);
+	auto FourierEval = [](double t, vec3 *a, vec3 *b, int n) -> vec3 {
+		const double omega = 2 * PI / 1.2; double nwt;
+		vec3 r; r.x = r.y = r.z = 0;
+		for (int m = 0; m < n; m++) {
+			nwt = m * omega*t;
+			r.x += a[m].x*cos(nwt) + b[m].x*sin(nwt);
+			r.y += a[m].y*cos(nwt) + b[m].y*sin(nwt);
+			r.z += a[m].z*cos(nwt) + b[m].z*sin(nwt);
+			if (m == 0) r /= 2;
+		}
+		return r;
+	};
+	G.Pos = point(0, Pos_m*t, 0), G.top = vec3(0, 0, 1), G.dir = vec3(0, 1, 0);
+	G.v_head = FourierEval(t, head_a, head_b, N), G.v_head_side = vec3(0, 1, 0), G.v_neck = FourierEval(t, neck_a, neck_b, N);
+	G.v_chest = FourierEval(t, chest_a, chest_b, N), G.v_chest_side = vec3(0, 1, 0);
+	G.v_waist = FourierEval(t, waist_a, waist_b, N), G.v_waist_side = vec3(0, 1, 0);
+	G.v_upperarm_l = FourierEval(t + 0.6, upperarm_r_a, upperarm_r_b, N), G.v_forearm_l = FourierEval(t + 0.6, forearm_r_a, forearm_r_b, N);
+	G.v_upperarm_r = FourierEval(t, upperarm_r_a, upperarm_r_b, N), G.v_forearm_r = FourierEval(t, forearm_r_a, forearm_r_b, N);
+	G.v_thigh_l = FourierEval(t, thigh_l_a, thigh_l_b, N), G.v_shank_l = FourierEval(t, shank_l_a, shank_l_b, N);
+	G.v_thigh_r = FourierEval(t, thigh_r_a, thigh_r_b, N), G.v_shank_r = FourierEval(t, shank_r_a, shank_r_b, N);
+	G.v_foot_l = FourierEval(t, foot_l_a, foot_l_b, N), G.v_foot_l_side = vec3(0, 1, 0);
+	G.v_foot_r = FourierEval(t, foot_r_a, foot_r_b, N), G.v_foot_r_side = vec3(0, -1, 0);
+	G.auto_fit = true;
+};
+void CPT_Animation_R() {
+	const unsigned width = 1920, height = 1080, sampling = 2, fps = 25;
+	const unsigned R = 1;
+	if (R == 0 || R == 1) CPT_Animation([](double t, World* W) {	// World
+		parallelogram_grid P(parallelogram(point(-3, -ERR_UPSILON, 0), point(7, 0), point(0, 2 * ERR_UPSILON))); W->add(P);
+		GlassMan_std G0; SetWalkingAttitudes(t, G0); G0.Pos += point(-0.4, 0); G0.push(*W);
+		GlassMan_std G1; SetWalkingAttitudes(t + 0.4, G1); G1.Pos += point(3.2, 12); G1.push(*W);
+		GlassMan_std G; SetWalkingAttitudes(t - 1, G); G.Pos += point(1.8, -8); G.push(*W);		// Protagonist
+		GlassMan_std G3; SetWalkingAttitudes(t - 0.7, G3); G3.Pos += point(-1.2, 32); G3.push(*W);
+		GlassMan_std G4; SetWalkingAttitudes(t + 1.1, G4); G4.Pos += point(3.6, 80); G4.push(*W);
+		GlassMan_std G5; SetWalkingAttitudes(t + 0.2, G5); G5.Pos += point(-0.6, -22); G5.push(*W);
+		//ADD_AXIS(*W, 0.1);
+	}, [](double t) -> point {	// camera
+		if (t > 0 && t <= 4) return mix(point(10, -20, 15), point(-4, -30, 2), tanh(t));
+		if (t > 4 && t <= 8) return Bezier(point(-4, -30, 2), point(-30, 10, 8), point(-2, 20, 2), tanh(t - 4) * (1 - exp(-(t - 4)*(t - 4))));
+		if (t > 8 && t <= 12) return mix(point(-2, 20, 2), mix(point(-2, 20, 2), ([](double t)->point {
+			GlassMan_std G; SetWalkingAttitudes(t - 1, G); G.Pos += point(1.8, -8); return G.construct(); })(t), 0.5), tanh(t - 8) * (1 - exp(-(t - 8)*(t - 8))));
+	}, [](double t) -> point {	// view point
+		if (t > 0 && t <= 4) return point(0, 0, 0.8 - 0.8 * tanh(t));
+		if (t > 4 && t <= 8) return Bezier(point(0, 0, 0), point(0, -5, 3), point(0, -10, 0), tanh(t - 4));
+		if (t > 8 && t <= 12) return mix(point(0, -10, 0), ([](double t)->point {
+			GlassMan_std G; SetWalkingAttitudes(t - 1, G); G.Pos += point(1.8, -8); return G.construct(); })(t), tanh(t - 8) * (1 - exp(-(t - 8)*(t - 8))));
+	}, [](double t) -> double {		// solid angle
+		if (t > 0 && t <= 4) return 0.2 / (2 * tanh(t) + 1);
+		if (t > 4 && t <= 8) return Bezier(0.2 / 3, 1.2, 0.2, tanh(t - 4) * (1 - exp(-(t - 4)*(t - 4))));
+		if (t > 8 && t <= 12) return mix(0.2, 0.08, sigmoid(4 * ((t - 8) - 2.5)));
+	}, 0, 12, width, height, fps, sampling, "Animation\\CPTAR1_", 3);
+
 }

@@ -913,9 +913,15 @@ inline void getRotationAngle_jk(const vec3 &j, const vec3 &k, double &rx, double
 }
 
 
+double sigmoid(double a) {
+	return 1 / (exp(-a) + 1);
+}
 template<typename T> inline T clamp(const T &x, const T &min, const T &max) {
 	return x < min ? min : x > max ? max : x;
 }
 template<typename T> inline T mix(const T &x, const T &y, const double &a) {
 	return (1 - a)*x + a * y;
+}
+template<typename T> inline T Bezier(const T &a, const T &b, const T &c, const double &t) {
+	return (1 - t)*(1 - t)*a + 2 * t*(1 - t)*b + t * t*c;
 }

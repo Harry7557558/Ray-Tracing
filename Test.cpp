@@ -7,7 +7,7 @@ using namespace std;
 	cylinder xAxis(point(0, 0, 0), point(ERR_UPSILON, 0, 0), r); xAxis.setcolor(Red);    \
 	cylinder yAxis(point(0, 0, 0), point(0, ERR_UPSILON, 0), r); yAxis.setcolor(Green);	 \
 	cylinder zAxis(point(0, 0, 0), point(0, 0, ERR_UPSILON), r); zAxis.setcolor(Blue);	 \
-	W.add({ &xAxis, &yAxis, &zAxis }); }
+	(W).add({ &xAxis, &yAxis, &zAxis }); }
 
 
 void sizetest() {
@@ -911,3 +911,27 @@ void SDF_Transformation_Test() {
 	img.out("IMAGE\\RT.bmp");
 }
 
+void Bezier_Test() {
+	World W;
+	XObjs::BezierQuadratic_xOy B(point2D(-8.68, 2.36), point2D(7.64, 4.62), point2D(-0.7, -3.86), 0.1);
+	XSolid X = CSG_RoundingOp(XSolid(B), 0.1); X.setColor(Brown);
+	W.add(X);
+	W.add(plane_grid(0.0));
+	W.setGlobalLightSource(0, 0, 1);
+
+	bitmap img(600, 400);
+	W.render(img, point(-6, -10, 10), point(-2, -2, 0), 0, 0.5);
+	img.out("IMAGE\\RT.bmp");
+
+	double u, v, sd;
+	for (int i = 0; i < 600; i++) {
+		u = (i - 300.) / 25;
+		for (int j = 0; j < 400; j++) {
+			v = (j - 200.) / 25;
+			sd = QuadraticBezier_SDF(point2D(u, v), point2D(-8.68, 2.36), point2D(7.64, 4.62), point2D(-0.7, -3.86));
+			sd -= 0.1;
+			img[j][i] = rgb(SolarDeepsea(tanh(0.1*sd)));
+		}
+	}
+
+}

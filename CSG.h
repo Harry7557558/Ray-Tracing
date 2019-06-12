@@ -7,15 +7,76 @@
 // Reference: https://www.iquilezles.org/www/articles/distfunctions/distfunctions.htm
 
 // All object/SDF/operation/transformations labled "exact" or "not exact" are strictly prooved or disproved
-// object exact: legal shape (not an approximation);  SDF exact: legal distance field (issues won't occur when applying operations); 
+// object exact: legal shape (not an approximation);  SDF exact: legal distance field (issues won't occur when applying operations);
 // "not exact" operations/transformations may affect farther operations/transformations
 
-template<typename T> inline T clamp(const T &x, const T &min, const T &max) {
-	return x < min ? min : x>max ? max : x;
+class CatmullRom_2D {
+	vector<point2D> points;
+	bool close;
+public:
+#pragma warning(disable: 4010)
+	// Create a smooth curve between P1 and P2					\
+	                |-0.5  1.5 -1.5  0.5 | |P0|					\
+	P = [t³ t² t 1] | 1.0 -2.5  2.0 -0.5 | |P1|   0 ≤ t ≤ 1		\
+	                |-0.5  0.0  0.5  0.0 | |P2|					\
+	                | 0.0  1.0  0.0  0.0 | |P3|					\
+	
+	// SDF of P(p0,p1) and {x=x(t),y=y(t)}: derivative p0*x'(t) + p1*y'(t) + x'(t)*x(t) + y'(t)*y(t)
+
+	CatmullRom_2D() : close(false) {}
+	CatmullRom_2D(initializer_list<point2D> q) : close(false) { points.assign(q); }
+	~CatmullRom_2D() { points.clear(); close = false; }
+
+	void assign(point2D P) { points.push_back(P); close = false; }
+	void assign(initializer_list<point2D> q) { points.assign(q); close = false; }
+	void construct_vertex() {
+		points.insert(points.begin(), 2 * points[0] - points[1]);
+		points.push_back(2 * points.back() - points[points.size() - 2]);
+	}
+	void close_path() {
+		points.push_back(points[0]); points.push_back(points[1]);
+		close = true;
+	}
+	point2D& at(unsigned i) { close = false; return points.at(i); }
+	void clear() { points.clear(); close = false; }
+
+	point2D eval(double t) {
+		unsigned n = t; t -= n;
+		return (((-0.5*t + 1.0)*t - 0.5)*t) * points[n - 1]
+			+ (((1.5*t - 2.5)*t)*t + 1.0) * points[n]
+			+ (((-1.5*t + 2.0)*t + 0.5)*t) * points[n + 1]
+			+ (((0.5*t - 0.5)*t)*t) * points[n + 2];
+	}
+
+};
+
+double QuadraticBezier_SDF(const point2D &P, const point2D &A, const point2D &B, const point2D &C, const point2D &E, const point2D &F)
+{
+	double a, b, c, d;
+	a = dot(E, E), b = 3 * dot(E, F), c = 2 * dot(F, F) + dot(E, A - P), d = dot(F, A - P);
+	double r, u, v;
+	auto eval = [](double t, const point2D &A, const point2D &B, const point2D &C) -> point2D {
+		return (1 - t)*(1 - t)*A + 2 * t*(1 - t)*B + t * t*C;
+	};
+	if (solveCubic(a, b, c, d, r, u, v)) {
+		if (u < r) swap(u, r); if (r < v) swap(r, v); if (u < r) swap(u, r);	// r is the maxima and u,v are minimas
+		if ((u < 0 || u > 1) && (v < 0 || v > 1)) return min((P - A).mod(), (P - C).mod());
+		if ((u > 0 && u < 1) && (v > 0 && v < 1)) return min((P - eval(u, A, B, C)).mod(), (P - eval(v, A, B, C)).mod());
+		if (u < 0 || u > 1) return min(min((P - A).mod(), (P - C).mod()), (P - eval(v, A, B, C)).mod());
+		if (v < 0 || v > 1) return min(min((P - A).mod(), (P - C).mod()), (P - eval(u, A, B, C)).mod());
+	}
+	else {
+		if (r < 0 || r > 1) return min((P - A).mod(), (P - C).mod());
+		return (P - eval(r, A, B, C)).mod();
+	}
+	return NAN;
 }
-template<typename T> inline T mix(const T &x, const T &y, const T &a) {
-	return (1 - a)*x + a * y;
+inline double QuadraticBezier_SDF(point2D P, point2D A, point2D B, point2D C)
+{
+	return QuadraticBezier_SDF(P, A, B, C, C + A - 2 * B, B - A);
 }
+
+
 
 namespace XObjs {
 #define XObjs_Sphere_Sign 0x00000001
@@ -28,6 +89,7 @@ namespace XObjs {
 #define XObjs_Cone_Sign 0x00000008
 #define XObjs_ConeTrunc_Sign 0x00000009
 #define XObjs_BoxAffine_Sign 0x00000101
+#define XObjs_BezierQuadraticXOY_Sign 0x0000000A
 
 	class XObjs_Comp {
 	public:
@@ -578,6 +640,50 @@ namespace XObjs {
 		}
 	};
 
+	class BezierQuadratic_xOy : public XObjs_Comp {
+		point2D A, B, C; double a, b;
+	public:
+		BezierQuadratic_xOy() { a = b = 0; }
+		BezierQuadratic_xOy(const point2D &A, const point2D &B, const point2D &C) {
+			this->A = A, this->B = B, this->C = C;
+			a = b = 0;
+		}
+		BezierQuadratic_xOy(const point2D &A, const point2D &B, const point2D &C, double h) {
+			this->A = A, this->B = B, this->C = C;
+			a = 0, b = h;
+			if (h < 0) swap(a, b);
+		}
+		BezierQuadratic_xOy(const point2D &A, const point2D &B, const point2D &C, double a, double b) {
+			this->A = A, this->B = B, this->C = C;
+			this->a = a, this->b = b;
+			if (a > b) swap(a, b);
+		}
+		BezierQuadratic_xOy(const BezierQuadratic_xOy &other) {
+			this->A = other.A, this->B = other.B, this->C = other.C;
+			this->a = other.a, this->b = other.b;
+		}
+		BezierQuadratic_xOy* clone() const { return new BezierQuadratic_xOy(*this); }
+		~BezierQuadratic_xOy() {}
+		virtual unsigned telltype() { return XObjs_BezierQuadraticXOY_Sign; }
+
+		double SDF(const point &P) const {
+			double sd = QuadraticBezier_SDF(point2D(P.x, P.y), A, B, C);
+			if (P.z > b) return max(P.z - b, sd);
+			if (P.z < a) return max(a - P.z, sd);
+			return sd;
+		}
+		borderbox MaxMin() const {
+			point2D min = PMin(A, C), max = PMax(A, C);
+			point2D nm = A - B, dc = A - 2 * B + C;
+			double t = nm.x / dc.x;
+			if (t > 0 && t < 1) min = PMin(min, ((1 - t)*(1 - t))*A + (2 * t*(1 - t))*B + (t * t)*C),
+				max = PMax(max, ((1 - t)*(1 - t))*A + (2 * t*(1 - t))*B + (t * t)*C);
+			t = nm.y / dc.y;
+			if (t > 0 && t < 1) min = PMin(min, ((1 - t)*(1 - t))*A + (2 * t*(1 - t))*B + (t * t)*C),
+				max = PMax(max, ((1 - t)*(1 - t))*A + (2 * t*(1 - t))*B + (t * t)*C);
+			return borderbox(point(min.x, min.y, a), point(max.x, max.y, b));
+		}
+	};
 }
 
 // Windows null pointer: 0x00000000-0x0000FFFF
@@ -834,7 +940,7 @@ public:
 			R.meet = true;
 			return;
 		}
-	}
+}
 
 	void reflectData(intersect &R, const ray &a) const {
 		point N;
@@ -1012,7 +1118,17 @@ public:
 };
 
 
-
+rgblight SolarDeepsea(double t) {	// color function, -1 < t < 1
+	double r, g, b;
+	if (t >= 0) r = ((0.880183 * t - 2.27602) * t + 1.94992) * t + 0.442456, g = ((-1.15153 * t + 1.85887) * t + 0.0899384) * t + 0.0120354, b = ((-0.204874 * t + 0.464309) * t - 0.151561) * t + 0.0178089;
+	else t = -t,
+		r = (((((-7.31545 * t + 13.31) * t - 3.75123) * t - 1.83143) * t - 0.560149) * t + 0.779769) * t + 0.156216,
+		g = (((((-3.53306 * t + 14.265) * t - 21.3179) * t + 13.3875) * t - 2.16183) * t + 0.286874) * t - 9.48835e-05,
+		b = (((((5.62199 * t - 16.1938) * t + 17.7046) * t - 9.38477) * t + 1.85801) * t + 1.08822) * t + 0.29789;
+	if (r > 1) r = 1; if (g > 1) g = 1; if (b > 1) b = 1;
+	if (r < 0) r = 0; if (g < 0) g = 0; if (b < 0) b = 0;
+	return rgblight(r, g, b);
+}
 void VisualizeSDF_core(XSolid &X, parallelogram &p, bitmap &canvas) {
 	double u, v, sdf, x, y, mag, arg; point P;
 	unsigned w = canvas.width() / 2, h = canvas.height() / 2;
@@ -1033,14 +1149,7 @@ void VisualizeSDF_core(XSolid &X, parallelogram &p, bitmap &canvas) {
 			// General Visualization of Magnitude
 			double t = tanh(0.5 * sdf);
 			double r, g, b;
-			if (t >= 0) r = ((0.880183 * t - 2.27602) * t + 1.94992) * t + 0.442456, g = ((-1.15153 * t + 1.85887) * t + 0.0899384) * t + 0.0120354, b = ((-0.204874 * t + 0.464309) * t - 0.151561) * t + 0.0178089;
-			else t = -t,
-				r = (((((-7.31545 * t + 13.31) * t - 3.75123) * t - 1.83143) * t - 0.560149) * t + 0.779769) * t + 0.156216,
-				g = (((((-3.53306 * t + 14.265) * t - 21.3179) * t + 13.3875) * t - 2.16183) * t + 0.286874) * t - 9.48835e-05,
-				b = (((((5.62199 * t - 16.1938) * t + 17.7046) * t - 9.38477) * t + 1.85801) * t + 1.08822) * t + 0.29789;
-			if (r > 1) r = 1; if (g > 1) g = 1; if (b > 1) b = 1;
-			if (r < 0) r = 0; if (g < 0) g = 0; if (b < 0) b = 0;
-			canvas[i + h][j] = drgb(r, g, b);
+			canvas[i + h][j] = rgb(SolarDeepsea(t));
 
 			// Magnitude with Contour, difference = 0.1
 			t = pow(cos(10 * PI * sdf), 12); r = g = b = t;

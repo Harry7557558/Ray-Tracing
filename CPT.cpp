@@ -391,7 +391,6 @@ void CPT_Animation_T4() {
 }
 
 
-// The glass man walks on a path with several identical glass mans. 
 void SetWalkingAttitudes(double t, GlassMan_std &G) {
 	double Pos_m, Pos_b; WalkingMan::LinearRegression(WalkingMan::waist, 0, Pos_m, Pos_b);
 	const unsigned N = 6;
@@ -432,8 +431,11 @@ void SetWalkingAttitudes(double t, GlassMan_std &G) {
 	G.auto_fit = true;
 };
 void CPT_Animation_R() {
+	//const unsigned width = 1920, height = 1080, sampling = 2, fps = 25;		// standard
 	const unsigned width = 1920, height = 1080, sampling = 2, fps = 25;
-	const unsigned R = 1;
+	const unsigned R = 2;
+
+#pragma region R1
 	if (R == 0 || R == 1) CPT_Animation([](double t, World* W) {	// World
 		parallelogram_grid P(parallelogram(point(-3, -ERR_UPSILON, 0), point(7, 0), point(0, 2 * ERR_UPSILON))); W->add(P);
 		GlassMan_std G0; SetWalkingAttitudes(t, G0); G0.Pos += point(-0.4, 0); G0.push(*W);
@@ -448,15 +450,43 @@ void CPT_Animation_R() {
 		if (t > 4 && t <= 8) return Bezier(point(-4, -30, 2), point(-30, 10, 8), point(-2, 20, 2), tanh(t - 4) * (1 - exp(-(t - 4)*(t - 4))));
 		if (t > 8 && t <= 12) return mix(point(-2, 20, 2), mix(point(-2, 20, 2), ([](double t)->point {
 			GlassMan_std G; SetWalkingAttitudes(t - 1, G); G.Pos += point(1.8, -8); return G.construct(); })(t), 0.5), tanh(t - 8) * (1 - exp(-(t - 8)*(t - 8))));
+		return NAP;
 	}, [](double t) -> point {	// view point
 		if (t > 0 && t <= 4) return point(0, 0, 0.8 - 0.8 * tanh(t));
 		if (t > 4 && t <= 8) return Bezier(point(0, 0, 0), point(0, -5, 3), point(0, -10, 0), tanh(t - 4));
 		if (t > 8 && t <= 12) return mix(point(0, -10, 0), ([](double t)->point {
 			GlassMan_std G; SetWalkingAttitudes(t - 1, G); G.Pos += point(1.8, -8); return G.construct(); })(t), tanh(t - 8) * (1 - exp(-(t - 8)*(t - 8))));
+		return NAP;
 	}, [](double t) -> double {		// solid angle
 		if (t > 0 && t <= 4) return 0.2 / (2 * tanh(t) + 1);
 		if (t > 4 && t <= 8) return Bezier(0.2 / 3, 1.2, 0.2, tanh(t - 4) * (1 - exp(-(t - 4)*(t - 4))));
 		if (t > 8 && t <= 12) return mix(0.2, 0.08, sigmoid(4 * ((t - 8) - 2.5)));
-	}, 0, 12, width, height, fps, sampling, "Animation\\CPTAR1_", 3);
+		return NAN;
+	}, 0, 12, width, height, fps, sampling, "Animation\\CPTAR1_", 3);	// 0s-12s
+#pragma endregion The glass man walks on a path with several identical glass mans.
+
+#pragma region R2
+	if (R == 0 || R == 2) CPT_Animation([](double t, World* W) {	// World
+		parallelogram_grid P(parallelogram(point(-3, -ERR_UPSILON, 0), point(7, 0), point(0, 2 * ERR_UPSILON))); W->add(P);
+		{
+			GlassMan_std G0; SetWalkingAttitudes(t, G0); G0.Pos += point(-0.4, 0); G0.push(*W);
+			GlassMan_std G1; SetWalkingAttitudes(t + 0.4, G1); G1.Pos += point(3.2, 12); G1.push(*W);
+			GlassMan_std G3; SetWalkingAttitudes(t - 0.7, G3); G3.Pos += point(-1.2, 32); G3.push(*W);
+			GlassMan_std G4; SetWalkingAttitudes(t + 1.1, G4); G4.Pos += point(3.6, 80); G4.push(*W);
+			GlassMan_std G5; SetWalkingAttitudes(t + 0.2, G5); G5.Pos += point(-0.6, -22); G5.push(*W);
+		}
+		GlassMan_std G; SetWalkingAttitudes(t - 1, G); G.Pos += point(1.8, -8); G.push(*W);		// Protagonist
+		//ADD_AXIS(*W, 0.1);
+	}, [](double t) -> point {	// camera
+		// Previous: mix(point(-2, 20, 2), ([](double t)->point { GlassMan_std G; SetWalkingAttitudes(t - 1, G); G.Pos += point(1.8, -8); return G.construct(); })(t), 0.5)
+		return NAP;
+	}, [](double t) -> point {	// view point
+		// Previous: ([](double t)->point { GlassMan_std G; SetWalkingAttitudes(t - 1, G); G.Pos += point(1.8, -8); return G.construct(); })(t)
+		return NAP;
+	}, [](double t) -> double {		// solid angle
+		// Previous: 0.08
+		return NAN;
+	}, 12, 16, width, height, fps, sampling, "Animation\\CPTAR1_", 3);	// 0s-12s
+#pragma endregion A small lower platform with same material floats lower under the path. As the glass man passes by, a semi-transparent golden coin shines on it.
 
 }

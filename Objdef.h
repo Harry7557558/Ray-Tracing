@@ -171,7 +171,8 @@ public:
 		this->x /= k, this->y /= k;
 	}
 	inline double mod() const {
-		return hypot(x, y);
+		//return hypot(x, y);
+		return sqrt(x * x + y * y);
 	}
 	inline friend double dot(const point2D &a, const point2D &b) {
 		return a.x*b.x + a.y*b.y;
@@ -187,6 +188,9 @@ public:
 		return os;
 	}
 };
+typedef point2D vec2;
+
+#define NAP (point(NAN,NAN,NAN));
 
 enum matrix_type {
 	Zero, Identity,
@@ -651,6 +655,12 @@ inline point PMax(point A, point B) {
 }
 inline point PMin(point A, point B) {
 	return point(min(A.x, B.x), min(A.y, B.y), min(A.z, B.z));
+}
+inline point2D PMax(point2D A, point2D B) {
+	return point2D(max(A.x, B.x), max(A.y, B.y));
+}
+inline point2D PMin(point2D A, point2D B) {
+	return point2D(min(A.x, B.x), min(A.y, B.y));
 }
 
 

@@ -432,7 +432,7 @@ void SetWalkingAttitudes(double t, GlassMan_std &G) {
 };
 void CPT_Animation_R() {
 	//const unsigned width = 1920, height = 1080, sampling = 2, fps = 25;		// standard
-	const unsigned width = 1920, height = 1080, sampling = 2, fps = 25;
+	const unsigned width = 384, height = 216, sampling = 1, fps = 1;
 	const unsigned R = 2;
 
 #pragma region R1
@@ -475,18 +475,29 @@ void CPT_Animation_R() {
 			GlassMan_std G4; SetWalkingAttitudes(t + 1.1, G4); G4.Pos += point(3.6, 80); G4.push(*W);
 			GlassMan_std G5; SetWalkingAttitudes(t + 0.2, G5); G5.Pos += point(-0.6, -22); G5.push(*W);
 		}
-		GlassMan_std G; SetWalkingAttitudes(t - 1, G); G.Pos += point(1.8, -8); G.push(*W);		// Protagonist
+		//GlassMan_std G; SetWalkingAttitudes(t - 1, G); G.Pos += point(1.8, -8); G.push(*W);		// Protagonist
+
+		parallelogram_grid Ps(parallelogram(point(5, 6, -0.5), point(2.4, 0), point(0, 2.4)), 0.8, 0.8); W->add(Ps);
+		W->add(GoldenCoin_Constructor(point(6.2, 7.2, -0.1), 0.2));
+		//spherebulb Ss(point(6.2, 7.2, -0.1), 0.4); Ss.setcolor(Gold); W->add(Ss);
+
 		//ADD_AXIS(*W, 0.1);
 	}, [](double t) -> point {	// camera
-		// Previous: mix(point(-2, 20, 2), ([](double t)->point { GlassMan_std G; SetWalkingAttitudes(t - 1, G); G.Pos += point(1.8, -8); return G.construct(); })(t), 0.5)
+		return point(-4, -6, 6);
+		return point(-4, -6, 2);
+		cout << mix(point(-2, 20, 2), ([](double t)->point { GlassMan_std G; SetWalkingAttitudes(t - 1, G); G.Pos += point(1.8, -8); return G.construct(); })(t), 0.5) << endl;
+		return mix(point(-2, 20, 2), ([](double t)->point { GlassMan_std G; SetWalkingAttitudes(t - 1, G); G.Pos += point(1.8, -8); return G.construct(); })(t), 0.5);
 		return NAP;
 	}, [](double t) -> point {	// view point
-		// Previous: ([](double t)->point { GlassMan_std G; SetWalkingAttitudes(t - 1, G); G.Pos += point(1.8, -8); return G.construct(); })(t)
+		return point(6.2, 7.2, -0.1);
+		cout << ([](double t)->point { GlassMan_std G; SetWalkingAttitudes(t - 1, G); G.Pos += point(1.8, -8); return G.construct(); })(t) << endl;
+		return ([](double t)->point { GlassMan_std G; SetWalkingAttitudes(t - 1, G); G.Pos += point(1.8, -8); return G.construct(); })(t);
 		return NAP;
 	}, [](double t) -> double {		// solid angle
-		// Previous: 0.08
+		return 0.005;
+		return 0.08;
 		return NAN;
-	}, 12, 16, width, height, fps, sampling, "Animation\\CPTAR1_", 3);	// 0s-12s
+	}, 12, 13, width, height, fps, sampling, "Animation\\CPTAR1_", 3);	// 0s-12s
 #pragma endregion A small lower platform with same material floats lower under the path. As the glass man passes by, a semi-transparent golden coin shines on it.
 
 }

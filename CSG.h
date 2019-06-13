@@ -76,6 +76,143 @@ inline double QuadraticBezier_SDF(point2D P, point2D A, point2D B, point2D C)
 	return QuadraticBezier_SDF(P, A, B, C, C + A - 2 * B, B - A);
 }
 
+class Figure2D_Comp {
+public:
+	Figure2D_Comp() {}
+	Figure2D_Comp(const Figure2D_Comp &other) {}
+	virtual Figure2D_Comp* clone() const { return new Figure2D_Comp(*this); }
+	virtual ~Figure2D_Comp() {}
+	virtual double SDF(const point2D &P) const { return NAN; }	// always positive
+	virtual bool meet(const point2D &P) const { return -1; }		// construct a ray from the point to the right, return the number of intersections (even/odd)
+	virtual borderbox2D MaxMin() const { return borderbox2D(); }
+};
+class Segment2D : public Figure2D_Comp {
+	point2D V1, V2;
+	double l, c; vec2 s, n;
+public:
+	Segment2D() {}
+	Segment2D(const point2D &V1, const point2D &V2) {
+		this->V1 = V1, this->V2 = V2;
+		if (V1.y > V2.y) this->V1 = V2, this->V2 = V1;
+		s = this->V2 - this->V1; l = s.mod(); s /= l;
+		n = vec2(s.y, -s.x); c = -dot(n, this->V1);
+	}
+	Segment2D(const Segment2D &other) {
+		V1 = other.V1, V2 = other.V2; l = other.l, c = other.c; s = other.s, n = other.n;
+	}
+	Figure2D_Comp* clone() const { return new Segment2D(*this); }
+	~Segment2D() {}
+
+	double SDF(const point2D &P) const {
+		double t = dot(P - V1, s);
+		if (t < 0) return (P - V1).mod();
+		if (t > l) return (P - V2).mod();
+		return abs(dot(P, n) + c);
+	}
+	bool meet(const point2D &P) const {
+		if (P.y < V1.y || P.y > V2.y) return false;
+		return cross(P - V1, s) < 0;
+	}
+	borderbox2D MaxMin() const {
+		return borderbox2D(V1, V2);
+	}
+};
+class QuadraticBezier2D : public Figure2D_Comp {
+	point2D A, B, C; vec2 E, F; double a, b, c;
+public:
+	QuadraticBezier2D() {}
+	QuadraticBezier2D(const point2D &A, const point2D &B, const point2D &C) {
+		this->A = A, this->B = B, this->C = C;
+		E = C + A - 2 * B, F = B - A;
+		a = dot(E, E), b = 3 * dot(E, F), c = 2 * dot(F, F);
+	}
+	QuadraticBezier2D(const QuadraticBezier2D &other) {
+		A = other.A, B = other.B, C = other.C;
+		E = other.E, F = other.F;
+		a = other.a, b = other.b, c = other.c;
+	}
+	Figure2D_Comp* clone() const { return new QuadraticBezier2D(*this); }
+	~QuadraticBezier2D() {}
+
+	inline point2D eval(double t) const {
+		return (1 - t)*(1 - t)*A + 2 * t*(1 - t)*B + t * t*C;
+	}
+	double SDF(const point2D &P) const {
+		double r, u, v;
+		if (solveCubic(a, b, c + dot(E, A - P), dot(F, A - P), r, u, v)) {
+			if (u < r) swap(u, r); if (r < v) swap(r, v); if (u < r) swap(u, r);	// r is the maxima and u,v are minimas
+			if ((u < 0 || u > 1) && (v < 0 || v > 1)) return min((P - A).mod(), (P - C).mod());
+			if ((u > 0 && u < 1) && (v > 0 && v < 1)) return min((P - eval(u)).mod(), (P - eval(v)).mod());
+			if (u < 0 || u > 1) return min(min((P - A).mod(), (P - C).mod()), (P - eval(v)).mod());
+			if (v < 0 || v > 1) return min(min((P - A).mod(), (P - C).mod()), (P - eval(u)).mod());
+		}
+		else {
+			if (r < 0 || r > 1) return min((P - A).mod(), (P - C).mod());
+			return (P - eval(r)).mod();
+		}
+		return NAN;
+	}
+	bool meet(const point2D &P) const {
+		double delta = F.y * F.y - E.y * (A.y - P.y);
+		if (delta <= 0) return false;
+		delta = sqrt(delta); double r1 = (delta - F.y) / E.y, r2 = (-delta - F.y) / E.y;
+		if (r1 > r2) swap(r1, r2); if (r1 > 1 || r2 < 0) return false;
+		return (r1 > 0 && (1 - r1)*(1 - r1)*A.x + 2 * r1*(1 - r1)*B.x + r1 * r1*C.x > P.x)
+			^ (r2 < 1 && (1 - r2)*(1 - r2)*A.x + 2 * r2*(1 - r2)*B.x + r2 * r2*C.x > P.x);
+	}
+	borderbox2D MaxMin() const {
+		borderbox2D R(A, C);
+		double tx = F.x / E.x, ty = F.y / E.y;
+		vec2 P(eval(tx).x, eval(ty).y);
+		R.Max = PMax(P, R.Max), R.Min = PMin(P, R.Min);
+		return R;
+	}
+};
+class Figure2D {
+	vector<Figure2D_Comp*> objs;		// lines to construct border, make sure it's enclosed
+public:
+	Figure2D() {}
+	Figure2D(initializer_list<Figure2D_Comp*> q) {
+		for (int i = 0; i < q.size(); i++) objs.push_back((*(q.begin() + i))->clone());
+	}
+	Figure2D(const Figure2D &other) {
+		for (int i = 0; i < other.objs.size(); i++) objs.push_back(other.objs.at(i)->clone());
+	}
+	Figure2D& operator = (const Figure2D &other) {
+		objs.clear();
+		for (int i = 0; i < other.objs.size(); i++) objs.push_back(other.objs.at(i)->clone());
+		return *this;
+	}
+	void push(const Figure2D_Comp &a) { objs.push_back(a.clone()); }
+	void assign(initializer_list<Figure2D_Comp*> q) {
+		for (int i = 0; i < q.size(); i++) objs.push_back((*(q.begin() + i))->clone());
+	}
+	void clear() {
+		for (int i = 0; i < objs.size(); i++) delete objs.at(i);
+		objs.clear();
+	}
+	~Figure2D() { clear(); }
+
+	bool contain(const point2D &P) const {
+		bool r = false;
+		for (int i = 0; i < objs.size(); i++) r ^= objs.at(i)->meet(P);
+		return r;
+	}
+	double SDF(const point2D &P) const {	// not exact
+		double r = INFINITY; bool s = false;
+		for (int i = 0; i < objs.size(); i++) r = min(r, objs.at(i)->SDF(P)), s ^= objs.at(i)->meet(P);
+		return s ? -r : r;
+	}
+	borderbox2D MaxMin() const {
+		borderbox2D R, B;
+		for (int i = 0; i < objs.size(); i++) {
+			B = objs.at(i)->MaxMin();
+			R.Max = PMax(R.Max, B.Max), R.Min = PMin(R.Min, B.Min);
+		}
+		return R;
+	}
+};
+
 
 
 namespace XObjs {
@@ -90,6 +227,7 @@ namespace XObjs {
 #define XObjs_ConeTrunc_Sign 0x00000009
 #define XObjs_BoxAffine_Sign 0x00000101
 #define XObjs_BezierQuadraticXOY_Sign 0x0000000A
+#define XObjs_ExtrusionXOY_Sign 0x0000000B
 
 	class XObjs_Comp {
 	public:
@@ -684,6 +822,41 @@ namespace XObjs {
 			return borderbox(point(min.x, min.y, a), point(max.x, max.y, b));
 		}
 	};
+
+	class Extrusion_xOy : public XObjs_Comp {
+		Figure2D Base; double a, b;
+	public:
+		Extrusion_xOy() { a = b = 0; }
+		Extrusion_xOy(const Figure2D &Figure) {
+			Base = Figure; a = b = 0;
+		}
+		Extrusion_xOy(const Figure2D &Figure, double h) {
+			Base = Figure; a = 0, b = h;
+			if (a > b) swap(a, b);
+		}
+		Extrusion_xOy(const Figure2D &Figure, double a, double b) {
+			Base = Figure; this->a = a, this->b = b;
+			if (a > b) swap(this->a, this->b);
+		}
+		Extrusion_xOy(const Extrusion_xOy &other) {
+			Base = other.Base; a = other.a, b = other.b;
+		}
+		Extrusion_xOy* clone() const { return new Extrusion_xOy(*this); }
+		virtual unsigned telltype() { return XObjs_ExtrusionXOY_Sign; }
+		~Extrusion_xOy() {}
+
+		double SDF(const point &P) const {
+			double sd = Base.SDF(point2D(P.x, P.y));
+			if (P.z > b) return max(P.z - b, sd);
+			if (P.z < a) return max(a - P.z, sd);
+			return sd;
+		}
+		borderbox MaxMin() const {
+			borderbox2D B = Base.MaxMin();
+			borderbox R(point(B.Min.x, B.Min.y, a), point(B.Max.x, B.Max.y, b));
+			return R;
+		}
+	};
 }
 
 // Windows null pointer: 0x00000000-0x0000FFFF
@@ -716,6 +889,7 @@ namespace XObjs {
 #define XSolid_Smooth 0x10000010
 #define XSolid_Diffuse 0x10000100
 #define XSolid_Crystal 0x10001000
+#define XSolid_LightSource 0x10010000
 class XSolid : public object {
 	vector<const XObjs::XObjs_Comp*> objs;
 	vector<void**> objs_tp;
@@ -755,7 +929,7 @@ public:
 	borderbox border;
 
 	unsigned type;	// smooth / diffuse / crystal
-	rgblight col;	// or damping ratio
+	rgblight col;	// color / damping ratio / light
 	double refractive_index;
 
 	XSolid() {
@@ -829,7 +1003,7 @@ public:
 		if (objs.empty()) border.Max = border.Min = point(0, 0, 0);
 		border.fix();
 
-		if (type != XSolid_Smooth && type != XSolid_Diffuse && type != XSolid_Crystal) type = XSolid_Smooth;
+		if (type != XSolid_Diffuse && type != XSolid_Crystal && type != XSolid_LightSource) type = XSolid_Smooth;
 		if (refractive_index > 100 || refractive_index < 0.01) refractive_index = 1.5;
 
 		Max_StackLength = 0;
@@ -940,7 +1114,7 @@ public:
 			R.meet = true;
 			return;
 		}
-}
+	}
 
 	void reflectData(intersect &R, const ray &a) const {
 		point N;
@@ -965,6 +1139,10 @@ public:
 			double Rs = (n2*c1 - n1 * c2) / (n2*c1 + n1 * c2); Rs *= Rs;
 			double Rp = (n2*c2 - n1 * c1) / (n2*c2 + n1 * c1); Rp *= Rp;
 			R.vt = 0.5*(Rs + Rp);
+			return;
+		}
+		if (type == XSolid_LightSource) {
+			R.ut = abs(dot(a.dir, N));
 		}
 	}
 

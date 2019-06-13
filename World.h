@@ -29,10 +29,10 @@ public:
 			const_cast<object*>(Objs.at(i))->init();
 		}
 		for (int i = 0; i < Objs.size(); i++) {
-			/*if (Objs.at(i)->telltype() == XSolid_Sign) {
+			if (Objs.at(i)->telltype() == XSolid_Sign) {
 				Objs.push_back(Objs.at(i));
 				Objs.erase(Objs.begin() + i);
-			}*/
+			}
 		}
 		for (int i = 0; i < GObjs.size(); i++) GObjs.at(i)->resize();
 		if (Objs.size() == 0 && !GObjs.empty()) {
@@ -240,12 +240,14 @@ public:
 				}
 				break;
 			}
-			case 0x100: {	// light source
+			case 0x100: {	// light source, debugging
 				// Light sources don't look well when global lightsource defined
+				// In real world experiments, reflection in all smooth objects follows Fresnel's law.
 
 				RayTracing(ray(ni.intrs, ni.reflect), c, count * (1 - ni.ut), n + 1);
-				c *= ni.ut; c += ((lightsource*)no)->col * ni.ut;
-				//c = ((lightsource*)no)->col * ni.ut;
+				//c.r *= ((lightsource*)no)->col.r, c.g *= ((lightsource*)no)->col.g, c.b *= ((lightsource*)no)->col.b;
+				//c += 0.1 * ((lightsource*)no)->col;
+				c += ((lightsource*)no)->col * ni.ut;
 				if (isnan(c.r) || isnan(c.b) || isnan(c.g)) {
 					return ni.dist;
 				}
@@ -280,6 +282,12 @@ public:
 				}
 				case XSolid_Diffuse: {
 
+					break;
+				}
+				case XSolid_LightSource: {
+					((XSolid*)no)->reflectData(ni, v);
+					RayTracing(ray(ni.intrs, ni.reflect), c, count * ((XSolid*)no)->col.vsl(), n + 1);
+					c += ((XSolid*)no)->col * ni.ut;
 					break;
 				}
 				default: {	// smooth surface

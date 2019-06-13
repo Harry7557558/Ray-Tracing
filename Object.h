@@ -971,6 +971,16 @@ public:
 		reflect = a.reflect;
 		A = a.A, B = a.B, O = a.O;
 	}
+	parallelogram_grid(const parallelogram& a, double wx, double hy) : c1(LightBlue), c2(Gray) {
+		reflect = a.reflect;
+		A = a.A, B = a.B, O = a.O;
+		this->wx = wx, this->hy = hy;
+	}
+	parallelogram_grid(const parallelogram& a, double wx, double hy, rgblight c1, rgblight c2) {
+		reflect = a.reflect;
+		A = a.A, B = a.B, O = a.O;
+		this->wx = wx, this->hy = hy; this->c1 = c1, this->c2 = c2;
+	}
 	parallelogram_grid(const parallelogram_grid& a) : wx(a.wx), hy(a.hy) {
 		reflect = a.reflect;
 		A = a.A, B = a.B, O = a.O;
@@ -1701,11 +1711,11 @@ public:
 		if (d > r) return;
 		d *= d;
 		R.dist = sqrt(dot(p, p) - d) - sqrt(r*r - d);
-		point n = a.dir * R.dist, t = n - p;
+		point n = a.dir * R.dist, t = n - p; t /= r;
 		R.intrs = n + a.orig;
-		R.reflect = n + abs(2 * dot(n, t) / dot(t, t)) * t;
+		R.reflect = n + abs(2 * dot(n, t)) * t;
 
-		R.ut = abs(dot(t, a.dir)) / t.mod();
+		R.ut = abs(dot(a.dir, t));
 		R.meet = 1;
 		return;
 	}

@@ -7,6 +7,7 @@
 */
 
 #pragma warning(disable: 4244)	// conversion from 'type1' to 'type2', possible loss of data
+#pragma warning(disable: 4305)	// truncation from 'type1' to 'type2'
 #pragma warning(disable: 4018)	// signed/unsigned mismatch, sometimes cause problems
 
 #include "BitMap.h"
@@ -648,6 +649,24 @@ public:
 			A << "," << E << "," << F << "," << B << "," << C << "," << G << "," << H << "," << D << "," << A << ")";
 		return os;
 	}
+};
+class borderbox2D {
+	// Use for border of subgroups of objects
+public:
+	point2D Min, Max;
+	borderbox2D() { Min = point2D(INFINITY, INFINITY), Max = point2D(-INFINITY, -INFINITY); }
+	borderbox2D(const point2D &Min, const point2D &Max) {
+		this->Min = Min, this->Max = Max;
+		fix();
+	}
+	borderbox2D(const borderbox2D &other) {
+		this->Min = other.Min, this->Max = other.Max;
+	}
+	void fix() {
+		if (Max.x < Min.x) swap(Max.x, Min.x);
+		if (Max.y < Min.y) swap(Max.y, Min.y);
+	}
+	~borderbox2D() {}
 };
 
 inline point PMax(point A, point B) {

@@ -311,7 +311,6 @@ const double GlassMan_std::shanks_rounding = 0.02;
 const double GlassMan_std::feet_rounding = 0.015;
 #pragma endregion
 
-
 point GlassMan_std::construct() {
 	top /= top.mod(), dir /= dir.mod();
 	G.Pos = Pos, G.top = top, G.dir = dir;
@@ -360,4 +359,47 @@ point GlassMan_std::construct() {
 
 	//return G.construct();
 	G.construct(); return G.Waist + P;
+}
+
+
+XSolid GoldenCoin_Constructor(point Pos, double rz) {
+	const double R = 0.4, r = 0.35, d = 0.05, dc = 0.01;
+	point P = 0.5*point(d*cos(rz), d*sin(rz));
+	XObjs::Cylinder M(Pos + P, Pos - P, R);
+
+	XObjs::Cylinder M_(Pos - P, Pos - (1 - (dc / d))*P, r);
+	XSolid X = CSG_SubtractionOp(XSolid(M), XSolid(M_));
+	//X = M_;
+
+	Figure2D FBase; {
+		point2D Dr(R, R);
+		point2D A(0.42692, 0.63541), A_(0.55867, 0.6258), B(0.59236, 0.54138), C(0.48977, 0.53258), C_(0.47414, 0.57165),
+			D(0.42682, 0.58243), E(0.42688, 0.44652), E_(0.61255, 0.4178), F(0.61291, 0.32093), F_(0.61265, 0.20646),
+			G(0.42677, 0.1839), H(0.42744, 0.12651), I(0.37215, 0.12664), J(0.37213, 0.18316), J_(0.21878, 0.19258),
+			K(0.1877, 0.30306), L(0.29337, 0.31029), L_(0.31275, 0.25804), M(0.37233, 0.24025), N(0.42669, 0.23671),
+			N_(0.51266, 0.24762), O(0.51281, 0.31097), O_(0.513, 0.3594), P(0.42674, 0.37457), Q(0.37189, 0.38538),
+			Q_(0.2, 0.42), R(0.20327, 0.5187), R_(0.20661, 0.61941), S(0.37225, 0.63516), T(0.37237, 0.58324),
+			U(0.37237, 0.45838), U_(0.30528, 0.47743), V(0.30466, 0.51988), V_(0.30425, 0.56594), W(0.37215, 0.66494), X(0.42691, 0.66522);
+		A -= Dr, A_ -= Dr, B -= Dr, C -= Dr, C_ -= Dr, D -= Dr, E -= Dr, E_ -= Dr, F -= Dr, F_ -= Dr, G -= Dr, H -= Dr, I -= Dr, J -= Dr, J_ -= Dr, K -= Dr, L -= Dr, L_ -= Dr,
+			M -= Dr, N -= Dr, N_ -= Dr, O -= Dr, O_ -= Dr, P -= Dr, Q -= Dr, Q_ -= Dr, R -= Dr, R_ -= Dr, S -= Dr, T -= Dr, U -= Dr, U_ -= Dr, V -= Dr, V_ -= Dr, W -= Dr, X -= Dr;
+
+		QuadraticBezier2D c_01(A, A_, B), c_03(C, C_, D), c_05(E, E_, F), c_06(F, F_, G), c_10(J, J_, K),
+			c_12(L, L_, M), c_13(N, N_, O), c_14(O, O_, P), c_17(Q, Q_, R), c_18(R, R_, S), c_20(U, U_, V), c_21(V, V_, T);
+		Segment2D c_02(B, C), c_04(D, E), c_07(G, H), c_08(H, I), c_09(I, J), c_11(K, L), c_15(P, N), c_16(M, Q), c_19(T, U), c_22(S, W), c_23(W, X), c_24(X, A);
+
+		FBase.assign({ &c_01, &c_02, &c_03, &c_04, &c_05, &c_06, &c_07, &c_08, &c_09, &c_10, &c_11, &c_12, &c_13, &c_14, &c_15, &c_16, &c_17, &c_18, &c_19, &c_20, &c_21, &c_22, &c_23, &c_24 });
+	}
+
+	XSolid Pt(XObjs::Extrusion_xOy(FBase, -0.5*d, 0.5*d));
+	Pt = CSG_Rotation(Pt, PI / 2, 0, rz - PI / 2);
+	Pt = CSG_Translation(Pt, Pos);
+
+	//ScanXSolid(Pt, 10, 10, 10, 120000);
+
+	X = CSG_UnionOp(X, Pt);
+	//X = Pt;
+
+	X.type = XSolid_Smooth; X.setColor(Gold);
+	X.type = XSolid_LightSource; X.setColor(GoldenRod);
+	return X;
 }

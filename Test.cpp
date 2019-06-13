@@ -920,18 +920,25 @@ void Bezier_Test() {
 	W.setGlobalLightSource(0, 0, 1);
 
 	bitmap img(600, 400);
-	W.render(img, point(-6, -10, 10), point(-2, -2, 0), 0, 0.5);
-	img.out("IMAGE\\RT.bmp");
+	//W.render(img, point(-6, -10, 10), point(-2, -2, 0), 0, 0.5);
+	//img.out("IMAGE\\RT.bmp");
+
+
+	Figure2D S({ &QuadraticBezier2D(point2D(-8.68, 2.36), point2D(7.64, 4.62), point2D(-0.7, -3.86)), &Segment2D(point2D(-8.68, 2.36), point2D(-0.7, -3.86)) });
+	//ScanXSolid(XSolid(XObjs::Extrusion_xOy(S, 5)), 10, 10, 10, 100000);
 
 	double u, v, sd;
 	for (int i = 0; i < 600; i++) {
 		u = (i - 300.) / 25;
 		for (int j = 0; j < 400; j++) {
 			v = (j - 200.) / 25;
-			sd = QuadraticBezier_SDF(point2D(u, v), point2D(-8.68, 2.36), point2D(7.64, 4.62), point2D(-0.7, -3.86));
-			sd -= 0.1;
+			sd = S.SDF(point2D(u, v));
 			img[j][i] = rgb(SolarDeepsea(tanh(0.1*sd)));
+			if (i == 230 && j == 240) {
+				img.dot(i, j, Lime);
+			}
 		}
 	}
+	img.out("IMAGE\\SD.bmp");
 
 }

@@ -242,7 +242,7 @@ class GlassMan_std {
 		upperarms_rounding, forearms_rounding, thighs_rounding, shanks_rounding, feet_rounding;
 
 public:
-	GlassMan_std() {}
+	GlassMan_std() { top = vec3(0, 0, 1), dir = vec3(1, 0, 0); }
 	GlassMan_std(const GlassMan_std &other) {
 		this->Pos = other.Pos, this->top = other.top, this->dir = other.dir, this->v_head = other.v_head, this->v_neck = other.v_neck, this->v_chest = other.v_chest, this->v_waist = other.v_waist, this->v_upperarm_l = other.v_upperarm_l, this->v_upperarm_r = other.v_upperarm_r, this->v_forearm_l = other.v_forearm_l, this->v_forearm_r = other.v_forearm_r, this->v_thigh_l = other.v_thigh_l, this->v_thigh_r = other.v_thigh_r, this->v_shank_l = other.v_shank_l, this->v_shank_r = other.v_shank_r, this->v_foot_l = other.v_foot_l, this->v_foot_r = other.v_foot_r, this->v_head_side = other.v_head_side, this->v_chest_side = other.v_chest_side, this->v_waist_side = other.v_waist_side, this->v_foot_l_side = other.v_foot_l_side, this->v_foot_r_side = other.v_foot_r_side, this->auto_fit = other.auto_fit;
 	}
@@ -252,7 +252,7 @@ public:
 	vec3 v_head, v_neck, v_chest;	// fore vectors
 	vec3 v_waist, v_upperarm_l, v_upperarm_r, v_forearm_l, v_forearm_r,
 		v_thigh_l, v_thigh_r, v_shank_l, v_shank_r, v_foot_l, v_foot_r;
-	vec3 v_head_side, v_chest_side, v_waist_side, v_foot_l_side, v_foot_r_side;		// to left side, beside foot
+	vec3 v_head_side, v_chest_side, v_waist_side, v_foot_l_side, v_foot_r_side;		// toward left (beside foot)
 
 	bool auto_fit;
 
@@ -260,7 +260,8 @@ public:
 		return height_of_heels + length_of_shanks + length_of_thighs + length_of_waist + length_of_chest + length_of_neck + length_of_neck;
 	}
 
-	point construct();
+	point construct(XSolid &X);
+	point construct() { XSolid vr; return construct(vr); }
 
 	void push(World &W) {
 		this->construct();
@@ -268,7 +269,7 @@ public:
 	}
 };
 
-#pragma region GlassMan_Initialize
+#pragma region GlassMan_InitializeStatic
 const double GlassMan_std::length_of_shanks = 0.45;
 const double GlassMan_std::length_of_thighs = 0.30;
 const double GlassMan_std::length_of_upperarms = 0.28;
@@ -311,7 +312,12 @@ const double GlassMan_std::shanks_rounding = 0.02;
 const double GlassMan_std::feet_rounding = 0.015;
 #pragma endregion
 
-point GlassMan_std::construct() {
+point GlassMan_std::construct(XSolid &X) {
+	if (top.mod() == 0) top = vec3(0, 0, 1);
+	if (dir.mod() == 0) dir = vec3(1, 0, 0);
+	if (v_foot_l_side.mod() == 0) v_foot_l_side = cross(v_foot_l, v_shank_l);
+	if (v_foot_r_side.mod() == 0) v_foot_r_side = cross(v_shank_r, v_foot_r);
+
 	top /= top.mod(), dir /= dir.mod();
 	G.Pos = Pos, G.top = top, G.dir = dir;
 	v_head /= v_head.mod(), v_neck /= v_neck.mod(), v_chest /= v_chest.mod(),
@@ -358,18 +364,31 @@ point GlassMan_std::construct() {
 	G.Pos = P;
 
 	//return G.construct();
-	G.construct(); return G.Waist + P;
+	X = G.construct(); return G.Waist + P;
+}
+
+GlassMan_std mix(const GlassMan_std &A, const GlassMan_std &B, double a) {
+	GlassMan_std R;
+	R.Pos = mix(A.Pos, B.Pos, a), R.top = mix(A.top, B.top, a), R.dir = mix(A.dir, B.dir, a);
+	R.v_head = mix(A.v_head, B.v_head, a), R.v_neck = mix(A.v_neck, B.v_neck, a), R.v_chest = mix(A.v_chest, B.v_chest, a);
+	R.v_waist = mix(A.v_waist, B.v_waist, a), R.v_upperarm_l = mix(A.v_upperarm_l, B.v_upperarm_l, a), R.v_upperarm_r = mix(A.v_upperarm_r, B.v_upperarm_r, a), R.v_forearm_l = mix(A.v_forearm_l, B.v_forearm_l, a), R.v_forearm_r = mix(A.v_forearm_r, B.v_forearm_r, a),
+		R.v_thigh_l = mix(A.v_thigh_l, B.v_thigh_l, a), R.v_thigh_r = mix(A.v_thigh_r, B.v_thigh_r, a), R.v_shank_l = mix(A.v_shank_l, B.v_shank_l, a), R.v_shank_r = mix(A.v_shank_r, B.v_shank_r, a), R.v_foot_l = mix(A.v_foot_l, B.v_foot_l, a), R.v_foot_r = mix(A.v_foot_r, B.v_foot_r, a);
+	R.v_head_side = mix(A.v_head_side, B.v_head_side, a), R.v_chest_side = mix(A.v_chest_side, B.v_chest_side, a), R.v_waist_side = mix(A.v_waist_side, B.v_waist_side, a), R.v_foot_l_side = mix(A.v_foot_l_side, B.v_foot_l_side, a), R.v_foot_r_side = mix(A.v_foot_r_side, B.v_foot_r_side, a);
+	R.auto_fit = A.auto_fit && B.auto_fit;
+	return R;
 }
 
 
-XSolid GoldenCoin_Constructor(point Pos, double rz) {
+
+World GoldenCoin_Constructor(point Pos, double rz) {
 	const double R = 0.4, r = 0.35, d = 0.05, dc = 0.01;
 	point P = 0.5*point(d*cos(rz), d*sin(rz));
 	XObjs::Cylinder M(Pos + P, Pos - P, R);
 
-	XObjs::Cylinder M_(Pos - P, Pos - (1 - (dc / d))*P, r);
+	XObjs::Cylinder M_(Pos - (1 + ERR_ZETA)*P, Pos - (1 - (dc / d))*P, r);
 	XSolid X = CSG_SubtractionOp(XSolid(M), XSolid(M_));
-	//X = M_;
+	X.type = XSolid_LightSource; X.setColor(GoldenRod);
+	World W; W.add(X);
 
 	Figure2D FBase; {
 		point2D Dr(R, R);
@@ -393,13 +412,47 @@ XSolid GoldenCoin_Constructor(point Pos, double rz) {
 	XSolid Pt(XObjs::Extrusion_xOy(FBase, -0.5*d, 0.5*d));
 	Pt = CSG_Rotation(Pt, PI / 2, 0, rz - PI / 2);
 	Pt = CSG_Translation(Pt, Pos);
+	Pt.type = XSolid_LightSource; Pt.setColor(Gold);
+	W.add(Pt);
 
-	//ScanXSolid(Pt, 10, 10, 10, 120000);
+	return W;
+}
 
-	X = CSG_UnionOp(X, Pt);
-	//X = Pt;
+GlassMan_std ManStaringAtTheGoldenCoin_Constructor(point Pos, point Coin) {
+	//point Head_t(250, 0, 571), Head_l(260.91526, 0.38595, 496), Shoulder_l(237.4065, -47.95523, 447), Shoulder_r(258.21436, 51.7473, 450), \
+		Elbow_l(232.04458, -68.88944, 359), Elbow_r(278.71312, 56.81604, 350), Hand_l(183.11774, -65.39144, 266), Hand_r(250, 50, 272), Waist(258.78394, -4.46021, 323.37156), \
+		Butt_l(248.35121, -44.10173, 251), Butt_r(237.64275, 33.41189, 251), Knee_l(229.39683, -39.74202, 134.70188), Knee_r(197.30493, 32.15841, 151), \
+		Heel_l(250.55534, -52.03359, 0), Heel_r(227.49324, 20.57475, 25.34064), Tiptoe_l(204.67978, -32.05858, -3), Tiptoe_r(196.10767, 40.85501, 9); // This man towards the negative direction of x-axis
+	//auto crt = [](point &P) { swap(P.x, P.y); P.y = -P.y; };
+	//crt(Head_t), crt(Head_l), crt(Shoulder_l), crt(Shoulder_r), crt(Elbow_l), crt(Elbow_r), crt(Hand_l), crt(Hand_r), crt(Waist), crt(Butt_l), crt(Butt_r), crt(Knee_l), crt(Knee_r), crt(Heel_l), crt(Heel_r), crt(Tiptoe_l), crt(Tiptoe_r);
+	point Head_t(0.30006, 0.68871, 1.72862), Head_l(0.28375, 0.68474, 1.50234), Shoulder_l(0.12473, 0.67233, 1.32706), Shoulder_r(0.44241, 0.57127, 1.33198), \
+		Elbow_l(0.11865, 0.68339, 1.0525), Elbow_r(0.45123, 0.51631, 1.03801), Hand_l(0.16842, 0.80777, 0.8), Hand_r(0.57335, 0.70747, 0.74788), Waist(0.28556, 0.60294, 1.02906), \
+		Butt_l(0.2, 0.6, 0.9559), Butt_r(0.36498, 0.5855, 0.93671), Knee_l(0.1464, 0.62891, 0.53541), Knee_r(0.39911, 0.72735, 0.55453), \
+		Heel_l(0.09372, 0.58649, 0.06124), Heel_r(0.4132, 0.55818, 0.07204), Tiptoe_l(0.1169, 0.71535, 0), Tiptoe_r(0.50511, 0.62787, 0);
+	vec3 v_head(Head_l, Head_t), v_neck(0.5*(Shoulder_l + Shoulder_r), Head_l), v_chest(Waist, 0.5*(Shoulder_l + Shoulder_r)), v_waist(Waist, 0.5*(Butt_l + Butt_r)),
+		v_upperarmL(Shoulder_l, Elbow_l), v_upperarmR(Shoulder_r, Elbow_r), v_forearmL(Elbow_l, Hand_l), v_forearmR(Elbow_r, Hand_r),
+		v_thighL(Butt_l, Knee_l), v_thighR(Butt_r, Knee_r), v_shankL(Knee_l, Heel_l), v_shankR(Knee_r, Heel_r), v_footL(Heel_l, Tiptoe_l), v_footR(Heel_r, Tiptoe_r);
+	v_head /= v_head.mod(), v_neck /= v_neck.mod(), v_chest /= v_chest.mod(), v_waist /= v_waist.mod(), v_upperarmL /= v_upperarmL.mod(), v_upperarmR /= v_upperarmR.mod(),
+		v_forearmL /= v_forearmL.mod(), v_forearmR /= v_forearmR.mod(), v_thighL /= v_thighL.mod(), v_thighR /= v_thighR.mod(), v_shankL /= v_shankL.mod(), v_shankR /= v_shankR.mod(), v_footL /= v_footL.mod(), v_footR /= v_footR.mod();
 
-	X.type = XSolid_Smooth; X.setColor(Gold);
-	X.type = XSolid_LightSource; X.setColor(GoldenRod);
-	return X;
+	GlassMan_std G;
+	G.v_head = v_head;
+	vec3 vt_dir_orig = Coin - (Pos + point(0, 0, GlassMan_std::height())); vt_dir_orig /= vt_dir_orig.mod();
+	vec3 vt_dir = vt_dir_orig; correct_vector(G.v_head, vt_dir);
+	G.v_head_side = cross(G.v_head, vt_dir); G.v_head_side /= G.v_head_side.mod();
+
+	G.v_neck = v_neck, G.v_chest = v_chest, G.v_waist = v_waist;
+	vt_dir = vt_dir_orig; correct_vector(G.v_chest, vt_dir);
+	//G.v_chest_side = cross(vt_dir, G.v_chest); G.v_chest_side /= G.v_chest_side.mod();
+	vt_dir = vt_dir_orig; correct_vector(G.v_waist, vt_dir);
+	//G.v_waist_side = cross(vt_dir, G.v_waist); G.v_waist_side /= G.v_waist_side.mod();
+	G.v_chest_side = Shoulder_l - Shoulder_r, G.v_waist_side = Butt_l - Butt_r;
+
+	G.v_upperarm_l = v_upperarmL, G.v_upperarm_r = v_upperarmR, G.v_forearm_l = v_forearmL, G.v_forearm_r = v_forearmR;
+	G.v_thigh_l = v_thighL, G.v_thigh_r = v_thighR, G.v_shank_l = v_shankL, G.v_shank_r = v_shankR, G.v_foot_l = v_footL, G.v_foot_r = v_footR;
+
+	G.Pos = Pos;
+	G.auto_fit = true;
+
+	return G;
 }

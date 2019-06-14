@@ -942,3 +942,23 @@ void Bezier_Test() {
 	img.out("IMAGE\\SD.bmp");
 
 }
+
+#include "CPT.cpp"
+void CPT_Test1() {
+	World W; W.add(plane_grid(0.0));
+	W.insert(&GoldenCoin_Constructor(point(0, 0, 0.4), 0));
+	bitmap img(300, 200);
+	W.setGlobalLightSource(0, 0, 1);
+	W.render(img, point(-5, -5, 2), point(0, 0, 0.4), 0, 0.1);
+	img.out("IMAGE\\RT.bmp");
+}
+
+void CPT_Test2() {
+	World W; W.add(plane_grid(0.0));
+	XSolid vr; ManStaringAtTheGoldenCoin_Constructor(point(0, 0, 0), point(6.2, 7.2, -0.1)).construct(vr); W.add(vr);
+	bitmap img(400, 600);
+	W.setGlobalLightSource(0, 0, 1);
+	//ADD_AXIS(W, 0.01);
+	W.render(img, point(-5, -3, 0.8), point(0, 0, 0.8), 0, 0.1);
+	img.out("IMAGE\\RT.bmp");
+}

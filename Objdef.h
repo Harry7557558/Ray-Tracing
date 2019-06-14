@@ -72,6 +72,9 @@ public:
 	point(const point &a) {
 		x = a.x, y = a.y, z = a.z;
 	}
+	point(const point &A, const point &B) {
+		x = B.x - A.x, y = B.y - A.y, z = B.z - A.z;
+	}
 	point(const initializer_list<double> &a) {
 		x = *(a.begin()), y = *(a.begin() + 1), z = *(a.begin() + 2);
 	}
@@ -125,6 +128,9 @@ public:
 	}
 	inline friend point cross(const point &a, const point &b) {
 		return point(a.y*b.z - a.z*b.y, a.z*b.x - a.x*b.z, a.x*b.y - a.y*b.x);
+	}
+	friend inline point unitVec(const point &v) {
+		return v / v.mod();
 	}
 	friend ostream& operator << (ostream& os, const point &a) {
 		os << noshowpos << "(" << a.x << "," << a.y << "," << a.z << ")";

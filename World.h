@@ -544,12 +544,13 @@ public:
 		fout << "Elapsed Time: " << defaultfloat << setprecision(3) << fs.count() << "s. \n\n\n";
 
 
+#endif
+
 		// Debug single pixel
-		int debugx = 320, debugy = 120, RP = 0;
+		int debugx = 80, debugy = 48, RP = 0;
 		this->MultiThread_CC(canvas, debugx, debugx + 1, debugy, debugy + 1, C, CV, oi, RP);
 		//pixel col = Red; canvas.dot(debugx + 1, debugy, col); canvas.dot(debugx - 1, debugy, col); canvas.dot(debugx, debugy + 1, col); canvas.dot(debugx, debugy - 1, col);
 
-#endif
 	}
 
 #ifndef _4_Threads_Rendering
@@ -615,10 +616,10 @@ public:
 		int Process;
 		this->MultiThread_CC(canvas, 0, canvas.width(), 0, canvas.height(), C, CV, oi, Process);
 
+	}
 
 #endif
 
-	}
 
 	void print(ostream &os, unsigned n) {
 		string space; for (unsigned i = 0; i < n; i++) space += " ";

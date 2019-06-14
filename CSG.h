@@ -1121,7 +1121,8 @@ public:
 		N.x = (this->SDF(point(R.intrs.x + ERR_ZETA, R.intrs.y, R.intrs.z), R.wt) - this->SDF(point(R.intrs.x - ERR_ZETA, R.intrs.y, R.intrs.z), R.wt)) * (0.5 / ERR_ZETA);
 		N.y = (this->SDF(point(R.intrs.x, R.intrs.y + ERR_ZETA, R.intrs.z), R.wt) - this->SDF(point(R.intrs.x, R.intrs.y - ERR_ZETA, R.intrs.z), R.wt)) * (0.5 / ERR_ZETA);
 		N.z = (this->SDF(point(R.intrs.x, R.intrs.y, R.intrs.z + ERR_ZETA), R.wt) - this->SDF(point(R.intrs.x, R.intrs.y, R.intrs.z - ERR_ZETA), R.wt)) * (0.5 / ERR_ZETA);
-		R.reflect = a.dir - 2 * dot(N, a.dir) * N;	// now N is unit vector
+		N /= N.mod();	// sometimes not unit vector
+		R.reflect = a.dir - 2 * dot(N, a.dir) * N;
 		if (type == XSolid_Crystal) {
 			// send R.ut as the refractive index of the other media
 			// meet = air->obj ? 1 : 0; intrs = refract; reflect = reflect; vt = rate-of-reflection; 

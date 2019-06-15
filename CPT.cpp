@@ -432,9 +432,9 @@ void SetWalkingAttitudes(double t, GlassMan_std &G) {
 	G.auto_fit = true;
 };
 void CPT_Animation_R() {
-	//const unsigned width = 1920, height = 1080, sampling = 2, fps = 25;		// standard
-	const unsigned width = 384, height = 216, sampling = 1, fps = 25;
-	const unsigned R = 2;
+	const unsigned width = 1920, height = 1080, sampling = 2, fps = 25;		// standard
+	//const unsigned width = 192, height = 108, sampling = 1, fps = 25;
+	const unsigned R = 202;
 
 #pragma region R1
 	if (R == 0 || R == 1) CPT_Animation([](double t, World* W) {	// World
@@ -467,39 +467,60 @@ void CPT_Animation_R() {
 #pragma endregion The glass man walks on a path with several identical glass mans.
 
 #pragma region R2
-	if (R == 0 || R == 2) CPT_Animation([](double t, World* W) {	// World
+	if (R == 0 || R == 2 || R == 201) CPT_Animation([](double t, World* W) {	// World
 		parallelogram_grid P(parallelogram(point(-3, -ERR_UPSILON, 0), point(7, 0), point(0, 2 * ERR_UPSILON))); W->add(P);
-		{
-			GlassMan_std G0; SetWalkingAttitudes(t, G0); G0.Pos += point(-0.4, 0); G0.push(*W);
-			GlassMan_std G1; SetWalkingAttitudes(t + 0.4, G1); G1.Pos += point(3.2, 12); G1.push(*W);
-			GlassMan_std G3; SetWalkingAttitudes(t - 0.7, G3); G3.Pos += point(-1.2, 32); G3.push(*W);
-			GlassMan_std G4; SetWalkingAttitudes(t + 1.1, G4); G4.Pos += point(3.6, 80); G4.push(*W);
-			GlassMan_std G5; SetWalkingAttitudes(t + 0.2, G5); G5.Pos += point(-0.6, -22); G5.push(*W);
-		}
+		GlassMan_std G0; SetWalkingAttitudes(t, G0); G0.Pos += point(-0.4, 0); G0.push(*W);
+		GlassMan_std G1; SetWalkingAttitudes(t + 0.4, G1); G1.Pos += point(3.2, 12); G1.push(*W);
+		GlassMan_std G3; SetWalkingAttitudes(t - 0.7, G3); G3.Pos += point(-1.2, 32); G3.push(*W);
+		GlassMan_std G4; SetWalkingAttitudes(t + 1.1, G4); G4.Pos += point(3.6, 80); G4.push(*W);
+		GlassMan_std G5; SetWalkingAttitudes(t + 0.2, G5); G5.Pos += point(-0.6, -22); G5.push(*W);
+		if (t > 12.68) t = 12.68;
 		GlassMan_std G; SetWalkingAttitudes(t - 1, G); G.Pos += point(1.8, -8);		// Protagonist
-		G = mix(G, ManStaringAtTheGoldenCoin_Constructor(point(1.8, 2.3), point(6.2, 7.2, -0.1)), clamp(5 * (t - 12.6), 0.0, 1.0));
-		G.push(*W);
-
+		mix(G, ManStaringAtTheGoldenCoin_Constructor(point(1.8, 2.3), point(6.2, 7.2, -0.1)), clamp(2 * (t - 12.3), 0.0, 1.0)).push(*W);
 		parallelogram_grid Ps(parallelogram(point(5, 6, -0.5), point(2.4, 0), point(0, 2.4)), 0.8, 0.8); W->add(Ps);
 		W->insert(&GoldenCoin_Constructor(point(6.2, 7.2, -0.1), 0.2));
-		//spherebulb Ss(point(6.2, 7.2, -0.1), 0.4); Ss.setcolor(Gold); W->add(Ss);
-
 		//ADD_AXIS(*W, 0.1);
 	}, [](double t) -> point {	// camera
-		return point(-4, -6, 4);
-		return mix(point(-2, 20, 2), ([](double t)->point { GlassMan_std G; SetWalkingAttitudes(t - 1, G); G.Pos += point(1.8, -8); return G.construct(); })(t), 0.5);
-		return NAP;
-	}, [](double t) -> point {	// view point
-		//return point(6.2, 7.2, -0.4);
-		return ([](double t)->point {
+		if (t < 14) return mix(point(-2, 20, 2), ([](double t)->point {
 			GlassMan_std G; SetWalkingAttitudes(t - 1, G); G.Pos += point(1.8, -8);
-			G = mix(G, ManStaringAtTheGoldenCoin_Constructor(point(1.8, 2.3), point(6.2, 7.2, -0.1)), clamp(5 * (t - 12.6), 0.0, 1.0));
-			return G.construct(); })(t);	// t = 12 => (1.77834,1.62188,0.94572)   14 => (1.77982,3.37131,0.946132)   12.8 => (1.77982,2.32165,0.946132)
-			return NAP;
+			G = mix(G, ManStaringAtTheGoldenCoin_Constructor(point(1.8, 2.3), point(6.2, 7.2, -0.1)), clamp(2 * (t - 12.3), 0.0, 1.0));
+			return G.construct(); })(t), 0.5);	// max t: (-0.0963206,11.1622,1.4699)
+		return Catmull_Rom(vector<point>({ point(-0.0963206,11.1622,1.4699), point(-6.30194,16.31809,0.93712),
+			point(-12.26837,4.85286,0.86076), point(-10.92227,-7.02197,2), point(-4, -6, 4) }), 4 * sigmoid(12 * ((t - 14) - 0.5)));
+		return point(-4, -6, 4);
+	}, [](double t) -> point {	// view point
+		if (t < 14) return ([](double t)->point {
+			GlassMan_std G; SetWalkingAttitudes(t - 1, G); G.Pos += point(1.8, -8);
+			G = mix(G, ManStaringAtTheGoldenCoin_Constructor(point(1.8, 2.3), point(6.2, 7.2, -0.1)), clamp(2 * (t - 12.3), 0.0, 1.0));
+			return G.construct(); })(t);	// max t: (1.80736,2.32443,0.939794)
+		else return mix(point(1.80736, 2.32443, 0.939794), point(6.2, 7.2, -0.4), sigmoid(20 * ((t - 14) - 0.6)));
+		return point(1.77982, 3.37131, 0.946132);
 	}, [](double t) -> double {		// solid angle
 		return 0.08;
-		return NAN;
-	}, 12, 13, width, height, fps, sampling, "Animation\\CPTAR2_", 3);	// 0s-12s
+	}, 12, 15, width, height, fps, sampling, "Animation\\CPTAR2.1_", 3);	// 12s-16s, still the last theme for 1s
+
+	if (R == 0 || R == 2 || R == 202) CPT_Animation([](double t, World* W) {	// World
+		parallelogram_grid P(parallelogram(point(-3, -ERR_UPSILON, 0), point(7, 0), point(0, 2 * ERR_UPSILON))); W->add(P);
+		GlassMan_std G0; SetWalkingAttitudes(t, G0); G0.Pos += point(-0.4, 0); G0.push(*W);
+		GlassMan_std G1; SetWalkingAttitudes(t + 0.4, G1); G1.Pos += point(3.2, 12); G1.push(*W);
+		GlassMan_std G3; SetWalkingAttitudes(t - 0.7, G3); G3.Pos += point(-1.2, 32); G3.push(*W);
+		GlassMan_std G4; SetWalkingAttitudes(t + 1.1, G4); G4.Pos += point(3.6, 80); G4.push(*W);
+		GlassMan_std G5; SetWalkingAttitudes(t + 0.2, G5); G5.Pos += point(-0.6, -22); G5.push(*W);
+		ManStaringAtTheGoldenCoin_Constructor(point(1.8, 2.3), point(6.2, 7.2, -0.1)).push(*W);		// Protagonist
+		auto vertical = [](double t) -> double {
+			t -= 16;
+			return (t < PI * 2. / 3) ? (0.05 * pow(sin(3 * t), 2)) : 0;
+		};
+		parallelogram_grid Ps(parallelogram(point(5, 6, vertical(t) - 0.5), point(2.4, 0), point(0, 2.4)), 0.8, 0.8); W->add(Ps);
+		W->insert(&GoldenCoin_Constructor(point(6.2, 7.2, vertical(t) - 0.1), 0.2 + ((t > 18.5 && t < 19.5) ? 2 * (t - 18.5)*PI : 0)));
+	}, [](double t) -> point {	// camera
+		return point(0, 3, 2.8);
+	}, [](double t) -> point {	// view point
+		return point(6.2, 7.2, -0.4);
+	}, [](double t) -> double {		// solid angle
+		return 0.15;
+	}, 16, 20, width, height, fps, sampling, "Animation\\CPTAR2.2_", 3);	// 12s-16s, still the last theme for 1s
+
 #pragma endregion A small lower platform with same material floats lower under the path. As the glass man passes by, a golden coin shines on it.
 
 }

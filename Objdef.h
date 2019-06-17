@@ -9,6 +9,7 @@
 #pragma warning(disable: 4244)	// conversion from 'type1' to 'type2', possible loss of data
 #pragma warning(disable: 4305)	// truncation from 'type1' to 'type2'
 #pragma warning(disable: 4018)	// signed/unsigned mismatch, sometimes cause problems
+#pragma warning(disable: 4010)
 
 #include "BitMap.h"
 #include <queue>
@@ -144,7 +145,7 @@ public:
 	point2D() { x = 0, y = 0; }
 	point2D(const double &x, const double &y) { this->x = x, this->y = y; }
 	point2D(const point2D &another) { x = another.x, y = another.y; }
-	inline void operator = (const point2D &another) { x = another.x, y = another.y; }
+	inline point2D& operator = (const point2D &another) { x = another.x, y = another.y; return *this; }
 	~point2D() {}
 
 	inline point2D operator + (const point2D &a) const {
@@ -655,6 +656,9 @@ public:
 			A << "," << E << "," << F << "," << B << "," << C << "," << G << "," << H << "," << D << "," << A << ")";
 		return os;
 	}
+	inline point center() const {
+		return 0.5*(Min + Max);
+	}
 };
 class borderbox2D {
 	// Use for border of subgroups of objects
@@ -689,13 +693,25 @@ inline point2D PMin(point2D A, point2D B) {
 }
 
 
-#define ERR_EPSILON_SN 1e-8L
+#define ERR_EPSILON_SN 1e-10L
 #define ERR_ZETA_SN 1e-8L
 
 // Solve equation ax^3+bx^2+cx+d=0 with Cardano formula
 // return 1: two or three real roots, r, u, v;
 // return 0: one real root r and two complex roots u+vi, u-vi;
 bool solveCubic(double a, double b, double c, double d, double &r, double &u, double &v) {
+	/*if (a == 0) {
+		a = b, b = c, c = d;
+		double delta = b * b - 4 * a*c; r = NAN;
+		if (delta >= 0) {
+			delta = sqrt(delta), a *= 2, b = -b;
+			u = (b + delta) / a, v = (b - delta) / a; return 1;
+		}
+		else {
+			u = -b, v = sqrt(-delta);
+			a *= 2; u /= a, v /= a; return 0;
+		}
+	}*/
 	b /= a, c /= a, d /= a;		// now a=1
 	double p = c - b * b / 3, q = (b*b / 13.5 - c / 3) * b + d;		// => t^3+pt+q=0, x=t-b/3
 	b /= 3, p /= 3, q /= -2; a = q * q + p * p * p;
@@ -836,7 +852,7 @@ double solveQuartic(double a, double b, double c, double d, double e) {
 	double a_ = 4, b_ = 3 * b, c_ = 2 * c, d_ = d;
 	double r, u, v;
 	if (solveCubic(a_, b_, c_, d_, r, u, v)) {
-		double mi = min(min(u, v), r), ma = max(max(u, v), r);	// to minimas
+		double mi = min(min(u, v), r), ma = max(max(u, v), r);	// two minimas
 		if ((((mi + b)*mi + c)*mi + d)*mi + e > 0 && (((ma + b)*ma + c)*ma + d)*ma + e > 0) return NAN;
 		// both minimas with values greater than 0 => no real root
 	}
@@ -866,6 +882,48 @@ double solveQuartic(double a, double b, double c, double d, double e) {
 		dx = u / v; x -= dx;
 	} while (abs(dx) > ERR_EPSILON_SN && ++n < 20);		// dispose error*/
 	return x;
+}
+void solveQuartic(double a, double b, double c, double d, double e, double &r1, double &r2, double &r3, double &r4) {
+	r1 = r2 = r3 = r4 = NAN;
+	b /= a, c /= a, d /= a, e /= a;
+	double x = 0, dx;
+	double a_ = 4, b_ = 3 * b, c_ = 2 * c, d_ = d;
+	double r, u, v;
+	if (solveCubic(a_, b_, c_, d_, r, u, v)) {
+		double mi = min(min(u, v), r), ma = max(max(u, v), r);	// two minimas
+		if ((((mi + b)*mi + c)*mi + d)*mi + e > 0 && (((ma + b)*ma + c)*ma + d)*ma + e > 0) return;
+	}
+	else {
+		if ((((r + b)*r + c)*r + d)*r + e > 0) return;	// one minima with value greate 0
+	}
+	x = -0.25*b;	// fourth derivative equals to zero (Note that this is not always the best point, sometimes trig extreme point
+	unsigned n = 0; do {
+		if (++n > 30) x = pick_random(-2, 2) - 0.25*b, n -= 30;		// seldom occurs
+		u = (((x + b)*x + c)*x + d)*x + e, v = ((a_*x + b_)*x + c_)*x + d_;
+		dx = u / v; x -= dx;
+	} while (abs(dx) > ERR_EPSILON_SN && ++n < 120);		// finding one root x using Newton's method
+	r1 = x;
+	c_ = b + x, d_ = x * c_ + c, e = x * d_ + d, d = d_, c = c_, b = 1, a = 0;	// Euclid division
+	if (!solveCubic(b, c, d, e, r2, r3, r4)) r3 = r4 = NAN;
+	return;
+}
+void solveQuintic(double a, double b, double c, double d, double e, double f, double &r1, double &r2, double &r3, double &r4, double &r5) {
+	//cout << setprecision(15) << noshowpos << a << "*x^5" << showpos << b << "*x^4" << c << "*x^3" << d << "*x^2" << e << "*x" << f << endl;
+	r1 = r2 = r3 = r4 = r5 = NAN;
+	b /= a, c /= a, d /= a, e /= a, f /= a, a = 1;
+	double x = -0.2*b, u, v, dx;
+	double a_ = 5, b_ = 4 * b, c_ = 3 * c, d_ = 2 * d, e_ = e;
+	unsigned n = 0; do {
+		if (++n > 30) x = pick_random(-2, 2) - 0.2*b, n -= 30;
+		u = ((((a*x + b)*x + c)*x + d)*x + e)*x + f, v = (((a_*x + b_)*x + c_)*x + d_)*x + e_;
+		dx = u / v; x -= dx;
+		//const double MN = 10; if (v < 1 / MN) a *= MN, b *= MN, c *= MN, d *= MN, e *= MN, f *= MN, a_ *= MN, b_ *= MN, c_ *= MN, d_ *= MN, e_ *= MN;
+	} while (abs(dx) > ERR_EPSILON_SN && ++n < 120);
+	r1 = x;
+	//if (a != 1) b /= a, c /= a, d /= a, e /= a, f /= a, a = 1;
+	c_ = b + x, d_ = x * c_ + c, e_ = x * d_ + d, f = x * e_ + e, e = e_, d = d_, c = c_, b = 1, a = 0;
+	solveQuartic(b, c, d, e, f, r2, r3, r4, r5);
+
 }
 
 
@@ -960,3 +1018,31 @@ template<typename T> inline T mix(const T &x, const T &y, const double &a) {
 template<typename T> inline T Bezier(const T &a, const T &b, const T &c, const double &t) {
 	return (1 - t)*(1 - t)*a + 2 * t*(1 - t)*b + t * t*c;
 }
+template<typename T> T Catmull_Rom(vector<T> p, double t) {
+	// Construct a smooth curve between P1 and P2				\
+	                |-0.5  1.5 -1.5  0.5 | |P0|					\
+	P = [t³ t² t 1] | 1.0 -2.5  2.0 -0.5 | |P1|   0 ≤ t ≤ 1		\
+	                |-0.5  0.0  0.5  0.0 | |P2|					\
+	                | 0.0  1.0  0.0  0.0 | |P3|					
+	p.insert(p.begin(), 2 * p[0] - p[1]); p.push_back(2 * p.back() - p[p.size() - 2]);	// constructing endpoints
+	unsigned n = t; t -= n; n++;
+	return (((-0.5*t + 1.0)*t - 0.5)*t) * p[n - 1]
+		+ (((1.5*t - 2.5)*t)*t + 1.0) * p[n]
+		+ (((-1.5*t + 2.0)*t + 0.5)*t) * p[n + 1]
+		+ (((0.5*t - 0.5)*t)*t) * p[n + 2];
+}
+
+void Catmull_Rom_Test() {
+	vector<double> x({ 138.6779485436933, 168.31067737090004, 235.72513545298528, 251.28231808730646, 274.9885011491574, 299.4355024315747, 325.3641401554627, 348.32950499654896, 360.9234147481677, 354.25605076207387, 332.7723223622327, 320.17841261069844, 320.17841261069844, 333.5131405829267, 359.44177830680445, 386.8520524720798, 458.71141987816094, 517.9768775326739, 550.5728792427587, 569.0933347597334, 570.5749712010845, 540.9422423738595, 471.3053296297195, 415.74396307864185, 416.4847812993417, 425.3745999474973, 489.0849669260721, 565.3892436563156, 625.3955195315486, 660.2139759036689, 665.3997034483971, 619.4689737661065, 513.5319682086522, 470.56451140904556, 471.3053296297195, 482.4176029399455, 550.5728792427587, 624.6547013108323, 676.5119767586549, 707.6263420272492, 712.812069571968, 681.6977043033485, 570.5749712010845, 497.233967353591, 445.3766919058968, 440.93178258175135, 507.60542244313876, 545.3871516979514, 595.7627907042681, 627.6179741935744, 614.2832462212773, 573.5382440838049, 526.5693642545089, 451.00590574492605, 370.9975379113052, 290.2205678383551 });
+	vector<double> y({ 442.9614502984681, 382.95517442323467, 289.6120786173552, 264.4242591141776, 171.08116330827397, 102.18506878488225, 69.58906707489012, 68.10743063351683, 85.88706792988718, 116.26061497779808, 157.74643533598612, 203.67716501830603, 258.4977133487139, 266.64671377624654, 268.8691684382727, 239.97725783167448, 159.9688899980538, 96.2585230194327, 88.1095225919454, 102.9258870055611, 125.15043362603622, 158.48725355670078, 228.12416630076132, 295.538624382801, 301.4651701482469, 293.316169720755, 235.53234850757514, 174.04443619101832, 120.7055243019117, 130.33616117077855, 165.89543576352006, 212.5669836664461, 303.6876248103258, 334.06117185825997, 342.9509905064583, 354.0632638166745, 319.98562566529296, 280.7222599691738, 247.38544003849177, 259.23853156941715, 289.6120786173552, 319.98562566529296, 387.4000837473489, 428.1450858848215, 480.7431795532375, 505.93099905642555, 508.1534537184577, 500.7452715116415, 517.043272366622, 550.3800922972955, 568.1597295936995, 568.1597295936995, 573.5773096391665, 578.0222189632526, 603.9508566871282, 604.6970658152852 });
+	vector<vec2> p; for (int i = 0; i < x.size(); i++) p.push_back(vec2(x[i], 720 - y[i]));
+	bitmap canvas(900, 720);
+	point2D prev = p[0], cur;
+	for (double t = 0; t < p.size(); t += 0.01) {
+		cur = Catmull_Rom(p, t);
+		canvas.line(prev.x, prev.y, cur.x, cur.y, 1, Black);
+		prev = cur;
+	}
+	canvas.out("IMAGE\\CTMR.bmp");
+}
+

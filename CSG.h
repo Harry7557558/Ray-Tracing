@@ -10,45 +10,6 @@
 // object exact: legal shape (not an approximation);  SDF exact: legal distance field (issues won't occur when applying operations);
 // "not exact" operations/transformations may affect farther operations/transformations
 
-class CatmullRom_2D {
-	vector<point2D> points;
-	bool close;
-public:
-#pragma warning(disable: 4010)
-	// Create a smooth curve between P1 and P2					\
-	                |-0.5  1.5 -1.5  0.5 | |P0|					\
-	P = [t³ t² t 1] | 1.0 -2.5  2.0 -0.5 | |P1|   0 ≤ t ≤ 1		\
-	                |-0.5  0.0  0.5  0.0 | |P2|					\
-	                | 0.0  1.0  0.0  0.0 | |P3|					\
-	
-	// SDF of P(p0,p1) and {x=x(t),y=y(t)}: derivative p0*x'(t) + p1*y'(t) + x'(t)*x(t) + y'(t)*y(t)
-
-	CatmullRom_2D() : close(false) {}
-	CatmullRom_2D(initializer_list<point2D> q) : close(false) { points.assign(q); }
-	~CatmullRom_2D() { points.clear(); close = false; }
-
-	void assign(point2D P) { points.push_back(P); close = false; }
-	void assign(initializer_list<point2D> q) { points.assign(q); close = false; }
-	void construct_vertex() {
-		points.insert(points.begin(), 2 * points[0] - points[1]);
-		points.push_back(2 * points.back() - points[points.size() - 2]);
-	}
-	void close_path() {
-		points.push_back(points[0]); points.push_back(points[1]);
-		close = true;
-	}
-	point2D& at(unsigned i) { close = false; return points.at(i); }
-	void clear() { points.clear(); close = false; }
-
-	point2D eval(double t) {
-		unsigned n = t; t -= n;
-		return (((-0.5*t + 1.0)*t - 0.5)*t) * points[n - 1]
-			+ (((1.5*t - 2.5)*t)*t + 1.0) * points[n]
-			+ (((-1.5*t + 2.0)*t + 0.5)*t) * points[n + 1]
-			+ (((0.5*t - 0.5)*t)*t) * points[n + 2];
-	}
-
-};
 
 double QuadraticBezier_SDF(const point2D &P, const point2D &A, const point2D &B, const point2D &C, const point2D &E, const point2D &F)
 {
@@ -76,15 +37,21 @@ inline double QuadraticBezier_SDF(point2D P, point2D A, point2D B, point2D C)
 	return QuadraticBezier_SDF(P, A, B, C, C + A - 2 * B, B - A);
 }
 
+
 class Figure2D_Comp {
 public:
 	Figure2D_Comp() {}
 	Figure2D_Comp(const Figure2D_Comp &other) {}
 	virtual Figure2D_Comp* clone() const { return new Figure2D_Comp(*this); }
 	virtual ~Figure2D_Comp() {}
+
 	virtual double SDF(const point2D &P) const { return NAN; }	// always positive
 	virtual bool meet(const point2D &P) const { return -1; }		// construct a ray from the point to the right, return the number of intersections (even/odd)
 	virtual borderbox2D MaxMin() const { return borderbox2D(); }
+
+	virtual void operator += (const vec2 &p) {}
+	virtual void operator *= (const double &s) {}
+	virtual void flip(double h) {}
 };
 class Segment2D : public Figure2D_Comp {
 	point2D V1, V2;
@@ -115,6 +82,22 @@ public:
 	}
 	borderbox2D MaxMin() const {
 		return borderbox2D(V1, V2);
+	}
+
+	void operator += (const vec2 &p) {
+		V1 += p, V2 += p; c = -dot(n, this->V1);
+	}
+	void operator *= (const double &s) {
+		V1 *= s, V2 *= s;
+		if (V1.y > V2.y) this->V1 = V2, this->V2 = V1;
+		this->s = this->V2 - this->V1; l = this->s.mod(); this->s /= l;
+		n = vec2(this->s.y, -this->s.x); c = -dot(n, this->V1);
+	}
+	void flip(double h) {
+		V1.y = h - V1.y, V2.y = h - V2.y;
+		if (V1.y > V2.y) swap(V1, V2);
+		s = this->V2 - this->V1; l = s.mod(); s /= l;
+		n = vec2(s.y, -s.x); c = -dot(n, this->V1);
 	}
 };
 class QuadraticBezier2D : public Figure2D_Comp {
@@ -167,6 +150,98 @@ public:
 		R.Max = PMax(P, R.Max), R.Min = PMin(P, R.Min);
 		return R;
 	}
+
+	void operator += (const vec2 &p) {
+		A += p, B += p, C += p;
+	}
+	void operator *= (const double &s) {
+		A *= s, B *= s, C *= s;
+		E = C + A - 2 * B, F = B - A;
+		a = dot(E, E), b = 3 * dot(E, F), c = 2 * dot(F, F);
+	}
+	void flip(double h) {
+		A.y = h - A.y, B.y = h - B.y, C.y = h - C.y;
+		E = C + A - 2 * B, F = B - A;
+		a = dot(E, E), b = 3 * dot(E, F), c = 2 * dot(F, F);
+	}
+};
+class CubicBezier2D : public Figure2D_Comp {
+	point2D A, B, C, D; vec2 C1, C2, C3, _3C2, _3C3; double t5, t4, t3, t2_, t1_, t0_;
+public:
+	CubicBezier2D() {}
+	CubicBezier2D(const point2D &A, const point2D &B, const point2D &C, const point2D &D) {
+		this->A = A, this->B = B, this->C = C, this->D = D;
+		C1 = -A + 3 * B - 3 * C + D, C2 = A - 2 * B + C, C3 = -A + B;
+		_3C2 = 3 * C2, _3C3 = 3 * C3;
+		t5 = dot(C1, C1), t4 = 5 * dot(C1, C2), t3 = 4 * dot(C1, C3) + 6 * dot(C2, C2);
+		t2_ = 9 * dot(C2, C3), t1_ = 3 * dot(C3, C3), t0_ = 0;
+	}
+	CubicBezier2D(const CubicBezier2D &other) {
+		A = other.A, B = other.B, C = other.C, D = other.D;
+		C1 = other.C1, C2 = other.C2, C3 = other.C3;
+		_3C2 = other._3C2, _3C3 = other._3C3;
+		t5 = other.t5, t4 = other.t4, t3 = other.t3, t2_ = other.t2_, t1_ = other.t1_, t0_ = other.t0_;
+	}
+	Figure2D_Comp* clone() const { return new CubicBezier2D(*this); }
+	~CubicBezier2D() {}
+
+	inline point2D eval(double t) const {
+		return ((C1*t + _3C2)*t + _3C3)*t + A;
+	}
+	double SDF(const point2D &P) const {
+		double r1, r2, r3, r4, r5;
+		point2D C4 = A - P;
+		solveQuintic(t5, t4, t3, t2_ + dot(C4, C1), t1_ + 2 * dot(C4, C2), t0_ + dot(C3, C4), r1, r2, r3, r4, r5);
+		double sd = INFINITY;
+		auto rpn = [](double t, double &sd, const point2D &P, const CubicBezier2D* p) {
+			if (isnan(t) || t < 0 || t > 1) return;
+			sd = min(sd, (p->eval(t) - P).mod());
+		};
+		rpn(r1, sd, P, this), rpn(r2, sd, P, this), rpn(r3, sd, P, this), rpn(r4, sd, P, this), rpn(r5, sd, P, this);
+		return min(sd, min((P - A).mod(), (P - D).mod()));
+	}
+	bool meet(const point2D &P) const {
+		double r1, r2, r3;
+		if (solveCubic(C1.y, _3C2.y, _3C3.y, A.y - P.y, r1, r2, r3)) {
+			return (r1 > 0 && r1 < 1 && ((C1.x*r1 + _3C2.x)*r1 + _3C3.x)*r1 + A.x > P.x)
+				^ (r2 > 0 && r2 < 1 && ((C1.x*r2 + _3C2.x)*r2 + _3C3.x)*r2 + A.x > P.x)
+				^ (r3 > 0 && r3 < 1 && ((C1.x*r3 + _3C2.x)*r3 + _3C3.x)*r3 + A.x > P.x);
+		}
+		else {
+			return (r1 > 0 && r1 < 1 && ((C1.x*r1 + _3C2.x)*r1 + _3C3.x)*r1 + A.x > P.x);
+		}
+	}
+	borderbox2D MaxMin() const {
+		borderbox2D R(A, D);
+		auto solveQuadratic = [](double a, double b, double c, double &r1, double &r2) {
+			double delta = sqrt(b*b - 4 * a*c);
+			r1 = (sqrt(delta) - b) / (2 * a), r2 = (-sqrt(delta) - b) / (2 * a);
+		};
+		double tx1, tx2, ty1, ty2;
+		solveQuadratic(C1.x, 2 * C2.x, C3.x, tx1, tx2);
+		solveQuadratic(C1.y, 2 * C2.y, C3.y, ty1, ty2);
+		vec2 P1(eval(tx1).x, eval(ty1).y), P2(eval(tx2).x, eval(ty2).y);
+		R.Max = PMax(PMax(P1, P2), R.Max), R.Min = PMin(PMin(P1, P2), R.Min);
+		return R;
+	}
+
+	void operator += (const vec2 &p) {
+		A += p, B += p, C += p, D += p;
+	}
+	void operator *= (const double &s) {
+		A *= s, B *= s, C *= s, D *= s;
+		C1 = -A + 3 * B - 3 * C + D, C2 = A - 2 * B + C, C3 = -A + B;
+		_3C2 = 3 * C2, _3C3 = 3 * C3;
+		t5 = dot(C1, C1), t4 = 5 * dot(C1, C2), t3 = 4 * dot(C1, C3) + 6 * dot(C2, C2);
+		t2_ = 9 * dot(C2, C3), t1_ = 3 * dot(C3, C3), t0_ = 0;
+	}
+	void flip(double h) {
+		A.y = h - A.y, B.y = h - B.y, C.y = h - C.y, D.y = h - D.y;
+		C1 = -A + 3 * B - 3 * C + D, C2 = A - 2 * B + C, C3 = -A + B;
+		_3C2 = 3 * C2, _3C3 = 3 * C3;
+		t5 = dot(C1, C1), t4 = 5 * dot(C1, C2), t3 = 4 * dot(C1, C3) + 6 * dot(C2, C2);
+		t2_ = 9 * dot(C2, C3), t1_ = 3 * dot(C3, C3), t0_ = 0;
+	}
 };
 class Figure2D {
 	vector<Figure2D_Comp*> objs;		// lines to construct border, make sure it's enclosed
@@ -174,6 +249,168 @@ public:
 	Figure2D() {}
 	Figure2D(initializer_list<Figure2D_Comp*> q) {
 		for (int i = 0; i < q.size(); i++) objs.push_back((*(q.begin() + i))->clone());
+	}
+	Figure2D(string path) {
+		// in SVG path format  Ex. "M150 0 L75 200 L225 200 Z"    elliptic arc and smooth quadratic curve are not supported
+		// standard: https://www.w3.org/TR/SVG/paths.html
+
+		auto toUppercase = [](char c) -> char {return c >= 'a' && c <= 'z' ? c - 32 : c; };
+		auto isletter = [](char c) -> bool { return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'); };
+		auto isnumber = [](char c) -> bool { return (c >= '0' && c <= '9') || c == '-' || c == '.'; };
+		auto str2float = [](string s) -> double {
+			auto ustr2num = [](string s) -> double {	// return float, preventing overflow
+				double r = 0;
+				for (int i = 0; i < s.size(); i++) r *= 10, r += s[i] - '0';
+				return r;
+			};
+			bool sign = 0; if (s[0] == '-') s.erase(0, 1), sign = 1;
+			if (s.find('.', 0) == -1) return sign ? -ustr2num(s) : ustr2num(s);
+			string d = s.substr(s.find('.', 0), s.size());
+			s = s.substr(0, s.find('.', 0));
+			while (d.find('.', 0) != -1) d.erase(d.find('.', 0), 1);
+			double r = ustr2num(d); r /= pow(10, d.size());
+			r += ustr2num(s);
+			return sign ? -r : r;
+		};
+
+		vector<string> p; path += " ";
+		while (path.find('+') != -1) path[path.find('+')] = ' ';
+		for (int i = 1; i < path.size(); i++) {
+			if (path[i] == '-' && path[i - 1] != ' ') path.insert(i, " ");
+		}
+		for (int i = 0; i < path.size(); i++) {
+			if (isletter(path[i])) p.push_back(path.substr(i, 1));
+			else if (isnumber(path[i])) {
+				p.push_back(path.substr(i, 1)); i++;
+				while (isnumber(path[i])) {
+					p.back() += path[i], i++;
+				}
+				i--;
+			}
+		}
+
+
+		p.push_back("End.");
+		char status = 0, prev_status = 0; vector<point2D> buffer, prev_buffer; point2D M, P;
+		for (int i = 0; i < p.size(); i++) {
+			if (isletter(p[i][0])) {
+			restart:;
+				switch (status) {
+				case 'M': {		// move to
+					if (!buffer.empty()) M = P = buffer.back(); break;
+				}
+				case 'm': {
+					if (!buffer.empty()) M += buffer.back(); P = M; break;
+				}
+				case 'H':; case 'V':; case 'L': {	// line to
+					buffer.insert(buffer.begin(), P);
+					for (int i = 1; i < buffer.size(); i++) objs.push_back(Segment2D(buffer[i - 1], buffer[i]).clone());
+					P = buffer.back(); break;
+				}
+				case 'h':; case 'v':; case 'l': {
+					buffer.insert(buffer.begin(), P);
+					for (int i = 1; i < buffer.size(); i++) {
+						buffer[i] += buffer[i - 1];
+						objs.push_back(Segment2D(buffer[i - 1], buffer[i]).clone());
+					}
+					P = buffer.back(); break;
+				}
+				case 'S': {		// smooth curveto ??
+					if (toUppercase(prev_status) == 'C') {
+						if (prev_buffer.size() > 2) buffer.insert(buffer.begin(), 2 * prev_buffer.back() - prev_buffer[prev_buffer.size() - 2]);
+					}
+					else buffer.insert(buffer.begin(), P);
+					if (buffer.size() > 3) {
+						i -= 2 * (buffer.size() - 3), p.insert(p.begin() + i, "S");
+						while (buffer.size() > 3) buffer.pop_back();
+					}
+					status = 'C';
+					goto restart;
+				}
+				case 's': {
+					if (toUppercase(prev_status) == 'C') {
+						if (prev_buffer.size() > 2) buffer.insert(buffer.begin(), prev_buffer.back() - prev_buffer[prev_buffer.size() - 2]);
+					}
+					else buffer.insert(buffer.begin(), P);
+					//buffer.insert(buffer.begin(), P);
+					if (buffer.size() > 3) {
+						i -= 2 * (buffer.size() - 3), p.insert(p.begin() + i, "s");
+						while (buffer.size() > 3) buffer.pop_back();
+					}
+					status = 'c';
+					goto restart;
+				}
+				case 'C': {	// cubic bezier curve
+					buffer.insert(buffer.begin(), P);
+					unsigned dir = 0;
+					while (true) {
+						if (buffer.size() - dir < 4) break;
+						objs.push_back(CubicBezier2D(buffer[dir], buffer[dir + 1], buffer[dir + 2], buffer[dir + 3]).clone());
+						dir += 3;
+					}
+					P = buffer.back(); break;
+				}
+				case 'c': {
+					buffer.insert(buffer.begin(), P);
+					unsigned dir = 0;
+					while (true) {
+						if (buffer.size() - dir < 4) break;
+						buffer[dir + 1] += buffer[dir], buffer[dir + 2] += buffer[0], buffer[dir + 3] += buffer[0];
+						objs.push_back(CubicBezier2D(buffer[dir], buffer[dir + 1], buffer[dir + 2], buffer[dir + 3]).clone());
+						dir += 3;
+					}
+					P = buffer.back(); break;
+				}
+				case 'Q':; case 'T': {	// quadratic bezier curve
+					buffer.insert(buffer.begin(), P);
+					while (true) {
+						if (buffer.size() < 3) break;
+						objs.push_back(QuadraticBezier2D(buffer[0], buffer[1], buffer[2]).clone());
+						buffer.erase(buffer.begin(), buffer.begin() + 2);
+					}
+					P = buffer.back(); break;
+				}
+				case 'q':; case 't': {
+					buffer.insert(buffer.begin(), P);
+					for (int i = 1; i < buffer.size(); i++) buffer[i] += P;
+					while (true) {
+						if (buffer.size() < 3) break;
+						objs.push_back(QuadraticBezier2D(buffer[0], buffer[1], buffer[2]).clone());
+						buffer.erase(buffer.begin(), buffer.begin() + 2);
+					}
+					P = buffer.back(); break;
+				}
+				case 'Z':; case 'z': {	// close path
+					break;
+				}
+				}
+				if (toUppercase(p[i][0]) == 'Z') {
+					if (!buffer.empty()) objs.push_back(Segment2D(buffer.back(), M).clone());
+				}
+				prev_buffer = buffer;
+				buffer.clear();
+				prev_status = status, status = p[i][0];
+			}
+			else if (isnumber(p[i][0])) {
+				switch (toUppercase(status)) {
+				case 'M':; case 'L':; case 'C':; case 'S':; case 'Q':; case 'T': {
+					if (isnumber(p[++i][0])) buffer.push_back(point2D(str2float(p[i - 1]), str2float(p[i])));
+					buffer.back() += vec2(pick_random(-ERR_EPSILON, ERR_EPSILON), pick_random(-ERR_EPSILON, ERR_EPSILON))
+						* buffer.back().mod();	// preventing errors in calculating SDFs/intersections (ex. dividing by zero)  Since input are strings, this error often occurs
+					break;
+				}
+				case 'H': {
+					buffer.push_back(point2D(str2float(p[i]), 0)); break;
+				}
+				case 'V': {
+					buffer.push_back(point2D(0, str2float(p[i]))); break;
+				}
+				case 'Z': {
+					buffer.push_back(M); break;
+				}
+				}
+			}
+		}
 	}
 	Figure2D(const Figure2D &other) {
 		for (int i = 0; i < other.objs.size(); i++) objs.push_back(other.objs.at(i)->clone());
@@ -193,6 +430,7 @@ public:
 	}
 	~Figure2D() { clear(); }
 
+
 	bool contain(const point2D &P) const {
 		bool r = false;
 		for (int i = 0; i < objs.size(); i++) r ^= objs.at(i)->meet(P);
@@ -210,6 +448,16 @@ public:
 			R.Max = PMax(R.Max, B.Max), R.Min = PMin(R.Min, B.Min);
 		}
 		return R;
+	}
+
+	void operator += (const vec2 &p) {
+		for (int i = 0; i < objs.size(); i++) *(objs.at(i)) += p;
+	}
+	void operator *= (const double &s) {
+		for (int i = 0; i < objs.size(); i++) *(objs.at(i)) *= s;
+	}
+	void mirrors(double h) {	// "flip" object (since the coordinate system is different in svg)
+		for (int i = 0; i < objs.size(); i++) objs.at(i)->flip(h);
 	}
 };
 
@@ -869,7 +1117,8 @@ namespace XObjs {
 #define CSG_OnionOp_Sign 0x1106
 #define CSG_Translation_Sign 0x0107
 #define CSG_Rotation_Sign 0x0108
-#define CSG_SmoothUnionOp_Sign 0x2109
+#define CSG_Scale_Sign 0x0109
+#define CSG_SmoothUnionOp_Sign 0x210A
 
 #define CSG_UnionOperator ((const XObjs::XObjs_Comp*)CSG_UnionOp_Sign)
 #define CSG_IntersectionOperator ((const XObjs::XObjs_Comp*)CSG_IntersectionOp_Sign)
@@ -879,6 +1128,7 @@ namespace XObjs {
 #define CSG_OnionOperator ((const XObjs::XObjs_Comp*)CSG_OnionOp_Sign)
 #define CSG_TranslationOperator ((const XObjs::XObjs_Comp*)CSG_Translation_Sign)
 #define CSG_RotationOperator ((const XObjs::XObjs_Comp*)CSG_Rotation_Sign)
+#define CSG_ScaleOperator ((const XObjs::XObjs_Comp*)CSG_Scale_Sign)
 #define CSG_SmoothUnionOperator ((const XObjs::XObjs_Comp*)CSG_SmoothUnionOp_Sign)
 
 
@@ -890,6 +1140,7 @@ namespace XObjs {
 #define XSolid_Diffuse 0x10000100
 #define XSolid_Crystal 0x10001000
 #define XSolid_LightSource 0x10010000
+#define XSolid_LightingCrystal 0x10100000
 class XSolid : public object {
 	vector<const XObjs::XObjs_Comp*> objs;
 	vector<void**> objs_tp;
@@ -908,6 +1159,7 @@ class XSolid : public object {
 				switch (unsigned(other.objs.at(i))) {
 				case CSG_RoundingOp_Sign:;
 				case CSG_OnionOp_Sign:;
+				case CSG_Scale_Sign:;
 				case CSG_SmoothUnionOp_Sign: {
 					this->objs_tp.back()[0] = new double(*((double*)(other.objs_tp.at(i)[0])));
 					break;
@@ -1003,7 +1255,7 @@ public:
 		if (objs.empty()) border.Max = border.Min = point(0, 0, 0);
 		border.fix();
 
-		if (type != XSolid_Diffuse && type != XSolid_Crystal && type != XSolid_LightSource) type = XSolid_Smooth;
+		if (type != XSolid_Diffuse && type != XSolid_Crystal && type != XSolid_LightSource && type != XSolid_LightingCrystal) type = XSolid_Smooth;
 		if (refractive_index > 100 || refractive_index < 0.01) refractive_index = 1.5;
 
 		Max_StackLength = 0;
@@ -1060,6 +1312,11 @@ public:
 				P *= *((matrix3D*)objs_tp.at(i)[0]);
 				break;
 			}
+			case CSG_Scale_Sign: {
+				P *= *((double*)objs_tp.at(i)[0]);
+				if (*((double*)objs_tp.at(i)[0]) < 0) S[dir - 1] *= -*((double*)objs_tp.at(i)[0]);
+				break;
+			}
 			case CSG_SmoothUnionOp_Sign: {
 				dir--;
 				//S[dir - 1] = -*((double*)objs_tp.at(i)[0]) * log(exp(-S[dir] / *((double*)objs_tp.at(i)[0])) + exp(-S[dir - 1] / *((double*)objs_tp.at(i)[0])));
@@ -1114,7 +1371,7 @@ public:
 			R.meet = true;
 			return;
 		}
-	}
+		}
 
 	void reflectData(intersect &R, const ray &a) const {
 		point N;
@@ -1123,7 +1380,7 @@ public:
 		N.z = (this->SDF(point(R.intrs.x, R.intrs.y, R.intrs.z + ERR_ZETA), R.wt) - this->SDF(point(R.intrs.x, R.intrs.y, R.intrs.z - ERR_ZETA), R.wt)) * (0.5 / ERR_ZETA);
 		N /= N.mod();	// sometimes not unit vector
 		R.reflect = a.dir - 2 * dot(N, a.dir) * N;
-		if (type == XSolid_Crystal) {
+		if (type == XSolid_Crystal || type == XSolid_LightingCrystal) {
 			// send R.ut as the refractive index of the other media
 			// meet = air->obj ? 1 : 0; intrs = refract; reflect = reflect; vt = rate-of-reflection; 
 			R.meet = R.vt > 0 ? 1 : 0;
@@ -1140,10 +1397,12 @@ public:
 			double Rs = (n2*c1 - n1 * c2) / (n2*c1 + n1 * c2); Rs *= Rs;
 			double Rp = (n2*c2 - n1 * c1) / (n2*c2 + n1 * c1); Rp *= Rp;
 			R.vt = 0.5*(Rs + Rp);
+			R.ut = abs(dot(a.dir, N));
 			return;
 		}
 		if (type == XSolid_LightSource) {
 			R.ut = abs(dot(a.dir, N));
+			return;
 		}
 	}
 
@@ -1234,6 +1493,19 @@ public:
 		//cout << A.border << endl << X.border << endl;
 		return X;
 	}
+	friend XSolid CSG_Scale(const XSolid &A, double s) {	// exact
+		XSolid X;
+		s = abs(s);
+		X.objs.push_back(CSG_ScaleOperator), X.objs_tp_push();
+		X.objs_tp.back()[0] = new double(1 / s);
+		for (int i = 0; i < A.objs.size(); i++) X.objs.push_back(unsigned(A.objs.at(i)) >> 16 ? A.objs.at(i)->clone() : A.objs.at(i));
+		X.deep_copy(A);
+		X.objs.push_back(CSG_ScaleOperator), X.objs_tp_push();
+		X.objs_tp.back()[0] = new double(-s);
+
+		X.border.Max = A.border.Max * s, X.border.Min = A.border.Min * s;
+		return X;
+	}
 	friend XSolid CSG_UnionOp_Smooth(const XSolid &A, const XSolid &B, double r) {
 		XSolid X;
 		for (int i = 0; i < A.objs.size(); i++) X.objs.push_back(unsigned(A.objs.at(i)) >> 16 ? A.objs.at(i)->clone() : A.objs.at(i));
@@ -1245,7 +1517,7 @@ public:
 		X.border.Max += point(r, r, r), X.border.Min -= point(r, r, r);
 		return X;
 	}
-};
+	};
 
 
 

@@ -1,0 +1,36 @@
+﻿<!doctype html>
+<html>
+<head>
+    <title>IMG_TOOL</title>
+    <meta charset="utf-8" />
+</head>
+<body>
+    <canvas id="canvas" width="1200" height="600" style="border: 4px solid black; padding:0; cursor:crosshair;"
+            onmousemove="if (!freeze) showCoordinate(event)" onclick="showCoordinate(event), freeze = true;" oncontextmenu="    event.preventDefault(), freeze = false;"></canvas> <br />
+    <input type='file' name='img' size='65' id='uploadimage' onchange="draw()" />
+    <span id="coordinate"></span>
+    <script>
+        function draw() {
+            var canvas = document.getElementById('canvas'), ctx = canvas.getContext('2d');
+            var url = (window.URL || window.webkitURL);
+            var src = url.createObjectURL(document.getElementById("uploadimage").files[0]);
+            //console.log(document.getElementById("uploadimage").attr('src'));
+            var img = new Image(); img.src = src;
+            img.onload = function () {
+                console.log(img.width, img.height);
+                var w = 1200, h = 1200 * img.height / img.width;
+                canvas.width = w, canvas.height = h, canvas.style.width = w + 'px', canvas.style.height = h + 'px';
+                ctx.drawImage(img, 0, 0, w, h);
+                url.revokeObjectURL(src);
+            }
+        }
+
+        var freeze = false;
+        function showCoordinate(e) {
+            var x = e.clientX - document.getElementById("canvas").getBoundingClientRect().left, y = e.clientY - document.getElementById("canvas").getBoundingClientRect().top;
+            document.getElementById("coordinate").innerText = "(" + Math.round(x) + "," + Math.round(canvas.height-y) + ")";
+        }
+
+    </script>
+</body>
+</html>

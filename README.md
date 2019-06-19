@@ -8,4 +8,4 @@ Our animation type is 3D animation / CGI.
 
 **Work Due: June 14th, 2019**
 
-[](CPTAT1.gif)
+

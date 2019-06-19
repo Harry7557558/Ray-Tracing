@@ -8,7 +8,7 @@ Our animation type is 3D animation / CGI.
 
 **Work Due: June 18th, 2019**
 
-**Final Product: [YouTube Video](https://www.youtube.com/watch?v=ZQ4x4_ZViqo&feature=youtu.be); &emsp;&emsp;[My Work](https://github.com/Harry7557558/Ray-Tracing/blob/CPT/Final%20Product/CGI.mp4)**
+**Final Product: [YouTube Video](https://www.youtube.com/watch?v=ZQ4x4_ZViqo&feature=youtu.be); &emsp;[My Work](https://github.com/Harry7557558/Ray-Tracing/blob/CPT/Final%20Product/CGI.mp4); **
 
 
 # Creation Process

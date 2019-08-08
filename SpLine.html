@@ -31,10 +31,12 @@
     </div>
     <div id="tool">
         <select id="list" title="Select Spline Type" onchange="preview(event)">
-            <option value="Bezier">Bezier</option>
-            <option value="Catmull-Rom" selected>Catmull-Rom</option>
-            <option value="Lagrange">Lagrange</option>
-            <option value="Cubic">Cubic</option>
+            <option value="Segment">Segment (c0)</option>
+            <option value="Cubic">Cubic (c0)</option>
+            <option value="Bezier">Bezier (c1,fitting)</option>
+            <option value="Catmull-Rom" selected>Catmull-Rom (c1)</option>
+            <option value="Hermite">Hermite (c1)</option>
+            <option value="Lagrange">Lagrange (c∞)</option>
         </select>
     </div>
     <script>
@@ -71,6 +73,13 @@
             redraw();
         }
 
+        function Segment(ctx) {
+            var n = pointlistX.length - 1, px = pointlistX.slice(0), py = pointlistY.slice(0);
+            ctx.beginPath();
+            ctx.moveTo(px[0], py[0]);
+            for (var i = 1; i < n; i++) ctx.lineTo(px[i], py[i]);
+            ctx.stroke();
+        }
         function Bezier(ctx) {
             var C = function C(n, k) {
                 if (k > n / 2) k = n - k;
@@ -150,7 +159,6 @@
 
             var t, t2, t3, x, y, C0, C1, C2, C3;
 
-
             for (m = 0; m < n; m++) {
                 ctx.beginPath();
                 ctx.moveTo(px[m + 1], py[m + 1]);
@@ -158,25 +166,16 @@
                     t = d / 60;
                     t2 = t * t, t3 = t2 * t;
                     C0 = -0.5 * t3 + t2 - 0.5 * t, C1 = 1.5 * t3 - 2.5 * t2 + 1, C2 = -1.5 * t3 + 2 * t2 + 0.5 * t, C3 = 0.5 * t3 - 0.5 * t2;
-                    /*
-                     * Outline of derivation steps:
-                     * Suppose P(t) = f0(t)*P0 + f1(t)*P1 + f2(t)*P2 + f3(t)*p3, fi(t) = ai*t^3 + bi*t^2 + ci*t + di, t in [0,1];
-                     * P(0)=f1  =>  d0=d2=d3=0, d1=1;
-                     * P(1)=f1  =>  a0+b0+c0=0, a1+b1+c1=-1, a2+b2+c2=1, a3+b3+c3=0;
-                     * Derivate fi, since extra points doesn't matter, we get c3=0, 3a0+2b0+c0=0;
-                     * Since the joints are smooth, corresponding derivatives are equal; thus we get: 3a1+2b1+c1=c0, 3a2+2b2+c2=c1, 3a3+2b3=c2;
-                     * Simultaneous these equations and solve, we can express all the coffecients in terms of a1, a2, a3;
-                     * In order to get better visual effects, let f1(t)=f2(1-t), then solve a2 and a3 in terms of a1;
-                     * Let f(t)=f0(t)+f1(t) be symmetric around point (0.5,0.5) (f(t)=-f(1-t)+1), solve a1=1.5; plug a1 in and get all coffecients.
-                     * The result should be a smooth curve without crossing. 
-                     // Ps: try to use a similar way to solve the equation of spline surface defined by splines
-                     */
                     x = C0 * px[m] + C1 * px[m + 1] + C2 * px[m + 2] + C3 * px[m + 3];
                     y = C0 * py[m] + C1 * py[m + 1] + C2 * py[m + 2] + C3 * py[m + 3];
                     ctx.lineTo(x, y);
                 }
                 ctx.stroke();
             }
+        }
+        function Hermite(ctx) {
+            var n = pointlistX.length - 1, px = pointlistX.slice(0), py = pointlistY.slice(0);
+
         }
 
         function redraw() {
@@ -201,6 +200,12 @@
             if (l > 1) {
                 ctx.strokeStyle = "Lime";
                 switch (document.getElementById("list").value) {
+                    case "Segment": {
+                        Segment(ctx); break;
+                    }
+                    case "Cubic": {
+                        Cubic(ctx); break;
+                    }
                     case "Bezier": {
                         Bezier(ctx); break;
                     }
@@ -209,9 +214,6 @@
                     }
                     case "Lagrange": {
                         Lagrange(ctx); break;
-                    }
-                    case "Cubic": {
-                        Cubic(ctx); break;
                     }
                 }
             }
